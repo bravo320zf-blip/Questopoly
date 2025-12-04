@@ -301,9 +301,6 @@
     <!-- BANNER TEXT (Visual) -->
     <div id="questopoly-banner-text" style="display:none">Questopoly</div>
 	
-	    <!-- MOBILE TABS (New Addition - Place here) -->
-    <div id="tab-char" class="mobile-tab" onclick="toggleDrawer('p1-sheet')">👤</div>
-    <div id="tab-leader" class="mobile-tab" onclick="toggleDrawer('leaderboard')">🏆</div>
 
     <!-- THIS CONTAINER IS THE SQUARE THAT STICKS TO THE BOARD -->
     <div id="board-overlay">
@@ -346,7 +343,7 @@
         </div>
 
         <!-- TOP RIGHT: LEADERBOARD -->
-        <div id="leaderboard" class="panel minimized">
+        <div id="leaderboard" class="panel minimized"> 
             <h3 style="margin:0 0 10px 0; text-align:center; color:#ccc; border-bottom:1px solid #444; padding-bottom:5px; position: relative;">
                 Leaderboard
                 <button class="minimize-btn" onclick="togglePanel('leaderboard')" style="position: absolute; right: 0; top: 0;">+</button>
@@ -2103,17 +2100,6 @@ function handleContextOpen(e, identifier, source='inv') {
 }
 function closeCtx() { document.getElementById('context-menu').style.display = 'none'; }
 function togglePanel(id) { const panel = document.getElementById(id); if(!panel) return; panel.classList.toggle('minimized'); const btn = panel.querySelector('.minimize-btn'); if(btn) btn.innerText = panel.classList.contains('minimized') ? "+" : "-"; }
-function toggleDrawer(id) {
-    const el = document.getElementById(id);
-    if (!el) return;
-    
-    // Close other drawer if open
-    const otherId = (id === 'p1-sheet') ? 'leaderboard' : 'p1-sheet';
-    document.getElementById(otherId).classList.remove('active');
-    
-    // Toggle target
-    el.classList.toggle('active');
-}
 function toggleCreatorPortrait() { const el = document.getElementById('creator-portrait-frame'); const btn = document.getElementById('btn-min-portrait'); if(!el || !btn) return; el.classList.toggle('minimized'); btn.innerText = el.classList.contains('minimized') ? "+" : "-"; }
 function showModal(t,d,o){ const m=document.getElementById('card-modal'); setT('enc-title',t); setT('card-desc',d); const l=document.getElementById('choice-list'); l.innerHTML=''; document.getElementById('dice-result').innerHTML=''; o.forEach(x=>{ let b=document.createElement('div'); b.className='choice-btn'; b.innerText=x.txt; b.onclick=()=>{m.classList.remove('active');x.act();}; l.appendChild(b); }); m.classList.add('active'); }
 function openCharDetail(id) { const p = players[id]; if(!p) return; setT('cd-header', p.name); setT('cd-sub', p.race.name + " " + p.class.name); setT('cd-str', p.stats.str); setT('cd-dex', p.stats.dex); setT('cd-int', p.stats.int); const portraitEl = document.getElementById('cd-portrait'); if(portraitEl) portraitEl.style.backgroundImage = `url('${p.portrait}')`; const act = ABILITY_LIBRARY[p.activeSkillId]; const pas = ABILITY_LIBRARY[p.passiveSkillId]; setT('cd-active', act ? act.name : '-'); setT('cd-active-desc', act ? act.desc : ''); setT('cd-passive', pas ? pas.name : '-'); setT('cd-passive-desc', pas ? pas.desc : ''); const invSection = document.getElementById('cd-inventory-section'); const hiddenMsg = document.getElementById('cd-hidden-msg'); if (id === 0) { if(invSection) invSection.style.display = 'block'; if(hiddenMsg) hiddenMsg.style.display = 'none'; ['head','body','main','off'].forEach(slot => { const item = p.equipment[slot]; const el = document.getElementById('cd-slot-'+slot); if(el) { el.innerHTML = item ? item.name : slot.toUpperCase(); el.className = 'equip-slot' + (item ? ' filled' : ''); if(item) { el.onmouseenter = () => showTooltip(item); el.onmouseleave = hideTooltip; } else { el.onmouseenter = null; } } }); const grid = document.getElementById('cd-inv-grid'); if(grid) { grid.innerHTML = ''; p.inventory.forEach(item => { let d = document.createElement('div'); d.className = 'inv-slot'; d.innerText = item.name; d.classList.add('rarity-' + item.rarity); d.onmouseenter = () => showTooltip(item); d.onmouseleave = hideTooltip; grid.appendChild(d); }); for(let i=p.inventory.length; i<12; i++) { let d = document.createElement('div'); d.className = 'inv-slot'; grid.appendChild(d); } } } else { if(invSection) invSection.style.display = 'none'; if(hiddenMsg) hiddenMsg.style.display = 'block'; } const modal = document.getElementById('char-detail-modal'); if(modal) modal.classList.add('active'); }
