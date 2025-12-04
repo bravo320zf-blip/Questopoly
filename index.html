@@ -212,81 +212,116 @@
    ================================================================ */
 @media only screen and (max-width: 768px) {
     
-    /* 1. Shrink Fonts slightly on mobile */
-    .char-header { font-size: 1.5vmin !important; }
-    .gold-large { font-size: 2.5vmin !important; }
-    .stat-val { font-size: 2vmin !important; }
-    .stat-lbl { font-size: 0.9vmin !important; }
-    .leader-row { font-size: 1.4vmin !important; padding: 0.2vmin !important; }
-    #p1-name { font-size: 1.4vmin !important; }
-    #p1-class { font-size: 1vmin !important; }
+    /* --- [A] CHARACTER CREATION FIXES --- */
     
-    /* 2. Tighten Layout/Padding */
-    .panel { padding: 0.5vmin !important; }
-    .stat-grid { gap: 0.1vmin !important; margin-bottom: 0.2vmin !important; }
-    .paper-doll { margin-bottom: 0.2vmin !important; padding-top: 0.2vmin !important; }
-    #leaderboard h3 { font-size: 1.5vmin !important; margin-bottom: 0.2vmin !important; padding-bottom: 0.2vmin !important; }
-    #hud-bottom {
-        position: absolute; bottom: 10%; left: 50%; transform: translateX(-50%);
-        display: flex; flex-direction: column; align-items: center;
-        width: 45%; pointer-events: auto;
+    /* 1. Force grids to 2 columns so they don't overflow */
+    .sel-grid, .skill-grid { 
+        grid-template-columns: 1fr 1fr !important; 
+        width: 100% !important;
+        gap: 5px !important;
+    }
+
+    /* 2. Allow cards to shrink/grow to fit the new grid */
+    .sel-opt, .skill-card { 
+        width: auto !important; 
+        min-width: 0 !important; 
+        padding: 10px !important;
     }
     
-    /* 3. Shrink Inventory/Equip Slots */
-    .equip-slot { height: 2.8vmin !important; font-size: 0.9vmin !important; border-width: 1px !important; }
-    .inv-slot { height: 2.8vmin !important; font-size: 0.8vmin !important; border-width: 1px !important; }
+    /* 3. Fix Input fields and Labels being too wide */
+    .input-group input { 
+        width: 90vw !important; /* Use Viewport Width */
+        max-width: 300px; 
+    }
+    .input-group label { font-size: 1.5rem !important; }
     
-    /* 4. Shrink Skill Bar (Bottom) */
-    .skill-slot { width: 4.5vmin !important; height: 4.5vmin !important; font-size: 0.8vmin !important; border-width: 1px !important; }
-    .skill-key { width: 1.2vmin !important; height: 1.2vmin !important; font-size: 0.8vmin !important; top: -2px !important; left: -2px !important; }
+    /* 4. Ensure the main container doesn't have huge padding pushing things off */
+    #create-screen { padding: 40px 10px !important; }
+
+    /* 5. Big Buttons for Start Screen */
+    #splash-screen h1 { font-size: 12vmin !important; }
+    #splash-screen button, #create-screen button {
+        font-size: 1.2rem !important;
+        padding: 15px 30px !important;
+        border-width: 2px !important;
+        width: auto !important;
+    }
+    #btn-start-game {
+        width: 90% !important; /* Make start button easy to hit */
+        font-size: 1.5rem !important;
+        padding: 20px !important;
+    }
+
+    /* --- [B] GAMEPLAY HUD FIXES --- */
+
+    /* 6. Push UI to the absolute corners to stop overlapping the Board Tiles */
+    /* Previously top: 10% pushed it down onto the tiles. 0% keeps it clear. */
+    #p1-sheet { 
+        top: 0 !important; 
+        left: 0 !important; 
+        width: 48% !important; /* Slightly less than half */
+        border-top: none !important;
+        border-left: none !important;
+        border-radius: 0 0 8px 0 !important;
+    }
     
-    /* 5. Tweak Borders for sharpness */
-    .panel, .stat-box, #game-log, #skill-bar, button { border-width: 1px !important; }
+    #leaderboard { 
+        top: 0 !important; 
+        right: 0 !important; 
+        width: 40% !important; 
+        border-top: none !important;
+        border-right: none !important;
+        border-radius: 0 0 0 8px !important;
+    }
+
+    /* 7. Adjust fonts inside the panels */
+    .char-header { font-size: 3vmin !important; } /* Make Name Readable */
+    .gold-large { font-size: 3.5vmin !important; }
+    #p1-class { font-size: 2vmin !important; }
+
+    .stat-val { font-size: 2.5vmin !important; }
+    .stat-lbl { font-size: 1.5vmin !important; }
+    .leader-row { font-size: 2vmin !important; padding: 2px !important; }
     
-    /* 6. Adjust Controls/Buttons (GAMEPLAY HUD ONLY) */
-    #controls { gap: 0.5vmin !important; }
+    /* 8. Compact the Panel Padding */
+    .panel { padding: 2px !important; }
+    .stat-grid { gap: 1px !important; margin-bottom: 2px !important; }
+    .paper-doll { margin-bottom: 2px !important; padding-top: 2px !important; }
     
-    /* We specify which buttons to shrink so we don't accidentally shrink the start screen buttons */
+    /* 9. Move Turn Info UP so it doesn't cover the character sheet */
+    #turn-info-container { top: 12% !important; z-index: 0; }
+    #turn-banner { font-size: 4vmin !important; }
+
+    /* 10. Center Bottom HUD */
+    #hud-bottom {
+        bottom: 2% !important;
+        width: 95% !important; /* Use full width on mobile */
+    }
+    
+    /* 11. Shrink Inventory/Equip Slots slightly */
+    .equip-slot { height: 3.5vmin !important; font-size: 1.8vmin !important; }
+    .inv-slot { height: 4vmin !important; font-size: 0 !important; /* Hide text, rely on color/icon logic if needed, or make text tiny */ }
+    
+    /* 12. Skill Bar Sizing */
+    .skill-slot { width: 8vmin !important; height: 8vmin !important; font-size: 1.5vmin !important; }
+    .skill-key { width: 3vmin !important; height: 3vmin !important; font-size: 2vmin !important; top: -5px !important; left: -5px !important; }
+    
+    /* 13. Controls (Roll/End) - Bottom Right */
+    #controls { 
+        bottom: 12% !important; /* Move above the skill bar */
+        right: 2% !important; 
+        width: 20% !important;
+    }
+    
+    /* 14. Shrink Buttons inside gameplay only */
     #controls button, 
-    #p1-sheet button, 
     #leaderboard button, 
     .card-modal button,
     .choice-btn { 
-        padding: 0.5vmin 1vmin !important; 
-        font-size: 1.8vmin !important; 
+        padding: 5px 10px !important; 
+        font-size: 3vmin !important; 
         border-radius: 4px !important; 
     }
-
-    /* 7. FORCE SPLASH & CREATE SCREEN ELEMENTS TO BE LARGE */
-    #splash-screen button, 
-    #create-screen button {
-        font-size: 1.2rem !important; /* Readable size on phone */
-        padding: 15px 30px !important; /* Tappable area */
-        border-width: 2px !important;
-        width: auto !important;
-        max-width: 80%;
-    }
-    
-    #splash-screen h1 { font-size: 12vmin !important; }
-    
-    /* Specific fix for the "Start Adventure" button */
-    #btn-start-game {
-        font-size: 1.5rem !important;
-        padding: 20px 40px !important;
-        margin-top: 20px !important;
-    }
-
-    /* Fix the Input fields on mobile creation screen */
-    .input-group input {
-        width: 80% !important;
-        font-size: 1.2rem !important;
-        padding: 10px !important;
-    }
-    .input-group label {
-        font-size: 1.5rem !important;
-    }
-    
-    .sel-grid { grid-template-columns: repeat(2, 1fr) !important; }
 }
 
     </style>
