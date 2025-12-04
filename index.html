@@ -222,139 +222,127 @@
     #splash-screen button, #create-screen button { font-size: 1.2rem !important; padding: 15px 30px !important; width: auto !important; max-width: 80%; }
     #btn-start-game { width: 90% !important; font-size: 1.5rem !important; padding: 20px !important; margin-top: 20px !important; }
 
-    /* --- [B] THE BOTTOM CONSOLE BAR --- */
-    
-    /* 1. The Container (Background) */
+    /* --- [B] CRITICAL LAYOUT FIX (The Anchor) --- */
+    /* This forces the UI container to fill the screen, removing the "Floating Middle" logic */
+    #board-overlay {
+        position: fixed !important;
+        top: 0 !important; left: 0 !important;
+        width: 100% !important; height: 100% !important;
+        transform: none !important; /* Stops the bar from floating in the middle */
+    }
+
+    /* --- [C] THICKER BOTTOM BAR --- */
     #hud-bottom {
-        position: fixed !important; 
+        position: absolute !important; 
         bottom: 0 !important; 
         left: 0 !important;
-        right: 0 !important; 
         width: 100% !important;
-        height: 80px !important; /* Fixed physical height */
-        background: #0f172a !important; /* Dark Blue Console */
-        border-top: 2px solid #fbbf24 !important; /* Gold Trim */
-        padding: 0 !important;
+        height: 110px !important; /* THICKER BAR */
+        background: #0f172a !important; 
+        border-top: 3px solid #fbbf24 !important;
+        padding: 5px 10px !important; /* Padding ensures buttons don't touch edges */
         z-index: 100 !important;
         display: flex !important;
+        flex-direction: row !important; /* Lay items out Left-to-Right */
         align-items: center !important;
-        justify-content: center !important;
-        transform: none !important; /* CRITICAL: Removes the "middle of screen" bug */
+        justify-content: space-between !important;
         pointer-events: auto !important;
     }
 
-    /* 2. Game Log (Floats just above the bar) */
-    #game-log {
-        position: absolute !important;
-        bottom: 80px !important; /* Sits on top of the bar */
-        left: 0 !important;
-        width: 100% !important;
-        height: 40px !important; /* Compact log */
-        background: rgba(0,0,0,0.6) !important;
-        border: none !important;
-        margin: 0 !important;
-        font-size: 12px !important;
-        pointer-events: none !important; /* Let clicks pass through to board if needed */
-        border-top: 1px solid #444 !important;
+    /* 1. Left Side: Help Button */
+    #btn-help {
+        position: relative !important; /* Not fixed anymore, lives inside the flex bar */
+        bottom: auto !important; left: auto !important;
+        width: 50px !important;
+        height: 50px !important;
+        font-size: 25px !important;
+        flex-shrink: 0 !important; /* Don't let it shrink */
+        background: #333 !important;
+        border: 2px solid #fff !important;
+        margin-right: 10px !important;
     }
-    
-    /* 3. Skills (Centered in the bar) */
+
+    /* 2. Middle: Skill Bar */
     #skill-bar {
+        position: relative !important;
         width: auto !important;
-        flex-grow: 1 !important;
-        margin: 0 75px 0 60px !important; /* Margins create space for Help(L) and Controls(R) */
+        flex-grow: 1 !important; /* Take up all remaining space */
+        height: auto !important;
         border: none !important;
         background: transparent !important;
         display: flex !important;
-        justify-content: space-evenly !important;
-        gap: 2px !important;
-        height: 100% !important;
-        align-items: center !important;
+        justify-content: center !important;
+        gap: 4px !important;
+        margin: 0 10px !important; /* Safety margin from buttons */
+        padding: 0 !important;
     }
 
     .skill-slot { 
-        width: 13vw !important; max-width: 55px !important;
-        height: 13vw !important; max-height: 55px !important;
-        font-size: 0 !important; /* Hide text */
+        width: 12vw !important; max-width: 65px !important;
+        height: 12vw !important; max-height: 65px !important;
+        font-size: 0 !important;
         border: 1px solid #555 !important;
         border-radius: 6px !important;
         background: #1e293b !important;
     }
-    .skill-key { display: block !important; font-size: 10px !important; width: 14px !important; height: 14px !important; }
+    .skill-key { display: block !important; font-size: 10px !important; width: 15px !important; height: 15px !important; }
 
-    /* --- [C] INTEGRATED BUTTONS --- */
-    
-    /* 1. Help Button (Left Side of Bar) */
-    #btn-help {
-        position: fixed !important;
-        bottom: 15px !important; /* Centered vertically in the 80px bar */
-        left: 10px !important;
-        width: 45px !important;
-        height: 45px !important;
-        font-size: 24px !important;
-        z-index: 102 !important;
-        background: #333 !important;
-        border: 2px solid #777 !important;
-        box-shadow: none !important;
-    }
-
-    /* 2. Controls: Roll/End (Right Side of Bar) */
+    /* 3. Right Side: Controls (Roll/End) */
     #controls {
-        position: fixed !important;
-        bottom: 8px !important;
-        right: 8px !important;
-        width: 65px !important; /* Compact width */
+        position: relative !important; /* Lives inside the flex bar */
+        bottom: auto !important; right: auto !important;
+        width: 70px !important;
         display: flex !important;
-        flex-direction: column !important; /* Stacked */
-        gap: 4px !important;
-        z-index: 102 !important;
+        flex-direction: column !important;
+        gap: 8px !important;
+        flex-shrink: 0 !important; /* Don't let it shrink */
     }
     
     #controls button {
         padding: 0 !important;
-        height: 30px !important;
-        font-size: 11px !important;
+        height: 40px !important; /* Taller buttons */
+        font-size: 12px !important;
         width: 100% !important;
-        border-radius: 4px !important;
+        border-radius: 6px !important;
         margin: 0 !important;
     }
 
-    /* --- [D] POP-UP TABS (Sheet / Leaderboard) --- */
-    
+    /* --- [D] GAME LOG (Sits on top of the Thicker Bar) --- */
+    #game-log {
+        position: absolute !important;
+        bottom: 110px !important; /* Matches bar height */
+        left: 0 !important;
+        width: 100% !important;
+        height: 40px !important;
+        background: rgba(0,0,0,0.6) !important;
+        border: none !important;
+        margin: 0 !important;
+        font-size: 12px !important;
+        border-top: 1px solid #444 !important;
+        pointer-events: none !important;
+    }
+
+    /* --- [E] POP-UP TABS (Sheet / Leaderboard) --- */
     #p1-sheet, #leaderboard {
         position: fixed !important;
-        bottom: 80px !important; /* Anchor exactly to top of the HUD bar */
+        bottom: 110px !important; /* Matches bar height */
         top: auto !important;
         height: auto !important;
         z-index: 90 !important;
         background: rgba(20, 25, 35, 0.98) !important;
         border-bottom: none !important;
-        border-radius: 8px 8px 0 0 !important; /* Tab appearance */
+        border-radius: 8px 8px 0 0 !important;
         display: flex !important;
         flex-direction: column !important;
-        transition: all 0.2s ease-out !important;
+        transition: max-height 0.3s ease-out !important;
     }
 
-    /* Left Tab */
     #p1-sheet { left: 0 !important; width: 60% !important; border-left: none !important; }
-    /* Right Tab */
     #leaderboard { right: 0 !important; width: 38% !important; border-right: none !important; }
 
-    /* Minimized: Just the header */
-    .panel.minimized { 
-        max-height: 32px !important; 
-        overflow: hidden !important; 
-        border-top: 2px solid #444 !important;
-    }
-    
-    /* Maximized: Grows UP covering the board */
-    .panel:not(.minimized) { 
-        max-height: 60vh !important; 
-        box-shadow: 0 -5px 15px rgba(0,0,0,0.8) !important;
-        overflow-y: auto !important;
-    }
+    .panel.minimized { max-height: 32px !important; overflow: hidden !important; border-top: 2px solid #444 !important; }
+    .panel:not(.minimized) { max-height: 60vh !important; overflow-y: auto !important; box-shadow: 0 -10px 30px rgba(0,0,0,0.9) !important; }
 
-    /* Header adjustments for tabs */
     .char-header, #leaderboard h3 { 
         font-size: 14px !important; 
         padding: 5px !important; 
@@ -364,29 +352,17 @@
         align-items: center !important;
         justify-content: space-between !important;
     }
-    
-    .minimize-btn {
-        width: 20px !important;
-        height: 20px !important;
-        font-size: 14px !important;
-        line-height: 18px !important;
-    }
+    .minimize-btn { width: 22px !important; height: 22px !important; font-size: 16px !important; display:flex !important; align-items:center !important; justify-content:center !important; }
 
-    /* --- [E] GOLD TEXT FIX --- */
-    .gold-large { 
-        font-size: 1.2rem !important; /* Smaller size */
-        white-space: nowrap !important;
-    }
+    /* --- [F] MISC FIXES --- */
+    /* Smaller Gold Text */
+    .gold-large { font-size: 1.1rem !important; white-space: nowrap !important; }
     
-    /* Move Turn Banner up */
+    /* Turn Banner Position */
     #turn-info-container { top: 5% !important; }
     
-    /* Modal Button Fix */
-    .choice-btn, .card-modal button.primary {
-        font-size: 1rem !important; 
-        padding: 12px 10px !important; 
-        min-height: 40px !important;
-    }
+    /* Modal Button Sizes */
+    .choice-btn, .card-modal button.primary { font-size: 1rem !important; padding: 12px 10px !important; min-height: 40px !important; }
     .close-x { width: 40px !important; height: 40px !important; font-size: 1.5rem !important; }
 }
 
