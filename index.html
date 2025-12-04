@@ -222,111 +222,114 @@
     #splash-screen button, #create-screen button { font-size: 1.2rem !important; padding: 15px 30px !important; width: auto !important; max-width: 80%; }
     #btn-start-game { width: 90% !important; font-size: 1.5rem !important; padding: 20px !important; margin-top: 20px !important; }
 
-    /* --- [B] CRITICAL LAYOUT FIX (The Anchor) --- */
-    /* This forces the UI container to fill the screen, removing the "Floating Middle" logic */
+    /* --- [B] MAIN UI CONTAINER FIX --- */
+    /* This makes the UI layer fill the whole phone screen so "Bottom" = Phone Bottom */
     #board-overlay {
+        width: 100vw !important;
+        height: 100vh !important;
+        top: 0 !important; 
+        left: 0 !important;
+        transform: none !important; /* Removes the "floating in middle" logic */
         position: fixed !important;
-        top: 0 !important; left: 0 !important;
-        width: 100% !important; height: 100% !important;
-        transform: none !important; /* Stops the bar from floating in the middle */
     }
 
-    /* --- [C] THICKER BOTTOM BAR --- */
+    /* --- [C] THE BOTTOM UTILITY BAR --- */
     #hud-bottom {
-        position: absolute !important; 
-        bottom: 0 !important; 
+        position: absolute !important;
+        bottom: 0 !important;
         left: 0 !important;
         width: 100% !important;
-        height: 110px !important; /* THICKER BAR */
-        background: #0f172a !important; 
-        border-top: 3px solid #fbbf24 !important;
-        padding: 5px 10px !important; /* Padding ensures buttons don't touch edges */
-        z-index: 100 !important;
+        height: 110px !important; /* THICK BAR */
+        background: #0f172a !important; /* Dark Blue Console */
+        border-top: 3px solid #fbbf24 !important; /* Gold Trim */
+        transform: none !important;
         display: flex !important;
-        flex-direction: row !important; /* Lay items out Left-to-Right */
-        align-items: center !important;
-        justify-content: space-between !important;
-        pointer-events: auto !important;
+        flex-direction: column !important;
+        justify-content: flex-end !important;
+        padding-bottom: 5px !important;
+        z-index: 100 !important;
     }
 
-    /* 1. Left Side: Help Button */
-    #btn-help {
-        position: relative !important; /* Not fixed anymore, lives inside the flex bar */
-        bottom: auto !important; left: auto !important;
-        width: 50px !important;
-        height: 50px !important;
-        font-size: 25px !important;
-        flex-shrink: 0 !important; /* Don't let it shrink */
-        background: #333 !important;
-        border: 2px solid #fff !important;
-        margin-right: 10px !important;
-    }
-
-    /* 2. Middle: Skill Bar */
+    /* 1. Skill Bar (Inside HUD) */
+    /* We add margins to left/right so skills don't overlap the buttons */
     #skill-bar {
-        position: relative !important;
         width: auto !important;
-        flex-grow: 1 !important; /* Take up all remaining space */
-        height: auto !important;
+        margin: 0 75px 5px 60px !important; /* Room for Help(L) and Controls(R) */
         border: none !important;
         background: transparent !important;
-        display: flex !important;
-        justify-content: center !important;
-        gap: 4px !important;
-        margin: 0 10px !important; /* Safety margin from buttons */
+        justify-content: space-between !important;
         padding: 0 !important;
+        height: 60px !important;
     }
 
     .skill-slot { 
-        width: 12vw !important; max-width: 65px !important;
-        height: 12vw !important; max-height: 65px !important;
-        font-size: 0 !important;
+        width: 13vw !important; max-width: 55px !important;
+        height: 13vw !important; max-height: 55px !important;
+        font-size: 0 !important; /* Hide text on mobile */
         border: 1px solid #555 !important;
         border-radius: 6px !important;
         background: #1e293b !important;
     }
-    .skill-key { display: block !important; font-size: 10px !important; width: 15px !important; height: 15px !important; }
+    .skill-key { display: block !important; font-size: 10px !important; width: 14px !important; height: 14px !important; }
 
-    /* 3. Right Side: Controls (Roll/End) */
-    #controls {
-        position: relative !important; /* Lives inside the flex bar */
-        bottom: auto !important; right: auto !important;
-        width: 70px !important;
-        display: flex !important;
-        flex-direction: column !important;
-        gap: 8px !important;
-        flex-shrink: 0 !important; /* Don't let it shrink */
-    }
-    
-    #controls button {
-        padding: 0 !important;
-        height: 40px !important; /* Taller buttons */
-        font-size: 12px !important;
-        width: 100% !important;
-        border-radius: 6px !important;
-        margin: 0 !important;
-    }
-
-    /* --- [D] GAME LOG (Sits on top of the Thicker Bar) --- */
+    /* 2. Game Log (Sitting on top of the bar) */
     #game-log {
-        position: absolute !important;
-        bottom: 110px !important; /* Matches bar height */
-        left: 0 !important;
         width: 100% !important;
-        height: 40px !important;
+        height: 40px !important; 
+        position: absolute !important;
+        bottom: 110px !important; /* Sits exactly on top of the 110px bar */
+        left: 0 !important;
         background: rgba(0,0,0,0.6) !important;
         border: none !important;
         margin: 0 !important;
         font-size: 12px !important;
         border-top: 1px solid #444 !important;
-        pointer-events: none !important;
+        pointer-events: none !important; /* Clicks pass through to board */
     }
 
-    /* --- [E] POP-UP TABS (Sheet / Leaderboard) --- */
+    /* --- [D] INTEGRATED BUTTONS --- */
+    /* Since these are separate in HTML, we position them over the bar's background */
+
+    /* Help Button (Left) */
+    #btn-help {
+        position: absolute !important;
+        bottom: 25px !important; /* Centered visually in the bar */
+        left: 10px !important;
+        width: 45px !important;
+        height: 45px !important;
+        font-size: 24px !important;
+        z-index: 105 !important; /* Higher than HUD */
+        background: #333 !important;
+        border: 2px solid #fff !important;
+        box-shadow: none !important;
+    }
+
+    /* Controls: Roll/End (Right) */
+    #controls {
+        position: absolute !important;
+        bottom: 15px !important;
+        right: 10px !important;
+        width: 60px !important;
+        gap: 5px !important;
+        z-index: 105 !important;
+    }
+    
+    #controls button {
+        height: 35px !important;
+        font-size: 11px !important;
+        width: 100% !important;
+        border-radius: 4px !important;
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+
+    /* --- [E] PANELS (Sheet / Leaderboard) --- */
+    /* They sit on top of the 110px Bar */
+    
     #p1-sheet, #leaderboard {
-        position: fixed !important;
-        bottom: 110px !important; /* Matches bar height */
-        top: auto !important;
+        position: absolute !important;
+        bottom: 110px !important; /* Resting on the bar */
+        top: auto !important; /* Reset top */
         height: auto !important;
         z-index: 90 !important;
         background: rgba(20, 25, 35, 0.98) !important;
@@ -340,27 +343,39 @@
     #p1-sheet { left: 0 !important; width: 60% !important; border-left: none !important; }
     #leaderboard { right: 0 !important; width: 38% !important; border-right: none !important; }
 
-    .panel.minimized { max-height: 32px !important; overflow: hidden !important; border-top: 2px solid #444 !important; }
-    .panel:not(.minimized) { max-height: 60vh !important; overflow-y: auto !important; box-shadow: 0 -10px 30px rgba(0,0,0,0.9) !important; }
+    /* Minimized: Only header visible */
+    .panel.minimized { 
+        max-height: 35px !important; 
+        overflow: hidden !important; 
+        border-top: 2px solid #444 !important;
+    }
+    
+    /* Maximized: Grows UP */
+    .panel:not(.minimized) { 
+        max-height: 50vh !important; 
+        overflow-y: auto !important; 
+        box-shadow: 0 -5px 15px rgba(0,0,0,0.8) !important;
+    }
 
+    /* Headers inside panels */
     .char-header, #leaderboard h3 { 
         font-size: 14px !important; 
         padding: 5px !important; 
         margin: 0 !important;
-        height: 32px !important;
+        height: 35px !important;
         display: flex !important;
         align-items: center !important;
         justify-content: space-between !important;
     }
-    .minimize-btn { width: 22px !important; height: 22px !important; font-size: 16px !important; display:flex !important; align-items:center !important; justify-content:center !important; }
+    .minimize-btn { width: 22px !important; height: 22px !important; font-size: 16px !important; display: flex !important; align-items:center !important; justify-content:center !important; }
 
-    /* --- [F] MISC FIXES --- */
-    /* Smaller Gold Text */
+    /* --- [F] MISC TEXT FIXES --- */
     .gold-large { font-size: 1.1rem !important; white-space: nowrap !important; }
+    #p1-class { font-size: 10px !important; }
     
-    /* Turn Banner Position */
-    #turn-info-container { top: 5% !important; }
-    
+    /* Turn Info: Reset to top center since we removed the centering transform */
+    #turn-info-container { top: 5% !important; width: 100% !important; transform: translateX(-50%) !important; }
+
     /* Modal Button Sizes */
     .choice-btn, .card-modal button.primary { font-size: 1rem !important; padding: 12px 10px !important; min-height: 40px !important; }
     .close-x { width: 40px !important; height: 40px !important; font-size: 1.5rem !important; }
