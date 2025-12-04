@@ -212,176 +212,173 @@
    ================================================================ */
 @media only screen and (max-width: 768px) {
 
-    /* --- [A] CHARACTER CREATION FIXES --- */
-    .sel-grid, .skill-grid { 
-        grid-template-columns: 1fr 1fr !important; 
-        width: 100% !important;
-        gap: 5px !important;
-    }
-    .sel-opt, .skill-card { 
-        width: auto !important; 
-        min-width: 0 !important; 
-        padding: 10px !important;
-    }
-    .input-group input { 
-        width: 90vw !important; 
-        max-width: 300px; 
-    }
+    /* --- [A] CHARACTER CREATION FIXES (Unchanged) --- */
+    .sel-grid, .skill-grid { grid-template-columns: 1fr 1fr !important; width: 100% !important; gap: 5px !important; }
+    .sel-opt, .skill-card { width: auto !important; min-width: 0 !important; padding: 10px !important; }
+    .input-group input { width: 90vw !important; max-width: 300px; }
     .input-group label { font-size: 1.5rem !important; }
     #create-screen { padding: 40px 10px !important; }
-    
     #splash-screen h1 { font-size: 12vmin !important; }
-    #splash-screen button, #create-screen button {
-        font-size: 1.2rem !important;
-        padding: 15px 30px !important;
-        border-width: 2px !important;
-        width: auto !important;
-        max-width: 80%;
-    }
-    #btn-start-game {
-        width: 90% !important;
-        font-size: 1.5rem !important;
-        padding: 20px !important;
-        margin-top: 20px !important;
-    }
+    #splash-screen button, #create-screen button { font-size: 1.2rem !important; padding: 15px 30px !important; width: auto !important; max-width: 80%; }
+    #btn-start-game { width: 90% !important; font-size: 1.5rem !important; padding: 20px !important; margin-top: 20px !important; }
 
-
-    /* --- [B] GAMEPLAY UI SCALING --- */
+    /* --- [B] LOCKED BOTTOM UTILITY BAR --- */
     
-    /* 1. Shrink Fonts slightly on mobile HUD */
-    .char-header { font-size: 1.5vmin !important; }
-    .gold-large { font-size: 2.5vmin !important; }
-    .stat-val { font-size: 2vmin !important; }
-    .stat-lbl { font-size: 0.9vmin !important; }
-    .leader-row { font-size: 1.4vmin !important; padding: 0.2vmin !important; }
-    #p1-name { font-size: 1.4vmin !important; }
-    #p1-class { font-size: 1vmin !important; }
-    
-    /* 2. Tighten Panel Layout/Padding */
-    .panel { padding: 0.5vmin !important; }
-    .stat-grid { gap: 0.1vmin !important; margin-bottom: 0.2vmin !important; }
-    .paper-doll { margin-bottom: 0.2vmin !important; padding-top: 0.2vmin !important; }
-    #leaderboard h3 { font-size: 1.5vmin !important; margin-bottom: 0.2vmin !important; padding-bottom: 0.2vmin !important; }
-
-    /* 3. STARCRAFT STYLE BOTTOM BAR (#hud-bottom) */
-    /* Anchors to bottom, full width, solid background */
+    /* 1. The Main Bar Container */
     #hud-bottom {
         position: fixed !important; 
         bottom: 0 !important; 
-        left: 0 !important; 
-        transform: none !important; /* Remove centering transform */
-        width: 100% !important; 
-        background: rgba(15, 23, 42, 0.95) !important; /* Solid Dark Blue/Black */
-        border-top: 2px solid #444 !important;
-        padding: 5px 2px 10px 2px !important; /* Extra padding at bottom for phone swipe bars */
+        left: 0 !important;
+        right: 0 !important; 
+        width: 100% !important;
+        height: 15vh !important; /* Fixed height for the utility bar */
+        background: #0f172a !important; /* Solid Dark Background */
+        border-top: 2px solid #fbbf24 !important; /* Gold Trim */
+        padding: 5px !important;
         z-index: 100 !important;
-        pointer-events: auto !important;
         display: flex !important;
         flex-direction: column !important;
-        justify-content: flex-end !important;
+        justify-content: center !important;
+        transform: none !important; /* Remove old centering */
+        pointer-events: auto !important;
     }
 
-    /* Game Log floats slightly above the buttons inside the bar */
+    /* 2. Game Log (Inside the bar) */
     #game-log {
-        width: 98% !important;
-        height: 8vh !important; /* Keep log short so it doesn't block board */
+        width: 100% !important;
+        height: 4vh !important; /* Very compact log */
         background: rgba(0,0,0,0.3) !important;
         border: none !important;
-        margin-bottom: 5px !important;
-        font-size: 1.5vmin !important;
+        margin-bottom: 2px !important;
+        font-size: 1.4vmin !important;
+        mask-image: none !important;
     }
     
-    /* The Skill Container - Stretches full width */
+    /* 3. Skill Buttons (Stretched) */
     #skill-bar {
         width: 100% !important;
         border: none !important;
         background: transparent !important;
-        justify-content: space-evenly !important; /* Spread buttons evenly */
+        justify-content: space-evenly !important; /* Spread to edges */
         padding: 0 !important;
         gap: 2px !important;
+        flex-grow: 1 !important;
+        align-items: center !important;
     }
 
-    /* 4. BIG ICONS (.skill-slot) */
     .skill-slot { 
-        width: 13vmin !important; /* Large, easy to tap squares */
-        height: 13vmin !important; 
-        font-size: 2vmin !important; 
-        border-width: 1px !important;
+        width: 11vw !important; /* Responsive square size */
+        height: 11vw !important;
+        max-width: 60px !important;
+        max-height: 60px !important;
+        font-size: 0 !important; /* Hide text to save space, relies on icons/color */
+        border: 1px solid #555 !important;
         border-radius: 4px !important;
     }
+    /* Show small number indicator */
+    .skill-key { display: block !important; font-size: 10px !important; width: 12px !important; height: 12px !important; }
+
+    /* --- [C] PANELS (Sheet / Leaderboard) - "Tabs" logic --- */
     
-    /* Adjust the little numbers in the corner */
-    .skill-key { 
-        width: 4vmin !important; 
-        height: 4vmin !important; 
-        font-size: 2.5vmin !important; 
-        line-height: 3.5vmin !important;
-        top: -4px !important; 
-        left: -4px !important; 
+    #p1-sheet, #leaderboard {
+        position: fixed !important;
+        bottom: 15vh !important; /* Sit exactly on top of the 15vh HUD */
+        top: auto !important; /* Clear top positioning */
+        height: auto !important;
+        z-index: 90 !important;
+        background: rgba(20, 25, 35, 0.98) !important;
+        border-bottom: none !important;
+        border-radius: 8px 8px 0 0 !important; /* Tab look */
+        transition: max-height 0.3s ease-in-out !important;
+        display: flex !important;
+        flex-direction: column !important;
+        justify-content: flex-start !important;
+    }
+
+    /* Left Tab */
+    #p1-sheet {
+        left: 0 !important;
+        width: 60% !important;
+        border-left: none !important;
+    }
+
+    /* Right Tab */
+    #leaderboard {
+        right: 0 !important;
+        width: 38% !important;
+        border-right: none !important;
+    }
+
+    /* MINIMIZED: Small Tabs */
+    .panel.minimized {
+        max-height: 35px !important; /* Just the header visible */
+        overflow: hidden !important;
     }
     
-    /* 5. Shrink Inventory/Equip Slots (Top Panel) */
-    .equip-slot { height: 2.8vmin !important; font-size: 0.9vmin !important; border-width: 1px !important; }
-    .inv-slot { height: 2.8vmin !important; font-size: 0.8vmin !important; border-width: 1px !important; }
+    /* MAXIMIZED: Grows UPWARDS */
+    .panel:not(.minimized) {
+        max-height: 60vh !important; /* Expand up to 60% of screen height */
+        box-shadow: 0 -5px 20px rgba(0,0,0,0.8) !important;
+        overflow-y: auto !important;
+    }
+
+    /* Adjust content inside panels for mobile */
+    .char-header, #leaderboard h3 { 
+        font-size: 1.8vmin !important; 
+        padding: 5px !important; 
+        margin: 0 !important;
+        height: 35px !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: space-between !important;
+    }
     
-    /* 6. Controls (ROLL / END) */
-    /* Move these UP so they float above the new big bottom bar */
+    .minimize-btn {
+        width: 25px !important;
+        height: 25px !important;
+        font-size: 18px !important;
+        line-height: 25px !important;
+    }
+
+
+    /* --- [D] FLOATING BUTTONS (Controls / Help) --- */
+    /* Lift them up so they don't get covered by the bottom bar */
+    
     #controls { 
         position: fixed !important;
-        bottom: 18% !important; /* Sits above the skill bar height */
+        bottom: 16vh !important; /* Just above the bar */
         right: 2% !important;
-        width: 20% !important;
-        gap: 0.5vmin !important; 
-        z-index: 101 !important;
+        width: auto !important;
+        gap: 5px !important;
+        z-index: 95 !important;
     }
     
     #controls button { 
-        padding: 1vmin 1vmin !important; 
-        font-size: 2.5vmin !important; 
-        border-radius: 6px !important; 
-        box-shadow: 0 0 10px rgba(0,0,0,0.8) !important; /* Add shadow to pop off background */
-    }
-    
-    /* 7. Minimize Buttons - Small Squares */
-    .minimize-btn {
-        width: 3vmin !important;
-        height: 3vmin !important;
-        font-size: 2vmin !important;
-        line-height: 2.5vmin !important;
-        padding: 0 !important;
-        display: flex !important;
-        align-items: center !important;
-        justify-content: center !important;
+        padding: 8px 15px !important; 
+        font-size: 1rem !important; 
+        box-shadow: 0 4px 10px rgba(0,0,0,0.5) !important;
     }
 
-    /* 8. Card/Modal Buttons */
-    .choice-btn, 
-    .card-modal button.primary {
+    #btn-help {
+        position: fixed !important;
+        bottom: 16vh !important;
+        left: 2% !important;
+        width: 40px !important;
+        height: 40px !important;
+        font-size: 20px !important;
+        z-index: 95 !important;
+    }
+    
+    /* Center Turn Banner higher up */
+    #turn-info-container { top: 5% !important; }
+    
+    /* Modal Button Fix (From previous request) */
+    .choice-btn, .card-modal button.primary {
         font-size: 1rem !important; 
         padding: 12px 10px !important; 
         min-height: 40px !important;
-        margin-bottom: 8px !important;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
     }
-    
-    .close-x {
-        width: 40px !important;
-        height: 40px !important;
-        font-size: 1.5rem !important;
-        top: -10px !important;
-        right: -10px !important;
-    }
-
-    /* Help Button - Move up slightly too */
-    #btn-help {
-        bottom: 18% !important;
-        left: 2% !important;
-        width: 10vmin !important;
-        height: 10vmin !important;
-        font-size: 5vmin !important;
-    }
+    .close-x { width: 40px !important; height: 40px !important; font-size: 1.5rem !important; }
 }
 
     </style>
