@@ -213,41 +213,31 @@
 @media only screen and (max-width: 768px) {
 
     /* --- [A] CHARACTER CREATION FIXES --- */
-
-    /* 1. Force grids to 2 columns so they don't overflow */
     .sel-grid, .skill-grid { 
         grid-template-columns: 1fr 1fr !important; 
         width: 100% !important;
         gap: 5px !important;
     }
-
-    /* 2. Allow cards to shrink/grow to fit the new grid */
     .sel-opt, .skill-card { 
         width: auto !important; 
         min-width: 0 !important; 
         padding: 10px !important;
     }
-    
-    /* 3. Fix Input fields and Labels being too wide */
     .input-group input { 
-        width: 90vw !important; /* Use Viewport Width */
+        width: 90vw !important; 
         max-width: 300px; 
     }
     .input-group label { font-size: 1.5rem !important; }
-    
-    /* 4. Ensure the main container doesn't have huge padding pushing things off */
     #create-screen { padding: 40px 10px !important; }
-
-    /* 5. Big Buttons for Start Screen & Create Screen */
+    
     #splash-screen h1 { font-size: 12vmin !important; }
     #splash-screen button, #create-screen button {
-        font-size: 1.2rem !important; /* Readable size on phone */
-        padding: 15px 30px !important; /* Tappable area */
+        font-size: 1.2rem !important;
+        padding: 15px 30px !important;
         border-width: 2px !important;
         width: auto !important;
         max-width: 80%;
     }
-    
     #btn-start-game {
         width: 90% !important;
         font-size: 1.5rem !important;
@@ -267,53 +257,104 @@
     #p1-name { font-size: 1.4vmin !important; }
     #p1-class { font-size: 1vmin !important; }
     
-    /* 2. Tighten Layout/Padding */
+    /* 2. Tighten Panel Layout/Padding */
     .panel { padding: 0.5vmin !important; }
     .stat-grid { gap: 0.1vmin !important; margin-bottom: 0.2vmin !important; }
     .paper-doll { margin-bottom: 0.2vmin !important; padding-top: 0.2vmin !important; }
     #leaderboard h3 { font-size: 1.5vmin !important; margin-bottom: 0.2vmin !important; padding-bottom: 0.2vmin !important; }
+
+    /* 3. STARCRAFT STYLE BOTTOM BAR (#hud-bottom) */
+    /* Anchors to bottom, full width, solid background */
     #hud-bottom {
-        position: absolute; bottom: 10%; left: 50%; transform: translateX(-50%);
-        display: flex; flex-direction: column; align-items: center;
-        width: 45%; pointer-events: auto;
+        position: fixed !important; 
+        bottom: 0 !important; 
+        left: 0 !important; 
+        transform: none !important; /* Remove centering transform */
+        width: 100% !important; 
+        background: rgba(15, 23, 42, 0.95) !important; /* Solid Dark Blue/Black */
+        border-top: 2px solid #444 !important;
+        padding: 5px 2px 10px 2px !important; /* Extra padding at bottom for phone swipe bars */
+        z-index: 100 !important;
+        pointer-events: auto !important;
+        display: flex !important;
+        flex-direction: column !important;
+        justify-content: flex-end !important;
+    }
+
+    /* Game Log floats slightly above the buttons inside the bar */
+    #game-log {
+        width: 98% !important;
+        height: 8vh !important; /* Keep log short so it doesn't block board */
+        background: rgba(0,0,0,0.3) !important;
+        border: none !important;
+        margin-bottom: 5px !important;
+        font-size: 1.5vmin !important;
     }
     
-    /* 3. Shrink Inventory/Equip Slots */
+    /* The Skill Container - Stretches full width */
+    #skill-bar {
+        width: 100% !important;
+        border: none !important;
+        background: transparent !important;
+        justify-content: space-evenly !important; /* Spread buttons evenly */
+        padding: 0 !important;
+        gap: 2px !important;
+    }
+
+    /* 4. BIG ICONS (.skill-slot) */
+    .skill-slot { 
+        width: 13vmin !important; /* Large, easy to tap squares */
+        height: 13vmin !important; 
+        font-size: 2vmin !important; 
+        border-width: 1px !important;
+        border-radius: 4px !important;
+    }
+    
+    /* Adjust the little numbers in the corner */
+    .skill-key { 
+        width: 4vmin !important; 
+        height: 4vmin !important; 
+        font-size: 2.5vmin !important; 
+        line-height: 3.5vmin !important;
+        top: -4px !important; 
+        left: -4px !important; 
+    }
+    
+    /* 5. Shrink Inventory/Equip Slots (Top Panel) */
     .equip-slot { height: 2.8vmin !important; font-size: 0.9vmin !important; border-width: 1px !important; }
     .inv-slot { height: 2.8vmin !important; font-size: 0.8vmin !important; border-width: 1px !important; }
     
-    /* 4. Shrink Skill Bar (Bottom) */
-    .skill-slot { width: 4.5vmin !important; height: 4.5vmin !important; font-size: 0.8vmin !important; border-width: 1px !important; }
-    .skill-key { width: 1.2vmin !important; height: 1.2vmin !important; font-size: 0.8vmin !important; top: -2px !important; left: -2px !important; }
-    
-    /* 5. Tweak Borders for sharpness */
-    .panel, .stat-box, #game-log, #skill-bar, button { border-width: 1px !important; }
-    
-    /* 6. Adjust Controls HUD gap */
-    #controls { gap: 0.5vmin !important; }
-    
-    /* 7. SHRINK HUD Buttons */
-    /* Controls (ROLL / END) */
-    #controls button { 
-        padding: 0.5vmin 1vmin !important; 
-        font-size: 1.8vmin !important; 
-        border-radius: 4px !important; 
+    /* 6. Controls (ROLL / END) */
+    /* Move these UP so they float above the new big bottom bar */
+    #controls { 
+        position: fixed !important;
+        bottom: 18% !important; /* Sits above the skill bar height */
+        right: 2% !important;
+        width: 20% !important;
+        gap: 0.5vmin !important; 
+        z-index: 101 !important;
     }
     
-    /* Minimize Buttons (+ / -) - Force small square size relative to window */
+    #controls button { 
+        padding: 1vmin 1vmin !important; 
+        font-size: 2.5vmin !important; 
+        border-radius: 6px !important; 
+        box-shadow: 0 0 10px rgba(0,0,0,0.8) !important; /* Add shadow to pop off background */
+    }
+    
+    /* 7. Minimize Buttons - Small Squares */
     .minimize-btn {
         width: 3vmin !important;
         height: 3vmin !important;
         font-size: 2vmin !important;
         line-height: 2.5vmin !important;
         padding: 0 !important;
-        margin-left: 2px !important;
         display: flex !important;
         align-items: center !important;
         justify-content: center !important;
     }
 
-    /* 8. ENLARGE Card/Modal Buttons */
+    /* 8. Card/Modal Buttons */
     .choice-btn, 
     .card-modal button.primary {
         font-size: 1rem !important; 
@@ -331,6 +372,15 @@
         font-size: 1.5rem !important;
         top: -10px !important;
         right: -10px !important;
+    }
+
+    /* Help Button - Move up slightly too */
+    #btn-help {
+        bottom: 18% !important;
+        left: 2% !important;
+        width: 10vmin !important;
+        height: 10vmin !important;
+        font-size: 5vmin !important;
     }
 }
 
