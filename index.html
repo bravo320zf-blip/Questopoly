@@ -229,32 +229,23 @@
         transform: none !important; position: fixed !important;
     }
 
-    /* --- [C] TOP ELEMENTS (Tracker & Log) --- */
-    
-    /* 1. Turn Tracker (Moved Down) */
+    /* --- [C] TOP ELEMENTS --- */
     #turn-info-container { 
-        top: 0% !important; 
-        width: 100% !important; 
+        top: 0% !important; width: 100% !important; 
         transform: translateX(-50%) !important; 
-        pointer-events: none !important;
-        z-index: 50 !important;
+        pointer-events: none !important; z-index: 50 !important;
     }
 
-    /* 2. Game Log (Top Center, under Tracker) */
     #game-log {
         position: fixed !important;
-        top: 8% !important; 
-        left: 50% !important;
+        top: 8% !important; left: 50% !important;
         transform: translateX(-50%) !important;
-        width: 90% !important;
-        height: 140px !important;
+        width: 90% !important; height: 140px !important;
         background: rgba(0,0,0,0.5) !important;
         border: 1px solid #444 !important;
         border-radius: 8px !important;
-        margin: 0 !important;
-        font-size: 12px !important;
-        pointer-events: none !important;
-        bottom: auto !important;
+        margin: 0 !important; font-size: 12px !important;
+        pointer-events: none !important; bottom: auto !important;
         z-index: 50 !important;
         -webkit-mask-image: linear-gradient(to bottom, black 70%, transparent 100%) !important;
         mask-image: linear-gradient(to bottom, black 70%, transparent 100%) !important;
@@ -264,132 +255,135 @@
     #hud-bottom {
         position: absolute !important;
         bottom: 0 !important; left: 0 !important;
-        width: 100% !important;
-        height: 140px !important; /* Thick Console Bar */
+        width: 100% !important; height: 140px !important;
         background: #0f172a !important;
         border-top: 3px solid #fbbf24 !important;
         transform: none !important;
-        display: flex !important;
-        flex-direction: column !important;
-        justify-content: flex-end !important; /* Forces skills to bottom */
+        display: flex !important; flex-direction: column !important;
+        justify-content: flex-end !important;
         padding-bottom: 5px !important;
         z-index: 100 !important;
     }
 
-    /* Skill Bar (Locked to Bottom of HUD) */
     #skill-bar {
-        width: 98% !important;
-        margin: 0 auto !important;
-        border: none !important;
-        background: transparent !important;
-        display: flex !important;
-        justify-content: space-between !important;
-        padding: 0 !important;
-        height: 65px !important; /* Limit height so it doesn't overlap buttons */
+        width: 98% !important; margin: 0 auto !important;
+        border: none !important; background: transparent !important;
+        display: flex !important; justify-content: space-between !important;
+        padding: 0 !important; height: 65px !important;
         align-items: center !important;
     }
 
-    /* Skill Slots */
     .skill-slot { 
         width: 13vw !important; max-width: 65px !important;
         height: 13vw !important; max-height: 65px !important;
-        font-size: 9px !important;
-        color: #fff !important;
+        font-size: 9px !important; color: #fff !important;
         text-shadow: 0 1px 2px #000, 0 0 4px #000 !important;
-        border: 1px solid #555 !important;
-        border-radius: 6px !important;
+        border: 1px solid #555 !important; border-radius: 6px !important;
         background-color: #1e293b !important;
-        background-size: cover !important;
-        background-position: center !important;
-        background-repeat: no-repeat !important;
+        background-size: cover !important; background-position: center !important; background-repeat: no-repeat !important;
         display: flex !important; align-items: flex-end !important; justify-content: center !important;
         padding-bottom: 2px !important; line-height: 1 !important;
     }
     .skill-key { 
-        display: block !important; 
-        font-size: 10px !important; width: 14px !important; height: 14px !important;
+        display: block !important; font-size: 10px !important; width: 14px !important; height: 14px !important;
         top: -4px !important; left: -4px !important;
         background: #000 !important; border: 1px solid #999 !important;
     }
 
-    /* --- [E] INTEGRATED BUTTONS (Visually inside the bar) --- */
-    /* Bar is 140px tall. We position these relative to BOTTOM of screen */
-
-    /* Help Button (Top Left of Bar) */
+    /* --- [E] INTEGRATED BUTTONS --- */
     #btn-help {
         position: absolute !important;
-        bottom: 85px !important; /* 140px (Bar) - 45px (Btn) - 10px (Pad) */
-        left: 10px !important;
-        top: auto !important;
-        width: 45px !important;
-        height: 45px !important;
-        font-size: 24px !important;
-        z-index: 105 !important;
-        background: #333 !important;
-        border: 2px solid #fff !important;
+        bottom: 85px !important; left: 10px !important; top: auto !important;
+        width: 45px !important; height: 45px !important;
+        font-size: 24px !important; z-index: 105 !important;
+        background: #333 !important; border: 2px solid #fff !important;
         box-shadow: none !important;
     }
 
-    /* Controls: Roll/End (Top Right of Bar) */
     #controls {
         position: absolute !important;
-        bottom: 88px !important; /* Aligned visually with Help btn */
-        right: 10px !important;
-        top: auto !important;
+        bottom: 88px !important; right: 10px !important; top: auto !important;
         width: auto !important;
-        display: flex !important;
-        flex-direction: row !important; /* Side by Side */
-        gap: 10px !important;
+        display: flex !important; flex-direction: row !important; gap: 10px !important;
         z-index: 105 !important;
     }
-    
     #controls button {
-        height: 40px !important;
-        font-size: 12px !important;
-        width: 80px !important;
-        border-radius: 6px !important;
-        margin: 0 !important;
-        padding: 0 5px !important;
+        height: 40px !important; font-size: 12px !important; width: 80px !important;
+        border-radius: 6px !important; margin: 0 !important; padding: 0 5px !important;
         box-shadow: 0 4px 6px rgba(0,0,0,0.5) !important;
     }
 
     /* --- [F] PANELS (Sheet / Leaderboard) --- */
-    /* Move them UP so they sit on top of the 140px bar */
     #p1-sheet, #leaderboard {
         position: absolute !important;
-        bottom: 140px !important; /* Resting on the bar */
+        bottom: 140px !important; /* On top of bar */
         top: auto !important;
         height: auto !important;
         z-index: 90 !important;
         background: rgba(20, 25, 35, 0.98) !important;
         border-bottom: none !important;
         border-radius: 8px 8px 0 0 !important;
-        display: flex !important;
-        flex-direction: column !important;
+        display: flex !important; flex-direction: column !important;
         transition: max-height 0.3s ease-out !important;
     }
 
     #p1-sheet { left: 0 !important; width: 60% !important; border-left: none !important; }
     #leaderboard { right: 0 !important; width: 38% !important; border-right: none !important; }
 
-    .panel.minimized { max-height: 35px !important; overflow: hidden !important; border-top: 2px solid #444 !important; }
-    .panel:not(.minimized) { max-height: 50vh !important; overflow-y: auto !important; box-shadow: 0 -5px 15px rgba(0,0,0,0.8) !important; }
+    /* MINIMIZED STATE - Made Taller for Big Images */
+    .panel.minimized { 
+        max-height: 75px !important; /* INCREASED HEIGHT */
+        overflow: hidden !important; border-top: 2px solid #444 !important; 
+    }
+    
+    .panel:not(.minimized) { 
+        max-height: 50vh !important; overflow-y: auto !important; box-shadow: 0 -5px 15px rgba(0,0,0,0.8) !important; 
+    }
 
+    /* HEADER & IMAGE SIZING FIXES */
     .char-header, #leaderboard h3 { 
         font-size: 14px !important; 
         padding: 5px !important; margin: 0 !important;
-        height: 35px !important;
+        height: 75px !important; /* Match panel height */
         display: flex !important; align-items: center !important; justify-content: space-between !important;
     }
-    .minimize-btn { width: 22px !important; height: 22px !important; font-size: 16px !important; display: flex !important; align-items:center !important; justify-content:center !important; }
+
+    /* TRIPLED IMAGE SIZE */
+    .char-portrait {
+        width: 60px !important; /* MUCH BIGGER */
+        height: 60px !important;
+        border: 2px solid var(--gold) !important;
+        margin-right: 10px !important;
+    }
+    
+    /* Make the text container flex so it sits nicely next to the big image */
+    #p1-sheet .char-header > div {
+        display: flex !important;
+        align-items: center !important;
+        width: 100% !important;
+    }
 
     /* --- [G] MISC --- */
+    .minimize-btn { width: 22px !important; height: 22px !important; font-size: 16px !important; display: flex !important; align-items:center !important; justify-content:center !important; }
     .gold-large { font-size: 1.1rem !important; white-space: nowrap !important; }
     #p1-class { font-size: 10px !important; }
-    
-    /* Modal Button Sizes */
     .choice-btn, .card-modal button.primary { font-size: 1rem !important; padding: 12px 10px !important; min-height: 40px !important; }
     .close-x { width: 40px !important; height: 40px !important; font-size: 1.5rem !important; }
+}
+
+/* --- [H] ROTATION LOCK --- */
+/* If the device is in Landscape mode and max-height is small (phone), block the screen */
+@media only screen and (max-height: 500px) and (orientation: landscape) {
+    body::after {
+        content: "Please Rotate Your Phone to Portrait Mode";
+        position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+        background: #000; color: var(--gold);
+        z-index: 9999;
+        display: flex; align-items: center; justify-content: center;
+        font-family: 'Cinzel', serif; font-size: 1.5rem; text-align: center;
+        background-image: url('https://static.wixstatic.com/media/b16479_5caac3525f59406d8ff175695ef11cb1~mv2.jpg');
+        background-size: cover;
+    }
 }
 
     </style>
@@ -2255,6 +2249,20 @@ function startGame() {
     for(let i=1; i<4; i++) { const r = RACES[Math.floor(Math.random()*RACES.length)]; const c = CLASSES[Math.floor(Math.random()*CLASSES.length)]; const aiName = availableNames.splice(Math.floor(Math.random() * availableNames.length), 1)[0]; const aiCol = aiColors.splice(Math.floor(Math.random()*aiColors.length), 1)[0]; const act = c.actives[Math.floor(Math.random()*3)]; const pas = c.passives[Math.floor(Math.random()*3)]; spawnPlayer(i, aiName, r, c, act, pas, true, aiCol); }
     gameState='ROLL'; updateHUD(); addLog("Welcome to Questopoly!");
 }
+
+function forcePortrait() {
+    // Check if the Screen Orientation API is supported
+    if (screen.orientation && screen.orientation.lock) {
+        // Attempt to lock to portrait-primary
+        screen.orientation.lock('portrait-primary').catch(function(error) {
+            // Locking failed (common on iOS or if not fullscreen), but the CSS overlay will handle it visually.
+            console.log("Orientation lock not supported/allowed: " + error);
+        });
+    }
+}
+
+// Attempt to lock when the game starts
+document.getElementById('btn-start-game').addEventListener('click', forcePortrait);
 
 // Start Engine
 init();
