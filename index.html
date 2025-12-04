@@ -63,16 +63,18 @@
    [03] UI POSITIONS (DESKTOP DEFAULT)
    ================================================================ */
         
-        .panel { 
-            background: var(--panel-bg); 
-            border: 2px solid #444; 
-            box-shadow: 0 5px 20px rgba(0,0,0,0.8); 
-            border-radius: 8px; 
-            padding: 10px; 
-            pointer-events: auto; 
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); /* Smoother slide for mobile */
-            position: absolute;
-        }
+   .panel { 
+        background: var(--panel-bg); 
+        border: 2px solid #444; 
+        box-shadow: 0 5px 20px rgba(0,0,0,0.8); 
+        border-radius: 8px; 
+        padding: 1vmin; 
+        pointer-events: auto; 
+        transition: all 0.3s ease;
+        position: absolute;
+        display: flex;
+        flex-direction: column;
+    }
         .minimize-btn { background: transparent; border: 1px solid #666; color: #aaa; width: 25px; height: 25px; border-radius: 4px; cursor: pointer; float: right; display: flex; align-items: center; justify-content: center; margin-left: 10px; }
         .panel.minimized > *:not(.char-header):not(h3) { display: none !important; }
         .panel.minimized { width: auto !important; height: auto !important; min-width: 150px; }
