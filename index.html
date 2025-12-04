@@ -212,7 +212,7 @@
    ================================================================ */
 @media only screen and (max-width: 768px) {
 
-    /* --- [A] CHARACTER CREATION FIXES (KEEPING THIS) --- */
+    /* --- [A] CHARACTER CREATION FIXES --- */
 
     /* 1. Force grids to 2 columns so they don't overflow */
     .sel-grid, .skill-grid { 
@@ -256,9 +256,9 @@
     }
 
 
-    /* --- [B] GAMEPLAY UI (REVERTED TO ORIGINAL + BUTTON FIX) --- */
+    /* --- [B] GAMEPLAY UI SCALING --- */
     
-    /* 1. Shrink Fonts slightly on mobile */
+    /* 1. Shrink Fonts slightly on mobile HUD */
     .char-header { font-size: 1.5vmin !important; }
     .gold-large { font-size: 2.5vmin !important; }
     .stat-val { font-size: 2vmin !important; }
@@ -289,18 +289,37 @@
     /* 5. Tweak Borders for sharpness */
     .panel, .stat-box, #game-log, #skill-bar, button { border-width: 1px !important; }
     
-    /* 6. Adjust Controls/Buttons (GAMEPLAY HUD ONLY) */
+    /* 6. Adjust Controls HUD gap */
     #controls { gap: 0.5vmin !important; }
     
-    /* We specify which buttons to shrink so we don't accidentally shrink the start screen buttons */
+    /* 7. SHRINK HUD Buttons (Controls, Minimize, etc) */
     #controls button, 
-    #p1-sheet button, 
-    #leaderboard button, 
-    .card-modal button,
-    .choice-btn { 
+    .minimize-btn { 
         padding: 0.5vmin 1vmin !important; 
         font-size: 1.8vmin !important; 
         border-radius: 4px !important; 
+    }
+
+    /* 8. ENLARGE Card/Modal Buttons (Fixes the issue) */
+    /* These need to be large enough to read and tap */
+    .choice-btn, 
+    .card-modal button.primary {
+        font-size: 1rem !important; /* ~16px, much more readable */
+        padding: 12px 10px !important; /* Easy to tap */
+        min-height: 40px !important;
+        margin-bottom: 8px !important;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }
+    
+    /* Ensure the Close 'X' is also tappable */
+    .close-x {
+        width: 40px !important;
+        height: 40px !important;
+        font-size: 1.5rem !important;
+        top: -10px !important;
+        right: -10px !important;
     }
 }
 
