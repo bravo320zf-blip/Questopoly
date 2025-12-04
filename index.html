@@ -292,20 +292,32 @@
     /* 6. Adjust Controls HUD gap */
     #controls { gap: 0.5vmin !important; }
     
-    /* 7. SHRINK HUD Buttons (Controls, Minimize, etc) */
-    #controls button, 
-    .minimize-btn { 
+    /* 7. SHRINK HUD Buttons */
+    /* Controls (ROLL / END) */
+    #controls button { 
         padding: 0.5vmin 1vmin !important; 
         font-size: 1.8vmin !important; 
         border-radius: 4px !important; 
     }
+    
+    /* Minimize Buttons (+ / -) - Force small square size relative to window */
+    .minimize-btn {
+        width: 3vmin !important;
+        height: 3vmin !important;
+        font-size: 2vmin !important;
+        line-height: 2.5vmin !important;
+        padding: 0 !important;
+        margin-left: 2px !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+    }
 
-    /* 8. ENLARGE Card/Modal Buttons (Fixes the issue) */
-    /* These need to be large enough to read and tap */
+    /* 8. ENLARGE Card/Modal Buttons */
     .choice-btn, 
     .card-modal button.primary {
-        font-size: 1rem !important; /* ~16px, much more readable */
-        padding: 12px 10px !important; /* Easy to tap */
+        font-size: 1rem !important; 
+        padding: 12px 10px !important; 
         min-height: 40px !important;
         margin-bottom: 8px !important;
         display: flex;
@@ -313,7 +325,6 @@
         justify-content: space-between;
     }
     
-    /* Ensure the Close 'X' is also tappable */
     .close-x {
         width: 40px !important;
         height: 40px !important;
