@@ -226,10 +226,11 @@
     .stat-grid { gap: 0.1vmin !important; margin-bottom: 0.2vmin !important; }
     .paper-doll { margin-bottom: 0.2vmin !important; padding-top: 0.2vmin !important; }
     #leaderboard h3 { font-size: 1.5vmin !important; margin-bottom: 0.2vmin !important; padding-bottom: 0.2vmin !important; }
-	#hud-bottom {position: absolute; bottom: 10%; left: 50%; transform: translateX(-50%);
-	        display: flex; flex-direction: column; align-items: center;
-            width: 45%; pointer-events: auto;
-			}
+    #hud-bottom {
+        position: absolute; bottom: 10%; left: 50%; transform: translateX(-50%);
+        display: flex; flex-direction: column; align-items: center;
+        width: 45%; pointer-events: auto;
+    }
     
     /* 3. Shrink Inventory/Equip Slots */
     .equip-slot { height: 2.8vmin !important; font-size: 0.9vmin !important; border-width: 1px !important; }
@@ -242,9 +243,50 @@
     /* 5. Tweak Borders for sharpness */
     .panel, .stat-box, #game-log, #skill-bar, button { border-width: 1px !important; }
     
-    /* 6. Adjust Controls/Buttons */
+    /* 6. Adjust Controls/Buttons (GAMEPLAY HUD ONLY) */
     #controls { gap: 0.5vmin !important; }
-    button { padding: 0.5vmin 1vmin !important; font-size: 1.8vmin !important; border-radius: 4px !important; }
+    
+    /* We specify which buttons to shrink so we don't accidentally shrink the start screen buttons */
+    #controls button, 
+    #p1-sheet button, 
+    #leaderboard button, 
+    .card-modal button,
+    .choice-btn { 
+        padding: 0.5vmin 1vmin !important; 
+        font-size: 1.8vmin !important; 
+        border-radius: 4px !important; 
+    }
+
+    /* 7. FORCE SPLASH & CREATE SCREEN ELEMENTS TO BE LARGE */
+    #splash-screen button, 
+    #create-screen button {
+        font-size: 1.2rem !important; /* Readable size on phone */
+        padding: 15px 30px !important; /* Tappable area */
+        border-width: 2px !important;
+        width: auto !important;
+        max-width: 80%;
+    }
+    
+    #splash-screen h1 { font-size: 12vmin !important; }
+    
+    /* Specific fix for the "Start Adventure" button */
+    #btn-start-game {
+        font-size: 1.5rem !important;
+        padding: 20px 40px !important;
+        margin-top: 20px !important;
+    }
+
+    /* Fix the Input fields on mobile creation screen */
+    .input-group input {
+        width: 80% !important;
+        font-size: 1.2rem !important;
+        padding: 10px !important;
+    }
+    .input-group label {
+        font-size: 1.5rem !important;
+    }
+    
+    .sel-grid { grid-template-columns: repeat(2, 1fr) !important; }
 }
 
     </style>
