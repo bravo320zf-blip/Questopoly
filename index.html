@@ -233,30 +233,29 @@
     
     /* 1. Turn Tracker (Moved Down) */
     #turn-info-container { 
-        top: 10% !important; /* Moved down to avoid edge/buttons */
+        top: 10% !important; 
         width: 100% !important; 
         transform: translateX(-50%) !important; 
         pointer-events: none !important;
         z-index: 50 !important;
     }
 
-    /* 2. Game Log (Moved to Top, under Tracker) */
+    /* 2. Game Log (Top Center, under Tracker) */
     #game-log {
         position: fixed !important;
-        top: 18% !important; /* Sits directly under the Turn Tracker */
+        top: 18% !important; 
         left: 50% !important;
-        transform: translateX(-50%) !important; /* Center Horizontally */
+        transform: translateX(-50%) !important;
         width: 90% !important;
-        height: 60px !important; /* Short height to see board */
+        height: 60px !important;
         background: rgba(0,0,0,0.5) !important;
         border: 1px solid #444 !important;
         border-radius: 8px !important;
         margin: 0 !important;
         font-size: 12px !important;
         pointer-events: none !important;
-        bottom: auto !important; /* Detach from bottom */
+        bottom: auto !important;
         z-index: 50 !important;
-        /* Make text fade out at bottom of log */
         -webkit-mask-image: linear-gradient(to bottom, black 70%, transparent 100%) !important;
         mask-image: linear-gradient(to bottom, black 70%, transparent 100%) !important;
     }
@@ -266,18 +265,18 @@
         position: absolute !important;
         bottom: 0 !important; left: 0 !important;
         width: 100% !important;
-        height: 140px !important;
+        height: 140px !important; /* Thick Console Bar */
         background: #0f172a !important;
         border-top: 3px solid #fbbf24 !important;
         transform: none !important;
         display: flex !important;
         flex-direction: column !important;
-        justify-content: flex-end !important;
+        justify-content: flex-end !important; /* Forces skills to bottom */
         padding-bottom: 5px !important;
         z-index: 100 !important;
     }
 
-    /* Skill Bar (Bottom of HUD) */
+    /* Skill Bar (Locked to Bottom of HUD) */
     #skill-bar {
         width: 98% !important;
         margin: 0 auto !important;
@@ -286,7 +285,7 @@
         display: flex !important;
         justify-content: space-between !important;
         padding: 0 !important;
-        height: 70px !important;
+        height: 65px !important; /* Limit height so it doesn't overlap buttons */
         align-items: center !important;
     }
 
@@ -313,14 +312,15 @@
         background: #000 !important; border: 1px solid #999 !important;
     }
 
-    /* --- [E] INTEGRATED BUTTONS (Above Skills) --- */
+    /* --- [E] INTEGRATED BUTTONS (Visually inside the bar) --- */
+    /* Bar is 140px tall. We position these relative to BOTTOM of screen */
 
     /* Help Button (Top Left of Bar) */
     #btn-help {
         position: absolute !important;
-        top: 10px !important;
+        bottom: 85px !important; /* 140px (Bar) - 45px (Btn) - 10px (Pad) */
         left: 10px !important;
-        bottom: auto !important;
+        top: auto !important;
         width: 45px !important;
         height: 45px !important;
         font-size: 24px !important;
@@ -333,12 +333,12 @@
     /* Controls: Roll/End (Top Right of Bar) */
     #controls {
         position: absolute !important;
-        top: 15px !important;
+        bottom: 88px !important; /* Aligned visually with Help btn */
         right: 10px !important;
-        bottom: auto !important;
+        top: auto !important;
         width: auto !important;
         display: flex !important;
-        flex-direction: row !important;
+        flex-direction: row !important; /* Side by Side */
         gap: 10px !important;
         z-index: 105 !important;
     }
@@ -350,13 +350,14 @@
         border-radius: 6px !important;
         margin: 0 !important;
         padding: 0 5px !important;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.5) !important;
     }
 
     /* --- [F] PANELS (Sheet / Leaderboard) --- */
-    
+    /* Move them UP so they sit on top of the 140px bar */
     #p1-sheet, #leaderboard {
         position: absolute !important;
-        bottom: 140px !important;
+        bottom: 140px !important; /* Resting on the bar */
         top: auto !important;
         height: auto !important;
         z-index: 90 !important;
