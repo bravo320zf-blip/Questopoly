@@ -206,6 +206,43 @@
         #tooltip { position: absolute; display: none; background: rgba(10,10,15,0.98); border: 2px solid var(--gold); padding: 15px; color: #fff; font-size: 1rem; pointer-events: none; z-index: 200; border-radius: 6px; width: 250px; box-shadow: 0 5px 20px #000; } .tt-header { border-bottom: 1px solid #444; padding-bottom: 5px; margin-bottom: 5px; display:flex; justify-content: space-between;} .tt-name { font-weight: bold; color: var(--gold); font-family: 'Cinzel', serif; font-size: 1.2rem; } .tt-rarity { font-size: 0.9rem; text-transform: uppercase; } .tt-stat { color: #ccc; display: block; } .tt-abil { color: var(--success); margin-top: 5px; font-style: italic; display:block; border-top: 1px solid #333; padding-top: 3px;}
         #context-menu { position: absolute; display: none; flex-direction: column; background: #1a1a1a; border: 2px solid var(--gold); z-index: 1000; min-width: 200px; box-shadow: 0 5px 20px rgba(0,0,0,0.9); border-radius: 6px; } .ctx-item { padding: 15px 20px; cursor: pointer; border-bottom: 1px solid #333; font-size: 1.1rem; color: #fff; background: #222; } .ctx-item:hover { background: #333; color: var(--gold); } .ctx-item:last-child { border-bottom: none; } .ctx-item.disabled { color: #555; cursor: not-allowed; background: #151515; }
 
+/* ================================================================
+   [07] MOBILE SCALING CORRECTION
+   Paste this at the very bottom of your <style> section
+   ================================================================ */
+@media only screen and (max-width: 768px) {
+    
+    /* 1. Shrink Fonts slightly on mobile */
+    .char-header { font-size: 1.5vmin !important; }
+    .gold-large { font-size: 2.5vmin !important; }
+    .stat-val { font-size: 2vmin !important; }
+    .stat-lbl { font-size: 0.9vmin !important; }
+    .leader-row { font-size: 1.4vmin !important; padding: 0.2vmin !important; }
+    #p1-name { font-size: 1.4vmin !important; }
+    #p1-class { font-size: 1vmin !important; }
+    
+    /* 2. Tighten Layout/Padding */
+    .panel { padding: 0.5vmin !important; }
+    .stat-grid { gap: 0.1vmin !important; margin-bottom: 0.2vmin !important; }
+    .paper-doll { margin-bottom: 0.2vmin !important; padding-top: 0.2vmin !important; }
+    #leaderboard h3 { font-size: 1.5vmin !important; margin-bottom: 0.2vmin !important; padding-bottom: 0.2vmin !important; }
+    
+    /* 3. Shrink Inventory/Equip Slots */
+    .equip-slot { height: 2.8vmin !important; font-size: 0.9vmin !important; border-width: 1px !important; }
+    .inv-slot { height: 2.8vmin !important; font-size: 0.8vmin !important; border-width: 1px !important; }
+    
+    /* 4. Shrink Skill Bar (Bottom) */
+    .skill-slot { width: 4.5vmin !important; height: 4.5vmin !important; font-size: 0.8vmin !important; border-width: 1px !important; }
+    .skill-key { width: 1.2vmin !important; height: 1.2vmin !important; font-size: 0.8vmin !important; top: -2px !important; left: -2px !important; }
+    
+    /* 5. Tweak Borders for sharpness */
+    .panel, .stat-box, #game-log, #skill-bar, button { border-width: 1px !important; }
+    
+    /* 6. Adjust Controls/Buttons */
+    #controls { gap: 0.5vmin !important; }
+    button { padding: 0.5vmin 1vmin !important; font-size: 1.8vmin !important; border-radius: 4px !important; }
+}
+
     </style>
 </head>
 
