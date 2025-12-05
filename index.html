@@ -905,7 +905,7 @@ const ABILITY_LIBRARY = {
     court_mage: { name: "Court Mage", desc: "Immune to Tax. Gain 10G whenever others pay Tax.", type:'passive', img: "https://static.wixstatic.com/media/b16479_60838e488fae4e7e896c8cfe64f5bc03~mv2.jpg" },
     alchemist_pas: { name: "Alchemist", desc: "Drawing 'Pouch of Gold' triggers an extra Treasure draw.", type:'passive', img: "https://static.wixstatic.com/media/b16479_e0bd1a01c0b344f086778fea802be2ca~mv2.jpg" },
     pickpocket: { 
-        name: "Pickpocket", desc: "Steal 10G per property from a random player.", img: "",
+        name: "Pickpocket", desc: "Steal 10G per property from a random player.", img: "https://static.wixstatic.com/media/b16479_13ee3ae3151c40f58f7152857c4d97ff~mv2.jpg",
         fn: (p) => { 
             const targets = players.filter(x => x.id !== p.id && !x.isDead); 
             if(targets.length > 0){ 
@@ -916,9 +916,9 @@ const ABILITY_LIBRARY = {
             } else { addLog("No one to pickpocket.", "log-fail"); }
         }
     },
-    sprint_act: { name: "Sprint", desc: "Move 3 spaces.", fn: (p) => { animateMove(p, 3); }, img: "" },
+    sprint_act: { name: "Sprint", desc: "Move 3 spaces.", fn: (p) => { animateMove(p, 3); }, img: "https://static.wixstatic.com/media/b16479_2a97d38d75f14a7c96eb980178f1bdf6~mv2.jpg" },
     smoke_bomb: { 
-        name: "Skeleton Key", desc: "Passive: Immunity to Dungeon. Trap: Enemies landing on Dungeon while you are there go to jail.", type: 'passive', img: "",
+        name: "Skeleton Key", desc: "Passive: Immunity to Dungeon. Trap: Enemies landing on Dungeon while you are there go to jail.", type: 'passive', img: "https://static.wixstatic.com/media/b16479_6c10e5ce01164b79bb957d07613143ae~mv2.jpg",
         onEnemyLanding: (victim, owner) => {
             if (owner.pos === 10) {
                 addLog(`${victim.name} stumbled into ${owner.name}'s trap!`, "log-fail");
@@ -926,11 +926,11 @@ const ABILITY_LIBRARY = {
             }
         }
     },
-    shadow_step: { name: "Shadow Step", desc: "Permanent +1 DEX.", type:'passive', effect:(s)=>s.dex+=1, img: "" },
-    greedy: { name: "Greedy", desc: "Start with +200G.", type:'passive', effect:(s)=>s.gold+=200, img: "" },
-    fence: { name: "Fence", desc: "Sell items for 80% value (usually 50%).", type:'passive', img: "" },
+    shadow_step: { name: "Shadow Step", desc: "Permanent +1 DEX.", type:'passive', effect:(s)=>s.dex+=1, img: "https://static.wixstatic.com/media/b16479_923e7271de194ba69a6d2243650e2c41~mv2.jpg" },
+    greedy: { name: "Greedy", desc: "Start with +200G.", type:'passive', effect:(s)=>s.gold+=200, img: "https://static.wixstatic.com/media/b16479_9555d2fe87f74320a96619cdb7f057a4~mv2.jpg" },
+    fence: { name: "Fence", desc: "Sell items for 80% value (usually 50%).", type:'passive', img: "https://static.wixstatic.com/media/b16479_7f7f664290b14d51a9aa304396c46d67~mv2.jpg" },
     heal_light: { 
-        name: "Spirit Tithe", desc: "Passive: +5G on enemy land, +10G on owned land.", type: 'active', img: "",
+        name: "Spirit Tithe", desc: "Passive: +5G on enemy land, +10G on owned land.", type: 'active', img: "https://static.wixstatic.com/media/b16479_73cb0754c25246689fbe4db244b98da1~mv2.jpg",
         onLanding: (p) => {
             const t = tiles[p.pos];
             if (t.userData.owner !== null) {
@@ -942,7 +942,7 @@ const ABILITY_LIBRARY = {
         fn: (p) => { addLog("Spirit Tithe is always active.", "log-success"); }
     },
     smite: { 
-        name: "Smite", desc: "Instant Capture/Upgrade/Guard. Movement 1d6 until Recharge.", type: 'active', img: "",
+        name: "Smite", desc: "Instant Capture/Upgrade/Guard. Movement 1d6 until Recharge.", type: 'active', img: "https://static.wixstatic.com/media/b16479_de48e0494048408dbd67d6c2008aee28~mv2.jpg",
         fn: (p) => { 
             const t = tiles[p.pos];
             let actionText = "";
@@ -977,11 +977,11 @@ const ABILITY_LIBRARY = {
             if (p.smiteExhaustion) { p.smiteExhaustion = false; addLog("Smite Exhaustion Cleared!", "log-success"); return true; } return false;
         }
     },
-    bless: { name: "Bless", desc: "Gain +5 INT until end of turn.", fn: (p) => { p.stats.int+=5; addLog("Blessed!", "log-success"); updateHUD(); }, img: "" },
-    devotion: { name: "Devotion", desc: "Permanent +1 INT.", type:'passive', effect:(s)=>s.int+=1, img: "" },
-    medic: { name: "Medic", desc: "Permanent +1 STR.", type:'passive', effect:(s)=>s.str+=1, img: "" },
+    bless: { name: "Bless", desc: "Gain +5 INT until end of turn.", fn: (p) => { p.stats.int+=5; addLog("Blessed!", "log-success"); updateHUD(); }, img: "https://static.wixstatic.com/media/b16479_75752aecbee444ada136a1d9c923b8f8~mv2.jpg" },
+    devotion: { name: "Devotion", desc: "Permanent +1 INT.", type:'passive', effect:(s)=>s.int+=1, img: "https://static.wixstatic.com/media/b16479_4ad91e74342448b08fd19799f492d69b~mv2.jpg" },
+    medic: { name: "Medic", desc: "Permanent +1 STR.", type:'passive', effect:(s)=>s.str+=1, img: "https://static.wixstatic.com/media/b16479_e222db131e6e4e2180c5bd4dcd0dd6f4~mv2.jpg" },
     holy_aura: { 
-        name: "Holy Aura", desc: "Gain 20G when landing on a space with another hero.", type: 'passive', img: "",
+        name: "Holy Aura", desc: "Gain 20G when landing on a space with another hero.", type: 'passive', img: "https://static.wixstatic.com/media/b16479_967b2ee34245413a8b04aa43b0fe04b8~mv2.jpg",
         onLanding: (p) => {
             const isShared = players.some(other => other.id !== p.id && !other.isDead && other.pos === p.pos);
             if (isShared) { p.gold += 20; addLog("Holy Aura: +20G (Hero nearby)", "log-gold"); updateHUD(); }
