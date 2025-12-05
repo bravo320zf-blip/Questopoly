@@ -956,28 +956,23 @@ const ABILITY_LIBRARY = {
     },
 
     // --- [3] NEW RANDOM ABILITIES ---
-    haggler: { name: "Haggler", desc: "Passive: All Shop items cost 25% less.", type:'passive', img: "" },
-    mountaineer: { name: "Mountaineer", desc: "Passive: +2 Combat Successes when fighting on Mountain or Peak tiles.", type:'passive', img: "" },
-    gold_rush: { name: "Gold Rush", desc: "Passive: Gain +50G immediately whenever you land on a Chest tile.", type:'passive', onLanding: (p) => { if(tiles[p.pos].userData.info.type === 'chest') { p.gold += 50; addLog("Gold Rush: +50G!", "log-gold"); updateHUD(); } }, img: "" },
-    escape_artist: { name: "Escape Artist", desc: "Passive: Reduce combat penalty costs by 50%.", type:'passive', img: "" },
-    builder: { name: "Master Builder", desc: "Passive: Upgrading a property costs 50G less.", type:'passive', img: "" },
-    divine_shield: { name: "Divine Shield", desc: "Active: Ignore the next penalty/damage you would take.", fn: (p) => { p.divineShield = true; addLog("Divine Shield activated! Next penalty ignored.", "log-epic"); }, img: "" },
-    landlord: { name: "Landlord", desc: "Passive: Enemies pay +20% Rent when landing on your properties.", type:'passive', img: "" },
-    vampirism: { name: "Vampirism", desc: "Passive: Gain 10G for every successful die roll in combat.", type:'passive', img: "" },
-    gamblers_luck: { name: "Gambler's Luck", desc: "Active: Reroll any 1s rolled during movement or combat.", fn: (p) => { addLog("Dice rerolled!", "log-success"); }, img: "" },
-    ambush_master: { name: "Ambush", desc: "Passive: Start every combat with 1 automatic Success.", type:'passive', img: "" },
+    haggler: { name: "Haggler", desc: "Passive: All Shop items cost 25% less.", type:'passive', img: "https://static.wixstatic.com/media/b16479_2ba70fe3c905462aba90a1c434163f08~mv2.jpeg" },
+    gold_rush: { name: "Gold Rush", desc: "Passive: Gain +50G immediately whenever you land on a Chest tile.", type:'passive', onLanding: (p) => { if(tiles[p.pos].userData.info.type === 'chest') { p.gold += 50; addLog("Gold Rush: +50G!", "log-gold"); updateHUD(); } }, img: "https://static.wixstatic.com/media/b16479_a16b936431f54cb9b0c14fc110db0363~mv2.jpeg" },
+    escape_artist: { name: "Escape Artist", desc: "Passive: Reduce combat penalty costs by 50%.", type:'passive', img: "https://static.wixstatic.com/media/b16479_c8fb1f2502ce472bb9fb6d19d463285c~mv2.jpeg" },
+    divine_shield: { name: "Divine Shield", desc: "Active: Ignore the next penalty/damage you would take.", fn: (p) => { p.divineShield = true; addLog("Divine Shield activated! Next penalty ignored.", "log-epic"); }, img: "https://static.wixstatic.com/media/b16479_120e5cd8985d48088cbc3c4a2f9cefae~mv2.jpeg" },
+    landlord: { name: "Landlord", desc: "Passive: Enemies pay +20% Rent when landing on your properties.", type:'passive', img: "https://static.wixstatic.com/media/b16479_8d16ceb9c83448528c0309942f785c8a~mv2.jpeg" },
+    vampirism: { name: "Vampirism", desc: "Passive: Gain 10G for every successful die roll in combat.", type:'passive', img: "https://static.wixstatic.com/media/b16479_6a42b45b920a4bc6bd8f92bc8fc51ad1~mv2.jpeg" },
+    gamblers_luck: { name: "Gambler's Luck", desc: "Active: Reroll any 1s rolled during movement or combat.", fn: (p) => { addLog("Dice rerolled!", "log-success"); }, img: "https://static.wixstatic.com/media/b16479_613c6b72c1984c8d93398e7f00ae2ee0~mv2.jpeg" },
+    ambush_master: { name: "Ambush", desc: "Passive: Start every combat with 1 automatic Success.", type:'passive', img: "https://static.wixstatic.com/media/b16479_6274cb33103f496d958019147a605599~mv2.jpeg" },
 
     // --- [4] RESTORED COMPLEX SKILLS ---
-    teleport: { name: "Town Portal", desc: "Teleport to Old Crooks Inn.", fn: (p) => { p.pos=0; p.mesh.position.copy(tiles[0].position); resolveLanding(p); addLog("Teleported to Inn.", "log-rare"); }, img: "" },
-    backtrack: { name: "Recall", desc: "Move backwards 3 spaces.", fn: (p) => { p.pos = (p.pos - 3 + 40) % 40; const t = tiles[p.pos]; new TWEEN.Tween(p.mesh.position).to({x:t.position.x, z:t.position.z}, 500).onComplete(()=>resolveLanding(p)).start(); addLog("Rewound time.", "log-epic"); }, img: "" },
-    sprint: { name: "Adrenaline", desc: "Add +2 to your next movement roll (Passive).", type:'passive', img: "" },
-    bribe: { name: "Silver Tongue", desc: "Steal ownership of a tile (TN 6 INT). Only usable when prompted during capture.", fn: (p) => { addLog("You cannot activate this skill at this time.", "log-fail"); }, img: "" },
-    swap: { name: "Chaos Swap", desc: "Swap positions with random player.", fn: (p) => { const targets = players.filter(t => t.id !== p.id && !t.isDead); if(targets.length > 0) { const t = targets[Math.floor(Math.random() * targets.length)]; const tempPos = p.pos; p.pos = t.pos; t.pos = tempPos; p.mesh.position.copy(tiles[p.pos].position); t.mesh.position.copy(tiles[t.pos].position); addLog(`Swapped with ${t.name}!`, "log-epic"); }}, img: "" },
-    might: { name: "Giant's Str", desc: "Gain +5 STR until end of turn.", fn: (p) => { p.stats.str += 5; addLog("Strength surged!", "log-success"); updateHUD(); }, img: "" },
-    focus: { name: "Mind's Eye", desc: "Gain +5 INT until end of turn.", fn: (p) => { p.stats.int += 5; addLog("Focus sharpened!", "log-success"); updateHUD(); }, img: "" },
-    agility: { name: "Cat's Grace", desc: "Gain +5 DEX until end of turn.", fn: (p) => { p.stats.dex += 5; addLog("Reflexes heightened!", "log-success"); updateHUD(); }, img: "" },
-    transmute: { name: "Alchemy", desc: "Destroy a random inventory item for 300G.", fn: (p) => { if(p.inventory.length > 0) { const idx = Math.floor(Math.random()*p.inventory.length); const it = p.inventory.splice(idx, 1)[0]; p.gold += 300; addLog(`Transmuted ${it.name} to 300G.`, "log-gold"); updateHUD(); } else { addLog("No items to transmute.", "log-fail"); }}, img: "" },
-    tax_evade: { name: "Tax Dodge", desc: "Gain immunity to Tax tiles (Passive).", type:'passive', img: "" },
+    teleport: { name: "Town Portal", desc: "Teleport to Old Crooks Inn.", fn: (p) => { p.pos=0; p.mesh.position.copy(tiles[0].position); resolveLanding(p); addLog("Teleported to Inn.", "log-rare"); }, img: "https://static.wixstatic.com/media/b16479_e2653f032408459ea8d64eb87faf86fb~mv2.jpeg" },
+    backtrack: { name: "Recall", desc: "Move backwards 3 spaces.", fn: (p) => { p.pos = (p.pos - 3 + 40) % 40; const t = tiles[p.pos]; new TWEEN.Tween(p.mesh.position).to({x:t.position.x, z:t.position.z}, 500).onComplete(()=>resolveLanding(p)).start(); addLog("Rewound time.", "log-epic"); }, img: "https://static.wixstatic.com/media/b16479_40db1c3f8b6b4c11bc8a509c62133e48~mv2.jpeg" },
+    bribe: { name: "Silver Tongue", desc: "Steal ownership of a tile (TN 6 INT). Only usable when prompted during capture.", fn: (p) => { addLog("You cannot activate this skill at this time.", "log-fail"); }, img: "https://static.wixstatic.com/media/b16479_4eea8ba2071047a1bdc17eb37b648db3~mv2.jpeg" },
+    swap: { name: "Chaos Swap", desc: "Swap positions with random player.", fn: (p) => { const targets = players.filter(t => t.id !== p.id && !t.isDead); if(targets.length > 0) { const t = targets[Math.floor(Math.random() * targets.length)]; const tempPos = p.pos; p.pos = t.pos; t.pos = tempPos; p.mesh.position.copy(tiles[p.pos].position); t.mesh.position.copy(tiles[t.pos].position); addLog(`Swapped with ${t.name}!`, "log-epic"); }}, img: "https://static.wixstatic.com/media/b16479_981b877ce6714658adb31c29d8e69685~mv2.jpeg" },
+    might: { name: "Giant's Str", desc: "Gain +5 STR until end of turn.", fn: (p) => { p.stats.str += 5; addLog("Strength surged!", "log-success"); updateHUD(); }, img: "https://static.wixstatic.com/media/b16479_966a061562c2433bbcefaec1ecf83776~mv2.jpeg" },
+    focus: { name: "Mind's Eye", desc: "Gain +5 INT until end of turn.", fn: (p) => { p.stats.int += 5; addLog("Focus sharpened!", "log-success"); updateHUD(); }, img: "https://static.wixstatic.com/media/b16479_1066eb1edb9b4611b0513793cbbfacbf~mv2.jpeg" },
+    agility: { name: "Cat's Grace", desc: "Gain +5 DEX until end of turn.", fn: (p) => { p.stats.dex += 5; addLog("Reflexes heightened!", "log-success"); updateHUD(); }, img: "https://static.wixstatic.com/media/b16479_dff1cef153fd46f48cf12f64ba7217fd~mv2.jpeg" },
     bounty: { name: "Bounty Hunter", desc: "Gain 50G when winning a fight.", type: 'passive', onCombatVictory: (p) => { p.gold += 50; addLog("Bounty Hunter Reward: +50G", "log-gold"); updateHUD(); }, img: "" },
     lucky: { name: "Lucky Charm", desc: "Reroll movement dice once.", fn: (p) => { rollMove(); addLog("Rerolled dice!", "log-success"); }, img: "" },
     anchor: { name: "Iron Anchor", desc: "You cannot be moved by enemy effects (Passive).", type:'passive', img: "" },
@@ -2818,4 +2813,3 @@ init();
 </script>
 </body>
 </html>
-
