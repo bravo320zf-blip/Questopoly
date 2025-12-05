@@ -33,10 +33,41 @@
             --legend: #f59e0b;
         }
 
-        * { box-sizing: border-box; } 
-        html, body { width: 100%; height: 100%; margin: 0; padding: 0; overflow: hidden; background: #000; }
-        body { font-family: 'Roboto Condensed', sans-serif; color: var(--text-main); user-select: none; }
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; } 
+        
+        html, body { 
+            width: 100%; 
+            height: 100%; 
+            margin: 0; 
+            padding: 0; 
+            overflow: hidden; /* Hides scrollbars */
+            background: #000; 
+            
+            /* --- THE FIX IS HERE --- */
+            position: fixed; /* Locks the body to the viewport */
+            overscroll-behavior: none; /* Stops the "bounce" effect */
+            touch-action: none; /* Disables pinch-zoom and pan gestures globally */
+            -webkit-user-select: none; /* Disable text selection */
+            user-select: none;
+        }
+        
+        body { font-family: 'Roboto Condensed', sans-serif; color: var(--text-main); }
         h1, h2, h3, button, input { font-family: 'Cinzel', serif; }
+		
+/* ================================================================
+   [01.5] SCROLL LOCK FIXES
+   ================================================================ */
+        /* Re-enable scrolling for specific internal containers */
+        #game-log, 
+        #leader-list, 
+        .help-section, 
+        .card-modal, 
+        .panel:not(.minimized),
+        #create-screen {
+            touch-action: pan-y; /* Allow vertical scrolling only */
+            overflow-y: auto;
+            overscroll-behavior: contain; /* Stop scroll from bubbling to body */
+        }
 
 /* ================================================================
    [02] LAYERS & BOARD ANCHOR
