@@ -74,33 +74,34 @@
         display: flex;
         flex-direction: column;
     }
-    .minimize-btn { background: transparent; border: 1px solid #666; color: #aaa; width: 25px; height: 25px; border-radius: 4px; cursor: pointer; float: right; display: flex; align-items: center; justify-content: center; margin-left: 10px; }
+    .minimize-btn { background: transparent; border: 1px solid #666; color: #aaa; width: 5px; height: 5px; border-radius: 4px; cursor: pointer; float: right; display: flex; align-items: center; justify-content: center; margin-left: 10px; }
     .panel.minimized > *:not(.char-header):not(h3) { display: none !important; }
-    .panel.minimized { width: auto !important; height: auto !important; min-width: 150px; }
+    .panel.minimized { width: auto !important; height: auto !important; min-width: 398px; }
 
     /* Desktop Positions (Relative to Board) */
     /* UPDATED: Much wider and longer/taller */
     #p1-sheet { 
-        top: 5%; 
-        left: 5%; 
-        width: 25%; /* Increased width */
+        top: 10%; 
+        left: 10%; 
+        width: 30%; /* Increased width */
         border-color: var(--gold); 
         max-height: 80%; /* Much Longer */
         font-size: 1.1rem; /* Larger text */
     }
     
     #leaderboard { 
-        top: 5%; 
-        right: 5%; 
-        width: 25%; /* Increased width */
+        top: 10%; 
+        right: 10%; 
+        width: 30%; /* Increased width */
+		height: 38%;
         border-color: #665c3b; 
-        max-height: 80%; /* Much Longer */
+        max-height: 100%; /* Much Longer */
         font-size: 1.1rem;
     }
 
     /* Center Top: Turn Info */
     #turn-info-container {
-        position: absolute; top: 15%; left: 50%; transform: translateX(-50%);
+        position: absolute; top: 20%; left: 50%; transform: translateX(-50%);
         text-align: center; pointer-events: none; width: 100%;
     }
     #turn-banner { font-size: 5vmin; color: white; text-shadow: 0 0 10px var(--gold); margin-bottom: 5px; }
@@ -108,7 +109,7 @@
 
     /* Bottom Center: Log & Skills */
     #hud-bottom {
-        position: absolute; bottom: 5%; left: 50%; transform: translateX(-50%);
+        position: absolute; bottom: 10%; left: 50%; transform: translateX(-50%);
         display: flex; flex-direction: column; align-items: center;
         width: 55%; /* Wider on desktop */
         pointer-events: auto;
@@ -127,12 +128,12 @@
     }
 
     /* Bottom Right: Controls */
-    #controls { position: absolute; bottom: 5%; right: 5%; display: flex; flex-direction: column; gap: 10px; pointer-events: auto; width: 15%; }
-    #controls button { width: 100%; padding: 20px; font-size: 1.5rem; } /* Larger buttons */
+    #controls { position: absolute; bottom: 10%; right: 7%; display: flex; flex-direction: column; gap: 10px; pointer-events: auto; width: 15%; }
+    #controls button { width: 80%; padding: 20px; font-size: 1.5rem; } /* Larger buttons */
 
     /* Bottom Left: Help */
     #btn-help { 
-        position: absolute; bottom: 5%; left: 5%; width: 8vmin; height: 8vmin; 
+        position: absolute; bottom: 10%; left: 10%; width: 8vmin; height: 8vmin; 
         background: var(--gold); color: #000; border: 2px solid #fff; border-radius: 50%; 
         font-size: 4vmin; font-weight: 900; cursor: pointer; box-shadow: 0 0 15px #000; 
         display: flex; align-items: center; justify-content: center; pointer-events: auto; 
@@ -511,8 +512,8 @@
                 Leaderboard
                 <button class="minimize-btn" onclick="togglePanel('leaderboard')" style="position: absolute; right: 0; top: 0;">+</button>
             </h3>
-            <div id="leader-list" style="flex-grow:1; overflow-y:auto; max-height:150px;"></div>
-            <div id="treasury-box"><h4 style="margin:0; color:#888;">Treasury</h4><div id="treasury-val">0</div><small style="color:#555;">Capital City Hoard</small></div>
+            <div id="leader-list" style="flex-grow:1; overflow-y:auto; max-height:200px;"></div>
+            <div class="gold-large" id="treasury-box"><h4 style="margin:0; color:#fff; text-align: center;">Treasury</h4><div id="treasury-val"; style="text-align: center;">0</div><div style="color:#fff; text-align: center;">Capital City Hoard</div></div>
         </div>
 
         <!-- BOTTOM LEFT: HELP -->
@@ -562,7 +563,7 @@
     </div>
     <button id="btn-start-game" class="primary" style="padding:15px 50px; font-size:1.5rem;" onclick="startGame()" disabled>Start Adventure</button>
     <div style="height:50px;"></div>
-    <div id="creator-portrait-frame"><button id="btn-min-portrait" class="minimize-btn" onclick="toggleCreatorPortrait()" style="position: absolute; top: 5px; right: 5px; background: rgba(0,0,0,0.8); border: 1px solid var(--gold); color: var(--gold); z-index: 205; width: 30px; height: 30px; line-height: 28px; padding: 0;">-</button></div>
+    <div id="creator-portrait-frame"><button id="btn-min-portrait" class="minimize-btn" onclick="toggleCreatorPortrait()" style="position: absolute; top: 5px; right: 5px; background: rgba(0,0,0,0.8); border: 1px solid var(--gold); color: var(--gold); z-index: 205; width: 20px; height: 30px; line-height: 28px; padding: 0;">-</button></div>
 </div>
 
 <div id="arrival-modal" class="card-modal" style="padding: 0; overflow: hidden;">
@@ -839,12 +840,12 @@ const ABILITY_LIBRARY = {
     },
     midas: { 
         name: "Midas Touch", desc: "Passive: Double Gold from 'Pouch of Gold' and 'Lucky Coin' items.", type:'passive', 
-        img: "" // Add image if available
+        img: "https://static.wixstatic.com/media/b16479_869668d07a5f47fe804e17ab6c6306e1~mv2.jpg" // Add image if available
     },
     heal: { 
         name: "Well Made", desc: "Passive: This item sells for 3x its normal value.", type:'passive', 
         // Logic handled in sellItem()
-        img: "" 
+        img: "https://static.wixstatic.com/media/b16479_6fbb98ea84a9479b98dd0441fd7152b6~mv2.jpg" 
     },
     freeze: { 
         name: "Ice Blast", desc: "A random player skips their next turn.", 
@@ -858,7 +859,7 @@ const ABILITY_LIBRARY = {
                 addLog("No targets to freeze.", "log-fail");
             }
         }, 
-        img: "" 
+        img: "https://static.wixstatic.com/media/b16479_4449fff43db746d2962beedde6da3ba6~mv2.jpg" 
     },
     scavenge: { 
         name: "Scavenge", desc: "Gain 10G each time you capture a space from an enemy.", type:'passive',
@@ -869,7 +870,7 @@ const ABILITY_LIBRARY = {
             addLog("Scavenge: +10G", "log-gold");
             updateHUD();
         },
-        img: "" 
+        img: "https://static.wixstatic.com/media/b16479_4d3e9a05134247fab12617463bdca1ef~mv2.jpg" 
     },
 
     // --- EXISTING SKILLS WITH ART ---
@@ -917,7 +918,7 @@ const ABILITY_LIBRARY = {
     pickpocket: { name: "Pickpocket", desc: "Steal 10G per property from a random player.", fn: (p) => { /* ... */ }, img: "https://static.wixstatic.com/media/b16479_13ee3ae3151c40f58f7152857c4d97ff~mv2.jpg" },
     sprint_act: { name: "Sprint", desc: "Move 3 spaces.", fn: (p) => { animateMove(p, 3); }, img: "https://static.wixstatic.com/media/b16479_2a97d38d75f14a7c96eb980178f1bdf6~mv2.jpg" },
     smoke_bomb: { name: "Skeleton Key", desc: "Passive: Immunity to Dungeon. Trap: Enemies landing on Dungeon.", type: 'passive', onEnemyLanding: (victim, owner) => { /* ... */ }, img: "https://static.wixstatic.com/media/b16479_6c10e5ce01164b79bb957d07613143ae~mv2.jpg" },
-    shadow_step: { name: "Shadow Step", desc: "Permanent +1 DEX.", type:'passive', effect:(s)=>s.dex+=1, img: "https://static.wixstatic.com/media/b16479_923e7271de194ba69a6d2243650e2c41~mv2.jpg" },
+    shadow_step: { name: "Shadow Step", desc: "Permanent +1 DEX and Movement.", type:'passive', effect:(s)=>s.dex+=1, img: "https://static.wixstatic.com/media/b16479_923e7271de194ba69a6d2243650e2c41~mv2.jpg" },
     greedy: { name: "Greedy", desc: "Start with +200G.", type:'passive', effect:(s)=>s.gold+=200, img: "https://static.wixstatic.com/media/b16479_9555d2fe87f74320a96619cdb7f057a4~mv2.jpg" },
     fence: { name: "Fence", desc: "Sell items for 80% value (usually 50%).", type:'passive', img: "https://static.wixstatic.com/media/b16479_7f7f664290b14d51a9aa304396c46d67~mv2.jpg" },
     heal_light: { name: "Spirit Tithe", desc: "Passive: +5G on enemy land, +10G on owned land.", type: 'active', onLanding: (p) => { /* ... */ }, fn: (p) => { addLog("Spirit Tithe is always active.", "log-success"); }, img: "https://static.wixstatic.com/media/b16479_73cb0754c25246689fbe4db244b98da1~mv2.jpg" },
@@ -2016,9 +2017,14 @@ function capture(t, p, lvl, callback) {
         }
     } else {
         const s = p.stats; 
-        if (s.str >= s.dex && s.str >= s.int) t.userData.defendingStat = 'str'; 
-        else if (s.dex >= s.str && s.dex >= s.int) t.userData.defendingStat = 'dex'; 
-        else t.userData.defendingStat = 'int';
+        if (s.str >= s.dex && s.str >= s.int) {
+            t.userData.defendingStat = 'str'; 
+        } else if (s.dex >= s.str && s.dex >= s.int) {
+            t.userData.defendingStat = 'dex'; 
+        } else {
+            t.userData.defendingStat = 'int';
+        }
+        
         if (callback) callback();
     }
 }
@@ -2205,31 +2211,42 @@ function openCharDetail(id) {
     const p = players[id]; 
     if(!p) return; 
     
-    // Header Info
+    // 1. Header Info
     setT('cd-header', p.name); 
     setT('cd-sub', p.race.name + " " + p.class.name); 
     setT('cd-str', p.stats.str); 
     setT('cd-dex', p.stats.dex); 
     setT('cd-int', p.stats.int); 
     
+    // 2. Portrait
     const portraitEl = document.getElementById('cd-portrait'); 
     if(portraitEl) portraitEl.style.backgroundImage = `url('${p.portrait}')`; 
     
+    // 3. Abilities with Icons
     const act = ABILITY_LIBRARY[p.activeSkillId]; 
     const pas = ABILITY_LIBRARY[p.passiveSkillId]; 
     
-    // --- INJECT IMAGES FOR ABILITIES ---
-    const actImg = (act && act.img) ? `<img src="${act.img}" style="width:30px;height:30px;border:1px solid #777;margin-right:8px;vertical-align:middle;border-radius:4px;object-fit:cover;">` : '';
-    const pasImg = (pas && pas.img) ? `<img src="${pas.img}" style="width:30px;height:30px;border:1px solid #777;margin-right:8px;vertical-align:middle;border-radius:4px;object-fit:cover;">` : '';
+    // Helper function to build the HTML for the ability row
+    const buildAbilityHTML = (skill) => {
+        if (!skill) return '-';
+        // Only show image tag if skill.img exists
+        const imgTag = (skill.img && skill.img !== "") 
+            ? `<img src="${skill.img}" style="width:40px;height:40px;border:1px solid #666;margin-right:10px;vertical-align:middle;border-radius:4px;object-fit:cover;background:#000;">` 
+            : '';
+        return `<div style="display:flex;align-items:center;">${imgTag}<span style="font-weight:bold;font-size:1.1rem;">${skill.name}</span></div>`;
+    };
 
-    // Use innerHTML instead of innerText to render the <img> tag
-    document.getElementById('cd-active').innerHTML = `${actImg}<span style="vertical-align:middle;">${act ? act.name : '-'}</span>`;
+    // Active Skill Injection
+    const actEl = document.getElementById('cd-active');
+    if(actEl) actEl.innerHTML = buildAbilityHTML(act);
     setT('cd-active-desc', act ? act.desc : ''); 
     
-    document.getElementById('cd-passive').innerHTML = `${pasImg}<span style="vertical-align:middle;">${pas ? pas.name : '-'}</span>`;
+    // Passive Skill Injection
+    const pasEl = document.getElementById('cd-passive');
+    if(pasEl) pasEl.innerHTML = buildAbilityHTML(pas);
     setT('cd-passive-desc', pas ? pas.desc : ''); 
     
-    // Inventory Management
+    // 4. Inventory / Equipment (Only show for Player 1)
     const invSection = document.getElementById('cd-inventory-section'); 
     const hiddenMsg = document.getElementById('cd-hidden-msg'); 
     
@@ -2237,20 +2254,27 @@ function openCharDetail(id) {
         if(invSection) invSection.style.display = 'block'; 
         if(hiddenMsg) hiddenMsg.style.display = 'none'; 
         
+        // Update Paper Doll in Modal
         ['head','body','main','off'].forEach(slot => { 
             const item = p.equipment[slot]; 
             const el = document.getElementById('cd-slot-'+slot); 
             if(el) { 
                 el.innerHTML = item ? item.name : slot.toUpperCase(); 
                 el.className = 'equip-slot' + (item ? ' filled' : ''); 
-                if(item) { el.onmouseenter = () => showTooltip(item); el.onmouseleave = hideTooltip; } 
-                else { el.onmouseenter = null; } 
+                if(item) { 
+                    el.onmouseenter = () => showTooltip(item); 
+                    el.onmouseleave = hideTooltip; 
+                } else { 
+                    el.onmouseenter = null; 
+                } 
             } 
         }); 
         
+        // Update Inventory Grid in Modal
         const grid = document.getElementById('cd-inv-grid'); 
         if(grid) { 
             grid.innerHTML = ''; 
+            // Fill existing items
             p.inventory.forEach(item => { 
                 let d = document.createElement('div'); 
                 d.className = 'inv-slot'; 
@@ -2260,18 +2284,24 @@ function openCharDetail(id) {
                 d.onmouseleave = hideTooltip; 
                 grid.appendChild(d); 
             }); 
+            // Fill empty slots up to 12
             for(let i=p.inventory.length; i<12; i++) { 
-                let d = document.createElement('div'); d.className = 'inv-slot'; grid.appendChild(d); 
+                let d = document.createElement('div'); 
+                d.className = 'inv-slot'; 
+                grid.appendChild(d); 
             } 
         } 
     } else { 
+        // Hide Inventory for AI/Other players
         if(invSection) invSection.style.display = 'none'; 
         if(hiddenMsg) hiddenMsg.style.display = 'block'; 
     } 
     
+    // 5. Show Modal
     const modal = document.getElementById('char-detail-modal'); 
     if(modal) modal.classList.add('active'); 
-} { if(invSection) invSection.style.display = 'block'; if(hiddenMsg) hiddenMsg.style.display = 'none'; ['head','body','main','off'].forEach(slot => { const item = p.equipment[slot]; const el = document.getElementById('cd-slot-'+slot); if(el) { el.innerHTML = item ? item.name : slot.toUpperCase(); el.className = 'equip-slot' + (item ? ' filled' : ''); if(item) { el.onmouseenter = () => showTooltip(item); el.onmouseleave = hideTooltip; } else { el.onmouseenter = null; } } }); const grid = document.getElementById('cd-inv-grid'); if(grid) { grid.innerHTML = ''; p.inventory.forEach(item => { let d = document.createElement('div'); d.className = 'inv-slot'; d.innerText = item.name; d.classList.add('rarity-' + item.rarity); d.onmouseenter = () => showTooltip(item); d.onmouseleave = hideTooltip; grid.appendChild(d); }); for(let i=p.inventory.length; i<12; i++) { let d = document.createElement('div'); d.className = 'inv-slot'; grid.appendChild(d); } } } else { if(invSection) invSection.style.display = 'none'; if(hiddenMsg) hiddenMsg.style.display = 'block'; } const modal = document.getElementById('char-detail-modal'); if(modal) modal.classList.add('active'); }
+}
+//if(invSection) invSection.style.display = 'block'; if(hiddenMsg) hiddenMsg.style.display = 'none'; ['head','body','main','off'].forEach(slot => { const item = p.equipment[slot]; const el = document.getElementById('cd-slot-'+slot); if(el) { el.innerHTML = item ? item.name : slot.toUpperCase(); el.className = 'equip-slot' + (item ? ' filled' : ''); if(item) { el.onmouseenter = () => showTooltip(item); el.onmouseleave = hideTooltip; } else { el.onmouseenter = null; } } }); const grid = document.getElementById('cd-inv-grid'); if(grid) { grid.innerHTML = ''; p.inventory.forEach(item => { let d = document.createElement('div'); d.className = 'inv-slot'; d.innerText = item.name; d.classList.add('rarity-' + item.rarity); d.onmouseenter = () => showTooltip(item); d.onmouseleave = hideTooltip; grid.appendChild(d); }); for(let i=p.inventory.length; i<12; i++) { let d = document.createElement('div'); d.className = 'inv-slot'; grid.appendChild(d); } } } else { if(invSection) invSection.style.display = 'none'; if(hiddenMsg) hiddenMsg.style.display = 'block'; } const modal = document.getElementById('char-detail-modal'); if(modal) modal.classList.add('active'); }
 function closeCharDetail() { document.getElementById('char-detail-modal').classList.remove('active'); hideTooltip(); }
 function getRarityColor(r) { if(r==='common')return '#fff'; if(r==='rare')return '#3b82f6'; if(r==='epic')return '#a855f7'; return '#f59e0b'; }
 function showTooltip(data, isSkillId = false) { 
