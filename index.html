@@ -206,6 +206,28 @@
         #tooltip { position: absolute; display: none; background: rgba(10,10,15,0.98); border: 2px solid var(--gold); padding: 15px; color: #fff; font-size: 1rem; pointer-events: none; z-index: 200; border-radius: 6px; width: 250px; box-shadow: 0 5px 20px #000; } .tt-header { border-bottom: 1px solid #444; padding-bottom: 5px; margin-bottom: 5px; display:flex; justify-content: space-between;} .tt-name { font-weight: bold; color: var(--gold); font-family: 'Cinzel', serif; font-size: 1.2rem; } .tt-rarity { font-size: 0.9rem; text-transform: uppercase; } .tt-stat { color: #ccc; display: block; } .tt-abil { color: var(--success); margin-top: 5px; font-style: italic; display:block; border-top: 1px solid #333; padding-top: 3px;}
         #context-menu { position: absolute; display: none; flex-direction: column; background: #1a1a1a; border: 2px solid var(--gold); z-index: 1000; min-width: 200px; box-shadow: 0 5px 20px rgba(0,0,0,0.9); border-radius: 6px; } .ctx-item { padding: 15px 20px; cursor: pointer; border-bottom: 1px solid #333; font-size: 1.1rem; color: #fff; background: #222; } .ctx-item:hover { background: #333; color: var(--gold); } .ctx-item:last-child { border-bottom: none; } .ctx-item.disabled { color: #555; cursor: not-allowed; background: #151515; }
 
+
+/* ================================================================
+   [06.5] ABILITY ART STYLES
+   ================================================================ */
+/* Icon in the Tooltip (Top Left next to name) */
+.tt-icon { 
+    width: 40px; height: 40px; 
+    border-radius: 4px; border: 1px solid var(--gold); 
+    object-fit: cover; margin-right: 10px; 
+    background-color: #000;
+}
+
+/* Icon in Character Creation Cards */
+.skill-card img { 
+    width: 50px; height: 50px; 
+    border-radius: 50%; border: 2px solid #555; 
+    object-fit: cover; display: block; 
+    margin: 0 auto 5px auto; 
+}
+.skill-card.selected img { border-color: var(--success); box-shadow: 0 0 10px var(--success); }
+
+
 /* ================================================================
    [07] MOBILE SCALING CORRECTION
    Paste this at the very bottom of your <style> section
@@ -765,253 +787,185 @@ const CHAR_PORTRAITS = {
 };
 
 const ABILITY_LIBRARY = {
-    dash: { name: "Dash", desc: "Move 3 spaces immediately.", fn: (p) => { addLog("Dashed forward!", "log-success"); animateMove(p, 3); } },
-    ghost_hand: { name: "Ghost Hand", desc: "Steal 100G from a random player.", fn: (p) => { const targets = players.filter(t => t.id !== p.id && !t.isDead && t.gold >= 1); if(targets.length > 0) { const t = targets[Math.floor(Math.random() * targets.length)]; addLog(`${p.name} uses Ghost Hand on ${t.name}!`, "log-accent"); pay(t, 100, p); } else { addLog("No valid targets to steal from.", "log-fail"); }}},
-    midas: { name: "Midas Touch", desc: "Gain 150 Gold immediately.", fn: (p) => { p.gold += 150; addLog("Midas Touch: +150G", "log-gold"); updateHUD(); } },
-    heal: { name: "Field Medic", desc: "Remove 'Skipping Turn' status.", fn: (p) => { p.isSkipping = false; addLog("Cured status ailments!", "log-success"); updateHUD(); } },
-    gamble: { name: "High Stakes", desc: "Roll d6. 1-3: Lose 50G. 4-6: Gain 200G.", fn: (p) => { const r = Math.floor(Math.random()*6)+1; if(r>3){ p.gold+=200; addLog(`Rolled ${r}: Won 200G!`, "log-gold"); } else { pay(p, 50); addLog(`Rolled ${r}: Lost 50G.`, "log-fail"); } updateHUD(); }},
-    teleport: { name: "Town Portal", desc: "Teleport to Old Crooks Inn.", fn: (p) => { p.pos=0; p.mesh.position.copy(tiles[0].position); resolveLanding(p); addLog("Teleported to Inn.", "log-rare"); } },
-    backtrack: { name: "Recall", desc: "Move backwards 3 spaces.", fn: (p) => { p.pos = (p.pos - 3 + 40) % 40; const t = tiles[p.pos]; new TWEEN.Tween(p.mesh.position).to({x:t.position.x, z:t.position.z}, 500).onComplete(()=>resolveLanding(p)).start(); addLog("Rewound time.", "log-epic"); }},
-    sprint: { name: "Adrenaline", desc: "Add +2 to your next movement roll (Passive).", type:'passive' },
-    bribe: { name: "Silver Tongue", desc: "Steal ownership of a tile (TN 6 INT). Only usable when prompted during capture.", fn: (p) => { addLog("You cannot activate this skill at this time.", "log-fail"); } },
-    freeze: { name: "Ice Blast", desc: "Next player skips their turn.", fn: (p) => { const nextP = players[(p.id + 1) % players.length]; nextP.isSkipping = true; addLog(`Froze ${nextP.name}!`, "log-epic"); }},
-    scavenge: { name: "Scavenge", desc: "Gain 50G for every Item you hold.", fn: (p) => { const amt = p.inventory.length * 50; p.gold += amt; addLog(`Scavenged ${amt}G.`, "log-gold"); updateHUD(); }},
-    swap: { name: "Chaos Swap", desc: "Swap positions with random player.", fn: (p) => { const targets = players.filter(t => t.id !== p.id && !t.isDead); if(targets.length > 0) { const t = targets[Math.floor(Math.random() * targets.length)]; const tempPos = p.pos; p.pos = t.pos; t.pos = tempPos; p.mesh.position.copy(tiles[p.pos].position); t.mesh.position.copy(tiles[t.pos].position); addLog(`Swapped with ${t.name}!`, "log-epic"); }}},
-    might: { name: "Giant's Str", desc: "Gain +5 STR until end of turn.", fn: (p) => { p.stats.str += 5; addLog("Strength surged!", "log-success"); updateHUD(); }},
-    focus: { name: "Mind's Eye", desc: "Gain +5 INT until end of turn.", fn: (p) => { p.stats.int += 5; addLog("Focus sharpened!", "log-success"); updateHUD(); }},
-    agility: { name: "Cat's Grace", desc: "Gain +5 DEX until end of turn.", fn: (p) => { p.stats.dex += 5; addLog("Reflexes heightened!", "log-success"); updateHUD(); }},
-    transmute: { name: "Alchemy", desc: "Destroy a random inventory item for 300G.", fn: (p) => { if(p.inventory.length > 0) { const idx = Math.floor(Math.random()*p.inventory.length); const it = p.inventory.splice(idx, 1)[0]; p.gold += 300; addLog(`Transmuted ${it.name} to 300G.`, "log-gold"); updateHUD(); } else { addLog("No items to transmute.", "log-fail"); }}},
-    tax_evade: { name: "Tax Dodge", desc: "Gain immunity to Tax tiles (Passive).", type:'passive' },
-    bounty: { name: "Bounty Hunter", desc: "Gain 50G when winning a fight.", type: 'passive', onCombatVictory: (p) => { p.gold += 50; addLog("Bounty Hunter Reward: +50G", "log-gold"); updateHUD(); } },
-    lucky: { name: "Lucky Charm", desc: "Reroll movement dice once.", fn: (p) => { rollMove(); addLog("Rerolled dice!", "log-success"); } },
-    anchor: { name: "Iron Anchor", desc: "You cannot be moved by enemy effects (Passive).", type:'passive' },
-    second_wind: { name: "Second Wind", desc: "Gain 100 Gold immediately.", fn: (p) => { p.gold+=100; addLog("Second Wind: +100G", "log-gold"); updateHUD(); } },
-    power_strike: { name: "Power Strike", desc: "Gain +5 STR until end of turn.", fn: (p) => { p.stats.str+=5; addLog("Power Strike prepared!", "log-success"); updateHUD(); } },
-    intimidate: { name: "Intimidate", desc: "Force a target to pay you 50G.", fn: (p) => { let target = null; for(let i=1; i<players.length; i++) { const t = players[(p.id + i) % players.length]; if(!t.isDead) { target = t; break; } } if(target) { addLog(`${p.name} intimidates ${target.name}!`, "log-accent"); pay(target, 50, p); } else { addLog("No valid targets to intimidate.", "log-fail"); } } },
-    veteran: { name: "Veteran", desc: "Permanent +1 STR.", type:'passive', effect:(s)=>s.str+=1 },
-    iron_skin: { name: "Iron Skin", desc: "Reduce all fail penalties by 20G.", type:'passive' },
-    executioner: { name: "Executioner", desc: "Rolling a 6 in combat counts as 2 Successes.", type:'passive' },
+    // --- [1] SKILLS WITH ART ---
+    executioner: { 
+        name: "Executioner", desc: "Rolling a 6 in combat counts as 2 Successes.", type:'passive', 
+        img: "https://static.wixstatic.com/media/b16479_cee24d678cfa47568f5f632c40743626~mv2.jpeg" 
+    },
+    iron_skin: { 
+        name: "Iron Skin", desc: "Reduce all fail penalties by 20G.", type:'passive', 
+        img: "https://static.wixstatic.com/media/b16479_c3d88e0d6986494d914fd12047d258ca~mv2.jpeg" 
+    },
+    intimidate: { 
+        name: "Intimidate", desc: "Force a target to pay you 50G.", 
+        fn: (p) => { let target = null; for(let i=1; i<players.length; i++) { const t = players[(p.id + i) % players.length]; if(!t.isDead) { target = t; break; } } if(target) { addLog(`${p.name} intimidates ${target.name}!`, "log-accent"); pay(target, 50, p); } else { addLog("No valid targets to intimidate.", "log-fail"); } },
+        img: "https://static.wixstatic.com/media/b16479_29cbfcb090ef4fc782dcf43faa34fcc4~mv2.jpeg" 
+    },
+    veteran: { 
+        name: "Veteran", desc: "Permanent +1 STR.", type:'passive', effect:(s)=>s.str+=1,
+        img: "https://static.wixstatic.com/media/b16479_9418e25969754a69a13b825cc2e70bbf~mv2.jpeg" 
+    },
+    power_strike: { 
+        name: "Power Strike", desc: "Gain +5 STR until end of turn.", 
+        fn: (p) => { p.stats.str+=5; addLog("Power Strike prepared!", "log-success"); updateHUD(); },
+        img: "https://static.wixstatic.com/media/b16479_3599509de5064815a86ecbae3f9979da~mv2.jpeg" 
+    },
+    ghost_hand: { 
+        name: "Ghost Hand", desc: "Steal 100G from a random player.", 
+        fn: (p) => { const targets = players.filter(t => t.id !== p.id && !t.isDead && t.gold >= 1); if(targets.length > 0) { const t = targets[Math.floor(Math.random() * targets.length)]; addLog(`${p.name} uses Ghost Hand on ${t.name}!`, "log-accent"); pay(t, 100, p); } else { addLog("No valid targets to steal from.", "log-fail"); }},
+        img: "https://static.wixstatic.com/media/b16479_e67cc7aa00584c0a8e146b97246b65f4~mv2.jpeg" 
+    },
+    second_wind: { 
+        name: "Second Wind", desc: "Gain 100 Gold immediately.", 
+        fn: (p) => { p.gold+=100; addLog("Second Wind: +100G", "log-gold"); updateHUD(); },
+        img: "https://static.wixstatic.com/media/b16479_3a036a923c5945778d3b8393634892b1~mv2.jpeg" 
+    },
+    dash: { 
+        name: "Dash", desc: "Move 3 spaces immediately.", 
+        fn: (p) => { addLog("Dashed forward!", "log-success"); animateMove(p, 3); },
+        img: "https://static.wixstatic.com/media/b16479_41cfe447b8eb4376a3b8d87b7adc1fbe~mv2.jpeg" 
+    },
+
+    // --- [2] OTHER ABILITIES (Placeholders ready for links) ---
+    midas: { name: "Midas Touch", desc: "Gain 150 Gold immediately.", fn: (p) => { p.gold += 150; addLog("Midas Touch: +150G", "log-gold"); updateHUD(); }, img: "" },
+    heal: { name: "Field Medic", desc: "Remove 'Skipping Turn' status.", fn: (p) => { p.isSkipping = false; addLog("Cured status ailments!", "log-success"); updateHUD(); }, img: "" },
+    gamble: { name: "High Stakes", desc: "Roll d6. 1-3: Lose 50G. 4-6: Gain 200G.", fn: (p) => { const r = Math.floor(Math.random()*6)+1; if(r>3){ p.gold+=200; addLog(`Rolled ${r}: Won 200G!`, "log-gold"); } else { pay(p, 50); addLog(`Rolled ${r}: Lost 50G.`, "log-fail"); } updateHUD(); }, img: "" },
+    teleport: { name: "Town Portal", desc: "Teleport to Old Crooks Inn.", fn: (p) => { p.pos=0; p.mesh.position.copy(tiles[0].position); resolveLanding(p); addLog("Teleported to Inn.", "log-rare"); }, img: "" },
+    backtrack: { name: "Recall", desc: "Move backwards 3 spaces.", fn: (p) => { p.pos = (p.pos - 3 + 40) % 40; const t = tiles[p.pos]; new TWEEN.Tween(p.mesh.position).to({x:t.position.x, z:t.position.z}, 500).onComplete(()=>resolveLanding(p)).start(); addLog("Rewound time.", "log-epic"); }, img: "" },
+    sprint: { name: "Adrenaline", desc: "Add +2 to your next movement roll (Passive).", type:'passive', img: "" },
+    bribe: { name: "Silver Tongue", desc: "Steal ownership of a tile (TN 6 INT). Only usable when prompted during capture.", fn: (p) => { addLog("You cannot activate this skill at this time.", "log-fail"); }, img: "" },
+    freeze: { name: "Ice Blast", desc: "Next player skips their turn.", fn: (p) => { const nextP = players[(p.id + 1) % players.length]; nextP.isSkipping = true; addLog(`Froze ${nextP.name}!`, "log-epic"); }, img: "" },
+    scavenge: { name: "Scavenge", desc: "Gain 50G for every Item you hold.", fn: (p) => { const amt = p.inventory.length * 50; p.gold += amt; addLog(`Scavenged ${amt}G.`, "log-gold"); updateHUD(); }, img: "" },
+    swap: { name: "Chaos Swap", desc: "Swap positions with random player.", fn: (p) => { const targets = players.filter(t => t.id !== p.id && !t.isDead); if(targets.length > 0) { const t = targets[Math.floor(Math.random() * targets.length)]; const tempPos = p.pos; p.pos = t.pos; t.pos = tempPos; p.mesh.position.copy(tiles[p.pos].position); t.mesh.position.copy(tiles[t.pos].position); addLog(`Swapped with ${t.name}!`, "log-epic"); }}, img: "" },
+    might: { name: "Giant's Str", desc: "Gain +5 STR until end of turn.", fn: (p) => { p.stats.str += 5; addLog("Strength surged!", "log-success"); updateHUD(); }, img: "" },
+    focus: { name: "Mind's Eye", desc: "Gain +5 INT until end of turn.", fn: (p) => { p.stats.int += 5; addLog("Focus sharpened!", "log-success"); updateHUD(); }, img: "" },
+    agility: { name: "Cat's Grace", desc: "Gain +5 DEX until end of turn.", fn: (p) => { p.stats.dex += 5; addLog("Reflexes heightened!", "log-success"); updateHUD(); }, img: "" },
+    transmute: { name: "Alchemy", desc: "Destroy a random inventory item for 300G.", fn: (p) => { if(p.inventory.length > 0) { const idx = Math.floor(Math.random()*p.inventory.length); const it = p.inventory.splice(idx, 1)[0]; p.gold += 300; addLog(`Transmuted ${it.name} to 300G.`, "log-gold"); updateHUD(); } else { addLog("No items to transmute.", "log-fail"); }}, img: "" },
+    tax_evade: { name: "Tax Dodge", desc: "Gain immunity to Tax tiles (Passive).", type:'passive', img: "" },
+    bounty: { name: "Bounty Hunter", desc: "Gain 50G when winning a fight.", type: 'passive', onCombatVictory: (p) => { p.gold += 50; addLog("Bounty Hunter Reward: +50G", "log-gold"); updateHUD(); }, img: "" },
+    lucky: { name: "Lucky Charm", desc: "Reroll movement dice once.", fn: (p) => { rollMove(); addLog("Rerolled dice!", "log-success"); }, img: "" },
+    anchor: { name: "Iron Anchor", desc: "You cannot be moved by enemy effects (Passive).", type:'passive', img: "" },
+    
+    // --- COMPLEX SKILLS (Preserved Logic) ---
     fireball: { 
-        name: "Fireball", 
-        desc: "Pay 100G. Nuke an enemy tile (Removes control/buildings).", 
+        name: "Fireball", desc: "Pay 100G. Nuke an enemy tile (Removes control/buildings).", img: "",
         fn: (p) => {
             if (p.gold < 100) { addLog("Need 100G to cast Fireball.", "log-fail"); return; }
-            
-            // Find all enemy owned tiles
             const targets = tiles.filter(t => t.userData.owner !== null && t.userData.owner !== p.id);
-            
             if (targets.length === 0) { addLog("No valid targets.", "log-fail"); return; }
-
-            // Build selection list
             let opts = targets.map(t => ({
                 txt: `${t.userData.info.name} (${players[t.userData.owner].name})`,
                 act: () => {
-                    p.gold -= 100;
-                    t.userData.owner = null;
-                    t.userData.buildingLevel = 0;
-                    t.userData.guardCount = 0;
-                    t.userData.defendingStat = null;
+                    p.gold -= 100; t.userData.owner = null; t.userData.buildingLevel = 0; t.userData.guardCount = 0; t.userData.defendingStat = null;
                     if (t.userData.prop) { t.remove(t.userData.prop); t.userData.prop = null; }
-                    
-                    addLog(`Fireball incinerated ${t.userData.info.name}!`, "log-epic");
-                    updateHUD();
+                    addLog(`Fireball incinerated ${t.userData.info.name}!`, "log-epic"); updateHUD();
                 }
             }));
-            
-            opts.push({txt: "Cancel", act: () => {}}); // Cancel button
-            showModal("Cast Fireball", "Select a location to burn to the ground.", opts);
+            opts.push({txt: "Cancel", act: () => {}}); showModal("Cast Fireball", "Select a location to burn to the ground.", opts);
         } 
     },
-        transmute_gold: { 
-        name: "Transmute", // Renamed from Midas Touch
-        desc: "Pay 50G. Destroy 1 Item -> Draw Treasure.", 
+    transmute_gold: { 
+        name: "Transmute", desc: "Pay 50G. Destroy 1 Item -> Draw Treasure.", img: "",
         fn: (p) => {
             if (p.gold < 50) { addLog("Need 50G to Transmute.", "log-fail"); return; }
             if (p.inventory.length === 0) { addLog("Inventory empty.", "log-fail"); return; }
-
             let opts = p.inventory.map((item, idx) => ({
                 txt: `Destroy ${item.name}`,
                 act: () => {
-                    p.gold -= 50;
-                    p.inventory.splice(idx, 1);
-                    addLog(`Transmuted ${item.name}!`, "log-gold");
-                    // Draw new treasure
-                    drawCardAnim('treasure', () => { 
-                        const card = DECK_TREASURE[Math.floor(Math.random() * DECK_TREASURE.length)]; 
-                        p.inventory.push({...card}); 
-                        addLog("Gained " + card.name, "log-success"); 
-                        updateHUD(); 
-                        closeEnc();
-                    });
+                    p.gold -= 50; p.inventory.splice(idx, 1); addLog(`Transmuted ${item.name}!`, "log-gold");
+                    drawCardAnim('treasure', () => { const card = DECK_TREASURE[Math.floor(Math.random() * DECK_TREASURE.length)]; p.inventory.push({...card}); addLog("Gained " + card.name, "log-success"); updateHUD(); closeEnc(); });
                 }
             }));
-            
-            opts.push({txt: "Cancel", act: () => {}});
-            showModal("Transmute", "Select an item to sacrifice.", opts);
+            opts.push({txt: "Cancel", act: () => {}}); showModal("Transmute", "Select an item to sacrifice.", opts);
         } 
     },
-        blink: { 
-        name: "Blink", 
-        desc: "Move 1-6 spaces immediately.", 
-        fn: (p) => { 
-            const dist = Math.floor(Math.random()*6)+1;
-            addLog(`Blinked ${dist} spaces!`, "log-rare");
-            animateMove(p, dist); 
-        } 
-    },
-    scholar: { name: "Scholar", desc: "Permanent +1 INT.", type:'passive', effect:(s)=>s.int+=1 },
-        court_mage: { 
-        name: "Court Mage", 
-        desc: "Immune to Tax. Gain 10G whenever others pay Tax.", 
-        type:'passive' 
-    },
-        alchemist_pas: { 
-        name: "Alchemist", 
-        desc: "Drawing 'Pouch of Gold' triggers an extra Treasure draw.", 
-        type:'passive' 
-    },
-     pickpocket: { 
-        name: "Pickpocket", 
-        desc: "Steal 10G per property from a random player.", 
+    blink: { name: "Blink", desc: "Move 1-6 spaces immediately.", fn: (p) => { const dist = Math.floor(Math.random()*6)+1; addLog(`Blinked ${dist} spaces!`, "log-rare"); animateMove(p, dist); }, img: "" },
+    scholar: { name: "Scholar", desc: "Permanent +1 INT.", type:'passive', effect:(s)=>s.int+=1, img: "" },
+    court_mage: { name: "Court Mage", desc: "Immune to Tax. Gain 10G whenever others pay Tax.", type:'passive', img: "" },
+    alchemist_pas: { name: "Alchemist", desc: "Drawing 'Pouch of Gold' triggers an extra Treasure draw.", type:'passive', img: "" },
+    pickpocket: { 
+        name: "Pickpocket", desc: "Steal 10G per property from a random player.", img: "",
         fn: (p) => { 
             const targets = players.filter(x => x.id !== p.id && !x.isDead); 
             if(targets.length > 0){ 
                 const t = targets[Math.floor(Math.random()*targets.length)];
-                // Count target properties
                 const propCount = tiles.filter(tile => tile.userData.owner === t.id).length;
-                const stealAmt = Math.max(10, propCount * 10); // Minimum 10g
-                
-                addLog(`${p.name} pickpockets ${t.name}!`, "log-accent"); 
-                pay(t, stealAmt, p); 
-            } else { 
-                addLog("No one to pickpocket.", "log-fail"); 
-            }
+                const stealAmt = Math.max(10, propCount * 10); 
+                addLog(`${p.name} pickpockets ${t.name}!`, "log-accent"); pay(t, stealAmt, p); 
+            } else { addLog("No one to pickpocket.", "log-fail"); }
         }
     },
-    sprint_act: { name: "Sprint", desc: "Move 3 spaces.", fn: (p) => { animateMove(p, 3); } },
-        smoke_bomb: { // ID kept as smoke_bomb to maintain Rogue class link, but Name changed
-        name: "Skeleton Key", 
-        desc: "Passive: Immunity to Dungeon. Trap: Enemies landing on Dungeon while you are there go to jail.", 
-        type: 'passive',
-        // New Hook for Trap Logic
+    sprint_act: { name: "Sprint", desc: "Move 3 spaces.", fn: (p) => { animateMove(p, 3); }, img: "" },
+    smoke_bomb: { 
+        name: "Skeleton Key", desc: "Passive: Immunity to Dungeon. Trap: Enemies landing on Dungeon while you are there go to jail.", type: 'passive', img: "",
         onEnemyLanding: (victim, owner) => {
-            // If the Rogue (Owner) is in the Dungeon (Pos 10)
             if (owner.pos === 10) {
                 addLog(`${victim.name} stumbled into ${owner.name}'s trap!`, "log-fail");
-                // Send victim to jail (Pos 10 logic but effectively treated as pos 30 outcome)
-                victim.isSkipping = true; 
-                addLog(`${victim.name} locked in Dungeon!`, "log-fail");
-                updateHUD();
+                victim.isSkipping = true; addLog(`${victim.name} locked in Dungeon!`, "log-fail"); updateHUD();
             }
         }
     },
-    shadow_step: { name: "Shadow Step", desc: "Permanent +1 DEX.", type:'passive', effect:(s)=>s.dex+=1 },
-    greedy: { name: "Greedy", desc: "Start with +200G.", type:'passive', effect:(s)=>s.gold+=200 },
-    fence: { name: "Fence", desc: "Sell items for 80% value (usually 50%).", type:'passive' },
+    shadow_step: { name: "Shadow Step", desc: "Permanent +1 DEX.", type:'passive', effect:(s)=>s.dex+=1, img: "" },
+    greedy: { name: "Greedy", desc: "Start with +200G.", type:'passive', effect:(s)=>s.gold+=200, img: "" },
+    fence: { name: "Fence", desc: "Sell items for 80% value (usually 50%).", type:'passive', img: "" },
     heal_light: { 
-        name: "Spirit Tithe", 
-        desc: "Passive: +5G on enemy land, +10G on owned land.", 
-        type: 'active', // Kept as 'active' so it fits the slot color/logic
-        // The automatic trigger
+        name: "Spirit Tithe", desc: "Passive: +5G on enemy land, +10G on owned land.", type: 'active', img: "",
         onLanding: (p) => {
             const t = tiles[p.pos];
             if (t.userData.owner !== null) {
-                if (t.userData.owner === p.id) {
-                    p.gold += 10;
-                    addLog("Spirit Tithe: +10G (Home)", "log-gold");
-                } else {
-                    p.gold += 5;
-                    addLog("Spirit Tithe: +5G (Enemy)", "log-gold");
-                }
+                if (t.userData.owner === p.id) { p.gold += 10; addLog("Spirit Tithe: +10G (Home)", "log-gold"); } 
+                else { p.gold += 5; addLog("Spirit Tithe: +5G (Enemy)", "log-gold"); }
                 updateHUD();
             }
         },
-        // The manual click trigger (Just acts as a status check)
-        fn: (p) => {
-            addLog("Spirit Tithe is always active.", "log-success");
-        }
+        fn: (p) => { addLog("Spirit Tithe is always active.", "log-success"); }
     },
-smite: { 
-        name: "Smite", 
-        desc: "Instant Capture/Upgrade/Guard. Movement 1d6 until Recharge.", 
-        type: 'active',
-        
-        // 1. Activation Logic
+    smite: { 
+        name: "Smite", desc: "Instant Capture/Upgrade/Guard. Movement 1d6 until Recharge.", type: 'active', img: "",
         fn: (p) => { 
             const t = tiles[p.pos];
             let actionText = "";
-
             if (t.userData.owner === null || t.userData.owner !== p.id) {
-                t.userData.owner = p.id; 
-                t.userData.buildingLevel = 1; 
-                t.userData.guardCount = 0; 
+                t.userData.owner = p.id; t.userData.buildingLevel = 1; t.userData.guardCount = 0; 
                 if (t.userData.prop) t.remove(t.userData.prop);
                 const g = new THREE.Group();
                 const m = new THREE.Mesh(new THREE.ConeGeometry(1, 1.5, 4), new THREE.MeshStandardMaterial({ color: p.mesh.children[0].material.color })); 
-                m.position.set(0, 0.5, 0); g.add(m);
-                t.add(g); t.userData.prop = g;
-                t.userData.defendingStat = 'str'; 
+                m.position.set(0, 0.5, 0); g.add(m); t.add(g); t.userData.prop = g; t.userData.defendingStat = 'str'; 
                 actionText = "Smite: Captured Location!";
-            } 
-            else if (t.userData.owner === p.id && t.userData.buildingLevel === 1) {
+            } else if (t.userData.owner === p.id && t.userData.buildingLevel === 1) {
                 t.userData.buildingLevel = 2;
                 if (t.userData.prop) t.remove(t.userData.prop);
                 const g = new THREE.Group();
                 const b = new THREE.Mesh(new THREE.BoxGeometry(1.5, 1, 1.5), new THREE.MeshStandardMaterial({ color: 0x5c4033 })); b.position.set(0, 0.5, 0); 
                 const r = new THREE.Mesh(new THREE.ConeGeometry(1.5, 1, 4), new THREE.MeshStandardMaterial({ color: p.mesh.children[0].material.color })); r.position.set(0, 1.5, 0); r.rotation.y = Math.PI / 4; 
-                g.add(b); g.add(r);
-                t.add(g); t.userData.prop = g;
+                g.add(b); g.add(r); t.add(g); t.userData.prop = g;
                 actionText = "Smite: Upgraded to Tavern!";
-            }
-            else if (t.userData.owner === p.id && t.userData.buildingLevel === 2) {
+            } else if (t.userData.owner === p.id && t.userData.buildingLevel === 2) {
                 t.userData.guardCount = (t.userData.guardCount || 0) + 1;
                 actionText = "Smite: Added 1 Guard!";
             }
-
-            // Set Custom Flag on Player
             p.smiteExhaustion = true; 
-            
-            addLog(actionText, "log-epic");
-            addLog("Exhausted: Movement 1d6 until Inn.", "log-fail");
-            updateHUD();
+            addLog(actionText, "log-epic"); addLog("Exhausted: Movement 1d6 until Inn.", "log-fail"); updateHUD();
         },
-
-        // 2. Roll Override Hook
         onRoll: (p) => {
             if (p.smiteExhaustion) {
-                const r = Math.floor(Math.random() * 6) + 1;
-                addLog(`${p.name} (Exhausted) rolled ${r}.`, "log-fail");
-                return r;
-            }
-            return null; // Return null to use default roll
+                const r = Math.floor(Math.random() * 6) + 1; addLog(`${p.name} (Exhausted) rolled ${r}.`, "log-fail"); return r;
+            } return null;
         },
-
-        // 3. Recharge Hook
         onRecharge: (p) => {
-            if (p.smiteExhaustion) {
-                p.smiteExhaustion = false;
-                addLog("Smite Exhaustion Cleared!", "log-success");
-                return true; // Tell game we performed a recharge
-            }
-            return false;
+            if (p.smiteExhaustion) { p.smiteExhaustion = false; addLog("Smite Exhaustion Cleared!", "log-success"); return true; } return false;
         }
     },
-    bless: { name: "Bless", desc: "Gain +5 INT until end of turn.", fn: (p) => { p.stats.int+=5; addLog("Blessed!", "log-success"); updateHUD(); } },
-    devotion: { name: "Devotion", desc: "Permanent +1 INT.", type:'passive', effect:(s)=>s.int+=1 },
-    medic: { name: "Medic", desc: "Permanent +1 STR.", type:'passive', effect:(s)=>s.str+=1 },
+    bless: { name: "Bless", desc: "Gain +5 INT until end of turn.", fn: (p) => { p.stats.int+=5; addLog("Blessed!", "log-success"); updateHUD(); }, img: "" },
+    devotion: { name: "Devotion", desc: "Permanent +1 INT.", type:'passive', effect:(s)=>s.int+=1, img: "" },
+    medic: { name: "Medic", desc: "Permanent +1 STR.", type:'passive', effect:(s)=>s.str+=1, img: "" },
     holy_aura: { 
-    name: "Holy Aura", 
-    desc: "Gain 20G when landing on a space with another hero.", 
-    type: 'passive',
-    onLanding: (p) => {
-        const isShared = players.some(other => other.id !== p.id && !other.isDead && other.pos === p.pos);
-        if (isShared) {
-            p.gold += 20;
-            addLog("Holy Aura: +20G (Hero nearby)", "log-gold");
-            updateHUD();
+        name: "Holy Aura", desc: "Gain 20G when landing on a space with another hero.", type: 'passive', img: "",
+        onLanding: (p) => {
+            const isShared = players.some(other => other.id !== p.id && !other.isDead && other.pos === p.pos);
+            if (isShared) { p.gold += 20; addLog("Holy Aura: +20G (Hero nearby)", "log-gold"); updateHUD(); }
         }
-    }
-},
+    },
 };
 
 function generateTreasureDeck() {
@@ -2175,7 +2129,6 @@ function updateHUD() {
     setT('p1-name', p.name); setT('p1-gold', p.gold); setT('p1-str', p.stats.str); setT('p1-dex', p.stats.dex); setT('p1-int', p.stats.int); setT('treasury-val', treasuryGold);
     const elPortrait = document.getElementById('p1-portrait'); if(elPortrait) elPortrait.style.backgroundImage = `url('${p.portrait}')`;
     
-    // SAFE Day/Night Update
     setT('day-night-indicator', isNight ? "☾ NIGHT" : "☀ DAY");
     const elDayNight = document.getElementById('day-night-indicator'); if(elDayNight) { elDayNight.style.color = isNight ? "#a855f7" : "#87ceeb"; }
     
@@ -2186,11 +2139,54 @@ function updateHUD() {
     
     const lb = document.getElementById('leader-list'); if(lb){ lb.innerHTML = ''; players.forEach(pl => { let d = document.createElement('div'); d.className = 'leader-row' + (pl.isDead ? ' dead' : ''); let nameSpan = document.createElement('span'); nameSpan.className = "leader-name"; nameSpan.style.color = pl.color; nameSpan.innerText = pl.name; if(!pl.isDead) { nameSpan.addEventListener('click', function() { openCharDetail(pl.id); }); } let goldSpan = document.createElement('span'); goldSpan.innerText = pl.isDead ? "DEAD" : `${pl.gold}G`; d.appendChild(nameSpan); d.appendChild(goldSpan); lb.appendChild(d); }); }
     
-    const s0 = document.getElementById('skill-0'); const txt0 = document.getElementById('txt-skill-0'); const actSkill = ABILITY_LIBRARY[p.activeSkillId]; if(actSkill && s0 && txt0) { if(p.classSkillDepleted) { s0.className="skill-slot"; s0.style.opacity="0.5"; txt0.innerText="Recharge"; } else { s0.className="skill-slot filled"; s0.style.opacity="1"; txt0.innerText=actSkill.name; } s0.onmouseenter = () => showTooltip(p.activeSkillId, true); s0.onmouseleave = hideTooltip; }
-    EQUIP_ORDER.forEach((slotName, i) => { const idx = i + 1; const el = document.getElementById(`skill-${idx}`); const txt = document.getElementById(`txt-skill-${idx}`); const item = p.equipment[slotName]; const dollEl = document.getElementById('slot-'+slotName); if(dollEl) { dollEl.innerHTML = item ? item.name : slotName.toUpperCase(); dollEl.className = 'equip-slot' + (item ? ' filled' : ''); dollEl.oncontextmenu = (e) => { e.preventDefault(); handleContextOpen(e, slotName, 'equip'); }; if(item) { dollEl.onmouseenter = () => showTooltip(item); dollEl.onmouseleave = hideTooltip; } else { dollEl.onmouseenter = null; dollEl.onmouseleave = null; } } if(el && txt) { if (item && item.ability && item.ability.type === 'active') { if(item.isDepleted) { el.className = "skill-slot"; el.style.opacity="0.5"; txt.innerText = "Recharge"; } else { el.className = "skill-slot filled"; el.style.opacity="1"; txt.innerText = item.ability.name; } el.onmouseenter = () => showTooltip(item); el.onmouseleave = hideTooltip; } else { el.className = "skill-slot"; el.style.opacity="1"; txt.innerText = item ? "(Passive)" : "Empty"; if(item) { el.onmouseenter = () => showTooltip(item); el.onmouseleave = hideTooltip; } else { el.onmouseenter = null; el.onmouseleave = null; } } } });
-    p.quickSlots.forEach((item, i) => { const idx = i + 5; const el = document.getElementById(`skill-${idx}`); const txt = document.getElementById(`txt-skill-${idx}`); if(el && txt) { if (item && p.inventory.includes(item)) { el.className = "skill-slot consumable"; txt.innerText = item.name; el.onmouseenter = () => showTooltip(item); el.onmouseleave = hideTooltip; } else { p.quickSlots[i] = null; el.className = "skill-slot"; txt.innerText = "Drag Item"; el.onmouseenter = null; el.onmouseleave = null; } } });
-}
+    const s0 = document.getElementById('skill-0'); const txt0 = document.getElementById('txt-skill-0'); const actSkill = ABILITY_LIBRARY[p.activeSkillId]; 
+    if(actSkill && s0 && txt0) { 
+        if(p.classSkillDepleted) { s0.className="skill-slot"; s0.style.opacity="0.5"; txt0.innerText="Recharge"; } 
+        else { s0.className="skill-slot filled"; s0.style.opacity="1"; txt0.innerText=actSkill.name; } 
+        // Logic to apply background image
+        s0.style.backgroundImage = actSkill.img ? `url('${actSkill.img}')` : 'none';
+        s0.onmouseenter = () => showTooltip(p.activeSkillId, true); s0.onmouseleave = hideTooltip; 
+    }
 
+    EQUIP_ORDER.forEach((slotName, i) => { 
+        const idx = i + 1; const el = document.getElementById(`skill-${idx}`); const txt = document.getElementById(`txt-skill-${idx}`); 
+        const item = p.equipment[slotName]; const dollEl = document.getElementById('slot-'+slotName); 
+        if(dollEl) { dollEl.innerHTML = item ? item.name : slotName.toUpperCase(); dollEl.className = 'equip-slot' + (item ? ' filled' : ''); dollEl.oncontextmenu = (e) => { e.preventDefault(); handleContextOpen(e, slotName, 'equip'); }; if(item) { dollEl.onmouseenter = () => showTooltip(item); dollEl.onmouseleave = hideTooltip; } else { dollEl.onmouseenter = null; dollEl.onmouseleave = null; } } 
+        if(el && txt) { 
+            el.style.backgroundImage = 'none'; // Reset default
+            if (item && item.ability && item.ability.type === 'active') { 
+                if(item.isDepleted) { el.className = "skill-slot"; el.style.opacity="0.5"; txt.innerText = "Recharge"; } 
+                else { el.className = "skill-slot filled"; el.style.opacity="1"; txt.innerText = item.ability.name; } 
+                
+                // Lookup image dynamically based on name
+                const libSkill = Object.values(ABILITY_LIBRARY).find(s => s.name === item.ability.name);
+                if(libSkill && libSkill.img) el.style.backgroundImage = `url('${libSkill.img}')`;
+                
+                el.onmouseenter = () => showTooltip(item); el.onmouseleave = hideTooltip; 
+            } else { 
+                el.className = "skill-slot"; el.style.opacity="1"; txt.innerText = item ? "(Passive)" : "Empty"; 
+                if(item) { el.onmouseenter = () => showTooltip(item); el.onmouseleave = hideTooltip; } else { el.onmouseenter = null; el.onmouseleave = null; } 
+            } 
+        } 
+    });
+    
+    p.quickSlots.forEach((item, i) => { 
+        const idx = i + 5; const el = document.getElementById(`skill-${idx}`); const txt = document.getElementById(`txt-skill-${idx}`); 
+        if(el && txt) { 
+            el.style.backgroundImage = 'none'; // Reset
+            if (item && p.inventory.includes(item)) { 
+                el.className = "skill-slot consumable"; txt.innerText = item.name; 
+                // Lookup image logic
+                const libSkill = Object.values(ABILITY_LIBRARY).find(s => s.name === item.name);
+                if(libSkill && libSkill.img) el.style.backgroundImage = `url('${libSkill.img}')`;
+                
+                el.onmouseenter = () => showTooltip(item); el.onmouseleave = hideTooltip; 
+            } else { 
+                p.quickSlots[i] = null; el.className = "skill-slot"; txt.innerText = "Drag Item"; el.onmouseenter = null; el.onmouseleave = null; 
+            } 
+        } 
+    });
+}
 function setT(id,t){ let e=document.getElementById(id); if(e) e.innerText=t; }
 function handleContextOpen(e, identifier, source='inv') {
     const p = players[0]; let item = (source === 'equip') ? p.equipment[identifier] : p.inventory[identifier]; if (!item) return; 
@@ -2208,7 +2204,38 @@ function showModal(t,d,o){ const m=document.getElementById('card-modal'); setT('
 function openCharDetail(id) { const p = players[id]; if(!p) return; setT('cd-header', p.name); setT('cd-sub', p.race.name + " " + p.class.name); setT('cd-str', p.stats.str); setT('cd-dex', p.stats.dex); setT('cd-int', p.stats.int); const portraitEl = document.getElementById('cd-portrait'); if(portraitEl) portraitEl.style.backgroundImage = `url('${p.portrait}')`; const act = ABILITY_LIBRARY[p.activeSkillId]; const pas = ABILITY_LIBRARY[p.passiveSkillId]; setT('cd-active', act ? act.name : '-'); setT('cd-active-desc', act ? act.desc : ''); setT('cd-passive', pas ? pas.name : '-'); setT('cd-passive-desc', pas ? pas.desc : ''); const invSection = document.getElementById('cd-inventory-section'); const hiddenMsg = document.getElementById('cd-hidden-msg'); if (id === 0) { if(invSection) invSection.style.display = 'block'; if(hiddenMsg) hiddenMsg.style.display = 'none'; ['head','body','main','off'].forEach(slot => { const item = p.equipment[slot]; const el = document.getElementById('cd-slot-'+slot); if(el) { el.innerHTML = item ? item.name : slot.toUpperCase(); el.className = 'equip-slot' + (item ? ' filled' : ''); if(item) { el.onmouseenter = () => showTooltip(item); el.onmouseleave = hideTooltip; } else { el.onmouseenter = null; } } }); const grid = document.getElementById('cd-inv-grid'); if(grid) { grid.innerHTML = ''; p.inventory.forEach(item => { let d = document.createElement('div'); d.className = 'inv-slot'; d.innerText = item.name; d.classList.add('rarity-' + item.rarity); d.onmouseenter = () => showTooltip(item); d.onmouseleave = hideTooltip; grid.appendChild(d); }); for(let i=p.inventory.length; i<12; i++) { let d = document.createElement('div'); d.className = 'inv-slot'; grid.appendChild(d); } } } else { if(invSection) invSection.style.display = 'none'; if(hiddenMsg) hiddenMsg.style.display = 'block'; } const modal = document.getElementById('char-detail-modal'); if(modal) modal.classList.add('active'); }
 function closeCharDetail() { document.getElementById('char-detail-modal').classList.remove('active'); hideTooltip(); }
 function getRarityColor(r) { if(r==='common')return '#fff'; if(r==='rare')return '#3b82f6'; if(r==='epic')return '#a855f7'; return '#f59e0b'; }
-function showTooltip(data, isSkillId = false) { if (!data) return; const tt = document.getElementById('tooltip'); let html = ''; if (isSkillId) { const s = ABILITY_LIBRARY[data]; if(!s) return; html = `<div class="tt-header"><span class="tt-name">${s.name}</span><span class="tt-rarity">${s.type || 'Active'}</span></div><div class="tt-abil" style="border:none;">${s.desc}</div>`; } else { const col = getRarityColor(data.rarity || 'common'); html = `<div class="tt-header"><span class="tt-name" style="color:${col}">${data.name}</span><span class="tt-rarity">${data.rarity || 'Common'}</span></div>`; if (data.bonus) Object.keys(data.bonus).forEach(k => { html += `<span class="tt-stat">+${data.bonus[k]} ${k.toUpperCase()}</span>`; }); if(data.desc) html += `<span class="tt-stat" style="color:#aaa; font-style:italic; margin-bottom:5px;">${data.desc}</span>`; if(data.ability) html += `<div class="tt-abil">${data.ability.name}: ${data.ability.desc}</div>`; } tt.innerHTML = html; tt.style.display = 'block'; }
+function showTooltip(data, isSkillId = false) { 
+    if (!data) return; 
+    const tt = document.getElementById('tooltip'); 
+    let html = ''; 
+    let imgSrc = '';
+
+    if (isSkillId) { 
+        const s = ABILITY_LIBRARY[data]; 
+        if(!s) return; 
+        if(s.img) imgSrc = `<img src="${s.img}" class="tt-icon">`;
+        html = `<div class="tt-header" style="display:flex; align-items:center;">${imgSrc}<div><span class="tt-name">${s.name}</span><br><span class="tt-rarity">${s.type || 'Active'}</span></div></div><div class="tt-abil" style="border:none;">${s.desc}</div>`; 
+    } else { 
+        const col = getRarityColor(data.rarity || 'common'); 
+        // Check if item has an ability with an image in the library
+        if(data.ability) {
+             const libSkill = Object.values(ABILITY_LIBRARY).find(s => s.name === data.ability.name);
+             if(libSkill && libSkill.img) imgSrc = `<img src="${libSkill.img}" class="tt-icon">`;
+        }
+        // Fallback: Check if item NAME matches a skill (e.g. scrolls)
+        else if (Object.values(ABILITY_LIBRARY).some(s => s.name === data.name)) {
+             const libSkill = Object.values(ABILITY_LIBRARY).find(s => s.name === data.name);
+             if(libSkill && libSkill.img) imgSrc = `<img src="${libSkill.img}" class="tt-icon">`;
+        }
+        
+        html = `<div class="tt-header" style="display:flex; align-items:center;">${imgSrc}<div><span class="tt-name" style="color:${col}">${data.name}</span><br><span class="tt-rarity">${data.rarity || 'Common'}</span></div></div>`; 
+        if (data.bonus) Object.keys(data.bonus).forEach(k => { html += `<span class="tt-stat">+${data.bonus[k]} ${k.toUpperCase()}</span>`; }); 
+        if(data.desc) html += `<span class="tt-stat" style="color:#aaa; font-style:italic; margin-bottom:5px;">${data.desc}</span>`; 
+        if(data.ability) html += `<div class="tt-abil">${data.ability.name}: ${data.ability.desc}</div>`; 
+    } 
+    tt.innerHTML = html; 
+    tt.style.display = 'block'; 
+}
 function hideTooltip() { document.getElementById('tooltip').style.display = 'none'; }
 document.addEventListener('mousemove', (e) => { const tt = document.getElementById('tooltip'); if (tt && tt.style.display === 'block') { const pad = 15; let left = e.pageX + pad; let top = e.pageY + pad; if (left + tt.offsetWidth > window.innerWidth) left = e.pageX - tt.offsetWidth - pad; if (top + tt.offsetHeight > window.innerHeight) top = e.pageY - tt.offsetHeight - pad; tt.style.left = left + 'px'; tt.style.top = top + 'px'; } });
 document.addEventListener('click', (e) => { const menu = document.getElementById('context-menu'); if (menu && !e.target.classList.contains('inv-slot') && !e.target.classList.contains('ctx-item')) menu.style.display = 'none'; });
@@ -2236,10 +2263,29 @@ function setupCreationUI() {
     const clg=document.getElementById('class-grid'); CLASSES.forEach(c=>{let d=document.createElement('div');d.className='sel-opt';d.innerHTML=`<b>${c.name}</b>`;d.onclick=()=>{selClass=c;hl(d);showClassOptions(c);up();};clg.appendChild(d);});
 }
 function showClassOptions(c) {
-    document.getElementById('active-section').style.display='flex'; const ag = document.getElementById('active-grid'); ag.innerHTML='';
-    c.actives.forEach(id => { const skill = ABILITY_LIBRARY[id]; let d=document.createElement('div'); d.className='skill-card'; d.innerHTML=`<b>${skill.name}</b><small>${skill.desc}</small>`; d.onclick=()=>{ selActiveId=id; document.querySelectorAll('#active-grid .skill-card').forEach(e=>e.classList.remove('selected')); d.classList.add('selected'); up(); }; ag.appendChild(d); });
-    document.getElementById('passive-section').style.display='flex'; const pg = document.getElementById('passive-grid'); pg.innerHTML='';
-    c.passives.forEach(id => { const skill = ABILITY_LIBRARY[id]; let d=document.createElement('div'); d.className='skill-card'; d.innerHTML=`<b>${skill.name}</b><small>${skill.desc}</small>`; d.onclick=()=>{ selPassiveId=id; document.querySelectorAll('#passive-grid .skill-card').forEach(e=>e.classList.remove('selected')); d.classList.add('selected'); up(); }; pg.appendChild(d); });
+    document.getElementById('active-section').style.display='flex'; 
+    const ag = document.getElementById('active-grid'); ag.innerHTML='';
+    c.actives.forEach(id => { 
+        const skill = ABILITY_LIBRARY[id]; 
+        let d=document.createElement('div'); 
+        d.className='skill-card'; 
+        // Inject Image if it exists
+        d.innerHTML=`<img src="${skill.img || ''}" style="${!skill.img ? 'display:none' : ''}"><b>${skill.name}</b><small>${skill.desc}</small>`; 
+        d.onclick=()=>{ selActiveId=id; document.querySelectorAll('#active-grid .skill-card').forEach(e=>e.classList.remove('selected')); d.classList.add('selected'); up(); }; 
+        ag.appendChild(d); 
+    });
+    
+    document.getElementById('passive-section').style.display='flex'; 
+    const pg = document.getElementById('passive-grid'); pg.innerHTML='';
+    c.passives.forEach(id => { 
+        const skill = ABILITY_LIBRARY[id]; 
+        let d=document.createElement('div'); 
+        d.className='skill-card'; 
+        // Inject Image if it exists
+        d.innerHTML=`<img src="${skill.img || ''}" style="${!skill.img ? 'display:none' : ''}"><b>${skill.name}</b><small>${skill.desc}</small>`; 
+        d.onclick=()=>{ selPassiveId=id; document.querySelectorAll('#passive-grid .skill-card').forEach(e=>e.classList.remove('selected')); d.classList.add('selected'); up(); }; 
+        pg.appendChild(d); 
+    });
 }
 function hl(el){el.parentElement.childNodes.forEach(c=>c.classList&&c.classList.remove('selected'));el.classList.add('selected');}
 function up(){ document.getElementById('btn-start-game').disabled = !(selRace && selClass && selActiveId && selPassiveId); if(selRace && selClass) { const key = `${selRace.id}_${selClass.id}`; const url = CHAR_PORTRAITS[key]; if(url) { const frame = document.getElementById('creator-portrait-frame'); frame.style.backgroundImage = `url('${url}')`; frame.style.display = 'block'; } } }
@@ -2270,3 +2316,4 @@ init();
 </script>
 </body>
 </html>
+
