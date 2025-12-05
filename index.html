@@ -62,68 +62,83 @@
 /* ================================================================
    [03] UI POSITIONS (DESKTOP DEFAULT)
    ================================================================ */
-        
    .panel { 
         background: var(--panel-bg); 
         border: 2px solid #444; 
         box-shadow: 0 5px 20px rgba(0,0,0,0.8); 
         border-radius: 8px; 
-        padding: 1vmin; 
+        padding: 1.5vmin; /* Increased padding */
         pointer-events: auto; 
         transition: all 0.3s ease;
         position: absolute;
         display: flex;
         flex-direction: column;
     }
-        .minimize-btn { background: transparent; border: 1px solid #666; color: #aaa; width: 25px; height: 25px; border-radius: 4px; cursor: pointer; float: right; display: flex; align-items: center; justify-content: center; margin-left: 10px; }
-        .panel.minimized > *:not(.char-header):not(h3) { display: none !important; }
-        .panel.minimized { width: auto !important; height: auto !important; min-width: 150px; }
+    .minimize-btn { background: transparent; border: 1px solid #666; color: #aaa; width: 25px; height: 25px; border-radius: 4px; cursor: pointer; float: right; display: flex; align-items: center; justify-content: center; margin-left: 10px; }
+    .panel.minimized > *:not(.char-header):not(h3) { display: none !important; }
+    .panel.minimized { width: auto !important; height: auto !important; min-width: 150px; }
 
-        /* Desktop Positions (Relative to Board) */
-        #p1-sheet { top: 10%; left: 10%; width: 35%; border-color: var(--gold); max-height: 40%; }
-        #leaderboard { top: 10%; right: 10%; width: 30%; border-color: #665c3b; }
+    /* Desktop Positions (Relative to Board) */
+    /* UPDATED: Much wider and longer/taller */
+    #p1-sheet { 
+        top: 5%; 
+        left: 5%; 
+        width: 25%; /* Increased width */
+        border-color: var(--gold); 
+        max-height: 80%; /* Much Longer */
+        font-size: 1.1rem; /* Larger text */
+    }
+    
+    #leaderboard { 
+        top: 5%; 
+        right: 5%; 
+        width: 25%; /* Increased width */
+        border-color: #665c3b; 
+        max-height: 80%; /* Much Longer */
+        font-size: 1.1rem;
+    }
 
-        /* Center Top: Turn Info */
-        #turn-info-container {
-            position: absolute; top: 20%; left: 50%; transform: translateX(-50%);
-            text-align: center; pointer-events: none; width: 100%;
-        }
-        #turn-banner { font-size: 5vmin; color: white; text-shadow: 0 0 10px var(--gold); margin-bottom: 5px; }
-        #day-night-indicator { display: inline-block; font-size: 2.5vmin; padding: 5px 20px; background: rgba(0,0,0,0.6); border: 1px solid #555; border-radius: 20px; color: #87ceeb; }
+    /* Center Top: Turn Info */
+    #turn-info-container {
+        position: absolute; top: 15%; left: 50%; transform: translateX(-50%);
+        text-align: center; pointer-events: none; width: 100%;
+    }
+    #turn-banner { font-size: 5vmin; color: white; text-shadow: 0 0 10px var(--gold); margin-bottom: 5px; }
+    #day-night-indicator { display: inline-block; font-size: 2.5vmin; padding: 5px 20px; background: rgba(0,0,0,0.6); border: 1px solid #555; border-radius: 20px; color: #87ceeb; }
 
-        /* Bottom Center: Log & Skills */
-        #hud-bottom {
-            position: absolute; bottom: 10%; left: 50%; transform: translateX(-50%);
-            display: flex; flex-direction: column; align-items: center;
-            width: 45%; pointer-events: auto;
-        }
-        #game-log { 
-            width: 100%; height: 15vmin; font-size: 1.8vmin;
-            background: linear-gradient(to bottom, rgba(0,0,0,0.9), rgba(0,0,0,0.5));
-            border: 1px solid #444; border-radius: 8px; padding: 10px;
-            overflow-y: auto; text-align: left; margin-bottom: 5px;
-            -webkit-mask-image: linear-gradient(to bottom, transparent 5%, black 20%);
-            mask-image: linear-gradient(to bottom, transparent 5%, black 20%);
-        }
-        #skill-bar {
-            width: 100%; padding: 5px; gap: 5px; display: flex; justify-content: center;
-            background: rgba(20, 25, 35, 0.9); border: 2px solid #444; border-radius: 8px;
-        }
+    /* Bottom Center: Log & Skills */
+    #hud-bottom {
+        position: absolute; bottom: 5%; left: 50%; transform: translateX(-50%);
+        display: flex; flex-direction: column; align-items: center;
+        width: 55%; /* Wider on desktop */
+        pointer-events: auto;
+    }
+    #game-log { 
+        width: 100%; height: 18vmin; font-size: 1.8vmin;
+        background: linear-gradient(to bottom, rgba(0,0,0,0.9), rgba(0,0,0,0.5));
+        border: 1px solid #444; border-radius: 8px; padding: 10px;
+        overflow-y: auto; text-align: left; margin-bottom: 5px;
+        -webkit-mask-image: linear-gradient(to bottom, transparent 5%, black 20%);
+        mask-image: linear-gradient(to bottom, transparent 5%, black 20%);
+    }
+    #skill-bar {
+        width: 100%; padding: 8px; gap: 8px; display: flex; justify-content: center;
+        background: rgba(20, 25, 35, 0.9); border: 2px solid #444; border-radius: 8px;
+    }
 
-        /* Bottom Right: Controls */
-        #controls { position: absolute; bottom: 10%; right: 10%; display: flex; flex-direction: column; gap: 10px; pointer-events: auto; width: 12%; }
-        #controls button { width: 100%; }
+    /* Bottom Right: Controls */
+    #controls { position: absolute; bottom: 5%; right: 5%; display: flex; flex-direction: column; gap: 10px; pointer-events: auto; width: 15%; }
+    #controls button { width: 100%; padding: 20px; font-size: 1.5rem; } /* Larger buttons */
 
-        /* Bottom Left: Help */
-        #btn-help { 
-            position: absolute; bottom: 10%; left: 10%; width: 6vmin; height: 6vmin; 
-            background: var(--gold); color: #000; border: 2px solid #fff; border-radius: 50%; 
-            font-size: 3vmin; font-weight: 900; cursor: pointer; box-shadow: 0 0 15px #000; 
-            display: flex; align-items: center; justify-content: center; pointer-events: auto; 
-            transition: transform 0.2s;
-        }
-        #btn-help:hover { transform: scale(1.1); box-shadow: 0 0 25px var(--gold); }
-
+    /* Bottom Left: Help */
+    #btn-help { 
+        position: absolute; bottom: 5%; left: 5%; width: 8vmin; height: 8vmin; 
+        background: var(--gold); color: #000; border: 2px solid #fff; border-radius: 50%; 
+        font-size: 4vmin; font-weight: 900; cursor: pointer; box-shadow: 0 0 15px #000; 
+        display: flex; align-items: center; justify-content: center; pointer-events: auto; 
+        transition: transform 0.2s;
+    }
+    #btn-help:hover { transform: scale(1.1); box-shadow: 0 0 25px var(--gold); }
 
 /* ================================================================
    [04] INTERNAL ELEMENTS
@@ -379,10 +394,12 @@
         overflow: hidden !important; border-top: 2px solid #444 !important; 
     }
     
+/* Maximized: Grows UP - Made Longer */
     .panel:not(.minimized) { 
-        max-height: 50vh !important; overflow-y: auto !important; box-shadow: 0 -5px 15px rgba(0,0,0,0.8) !important; 
+        max-height: 75vh !important; /* Increased from 50vh */
+        overflow-y: auto !important; 
+        box-shadow: 0 -5px 15px rgba(0,0,0,0.8) !important; 
     }
-
     /* HEADER & IMAGE SIZING FIXES */
     .char-header, #leaderboard h3 { 
         font-size: 14px !important; 
@@ -841,7 +858,7 @@ const ABILITY_LIBRARY = {
                 addLog("No targets to freeze.", "log-fail");
             }
         }, 
-        img: "https://static.wixstatic.com/media/b16479_6c10e5ce01164b79bb957d07613143ae~mv2.jpg" 
+        img: "" 
     },
     scavenge: { 
         name: "Scavenge", desc: "Gain 10G each time you capture a space from an enemy.", type:'passive',
@@ -2184,7 +2201,77 @@ function closeCtx() { document.getElementById('context-menu').style.display = 'n
 function togglePanel(id) { const panel = document.getElementById(id); if(!panel) return; panel.classList.toggle('minimized'); const btn = panel.querySelector('.minimize-btn'); if(btn) btn.innerText = panel.classList.contains('minimized') ? "+" : "-"; }
 function toggleCreatorPortrait() { const el = document.getElementById('creator-portrait-frame'); const btn = document.getElementById('btn-min-portrait'); if(!el || !btn) return; el.classList.toggle('minimized'); btn.innerText = el.classList.contains('minimized') ? "+" : "-"; }
 function showModal(t,d,o){ const m=document.getElementById('card-modal'); setT('enc-title',t); setT('card-desc',d); const l=document.getElementById('choice-list'); l.innerHTML=''; document.getElementById('dice-result').innerHTML=''; o.forEach(x=>{ let b=document.createElement('div'); b.className='choice-btn'; b.innerText=x.txt; b.onclick=()=>{m.classList.remove('active');x.act();}; l.appendChild(b); }); m.classList.add('active'); }
-function openCharDetail(id) { const p = players[id]; if(!p) return; setT('cd-header', p.name); setT('cd-sub', p.race.name + " " + p.class.name); setT('cd-str', p.stats.str); setT('cd-dex', p.stats.dex); setT('cd-int', p.stats.int); const portraitEl = document.getElementById('cd-portrait'); if(portraitEl) portraitEl.style.backgroundImage = `url('${p.portrait}')`; const act = ABILITY_LIBRARY[p.activeSkillId]; const pas = ABILITY_LIBRARY[p.passiveSkillId]; setT('cd-active', act ? act.name : '-'); setT('cd-active-desc', act ? act.desc : ''); setT('cd-passive', pas ? pas.name : '-'); setT('cd-passive-desc', pas ? pas.desc : ''); const invSection = document.getElementById('cd-inventory-section'); const hiddenMsg = document.getElementById('cd-hidden-msg'); if (id === 0) { if(invSection) invSection.style.display = 'block'; if(hiddenMsg) hiddenMsg.style.display = 'none'; ['head','body','main','off'].forEach(slot => { const item = p.equipment[slot]; const el = document.getElementById('cd-slot-'+slot); if(el) { el.innerHTML = item ? item.name : slot.toUpperCase(); el.className = 'equip-slot' + (item ? ' filled' : ''); if(item) { el.onmouseenter = () => showTooltip(item); el.onmouseleave = hideTooltip; } else { el.onmouseenter = null; } } }); const grid = document.getElementById('cd-inv-grid'); if(grid) { grid.innerHTML = ''; p.inventory.forEach(item => { let d = document.createElement('div'); d.className = 'inv-slot'; d.innerText = item.name; d.classList.add('rarity-' + item.rarity); d.onmouseenter = () => showTooltip(item); d.onmouseleave = hideTooltip; grid.appendChild(d); }); for(let i=p.inventory.length; i<12; i++) { let d = document.createElement('div'); d.className = 'inv-slot'; grid.appendChild(d); } } } else { if(invSection) invSection.style.display = 'none'; if(hiddenMsg) hiddenMsg.style.display = 'block'; } const modal = document.getElementById('char-detail-modal'); if(modal) modal.classList.add('active'); }
+function openCharDetail(id) { 
+    const p = players[id]; 
+    if(!p) return; 
+    
+    // Header Info
+    setT('cd-header', p.name); 
+    setT('cd-sub', p.race.name + " " + p.class.name); 
+    setT('cd-str', p.stats.str); 
+    setT('cd-dex', p.stats.dex); 
+    setT('cd-int', p.stats.int); 
+    
+    const portraitEl = document.getElementById('cd-portrait'); 
+    if(portraitEl) portraitEl.style.backgroundImage = `url('${p.portrait}')`; 
+    
+    const act = ABILITY_LIBRARY[p.activeSkillId]; 
+    const pas = ABILITY_LIBRARY[p.passiveSkillId]; 
+    
+    // --- INJECT IMAGES FOR ABILITIES ---
+    const actImg = (act && act.img) ? `<img src="${act.img}" style="width:30px;height:30px;border:1px solid #777;margin-right:8px;vertical-align:middle;border-radius:4px;object-fit:cover;">` : '';
+    const pasImg = (pas && pas.img) ? `<img src="${pas.img}" style="width:30px;height:30px;border:1px solid #777;margin-right:8px;vertical-align:middle;border-radius:4px;object-fit:cover;">` : '';
+
+    // Use innerHTML instead of innerText to render the <img> tag
+    document.getElementById('cd-active').innerHTML = `${actImg}<span style="vertical-align:middle;">${act ? act.name : '-'}</span>`;
+    setT('cd-active-desc', act ? act.desc : ''); 
+    
+    document.getElementById('cd-passive').innerHTML = `${pasImg}<span style="vertical-align:middle;">${pas ? pas.name : '-'}</span>`;
+    setT('cd-passive-desc', pas ? pas.desc : ''); 
+    
+    // Inventory Management
+    const invSection = document.getElementById('cd-inventory-section'); 
+    const hiddenMsg = document.getElementById('cd-hidden-msg'); 
+    
+    if (id === 0) { 
+        if(invSection) invSection.style.display = 'block'; 
+        if(hiddenMsg) hiddenMsg.style.display = 'none'; 
+        
+        ['head','body','main','off'].forEach(slot => { 
+            const item = p.equipment[slot]; 
+            const el = document.getElementById('cd-slot-'+slot); 
+            if(el) { 
+                el.innerHTML = item ? item.name : slot.toUpperCase(); 
+                el.className = 'equip-slot' + (item ? ' filled' : ''); 
+                if(item) { el.onmouseenter = () => showTooltip(item); el.onmouseleave = hideTooltip; } 
+                else { el.onmouseenter = null; } 
+            } 
+        }); 
+        
+        const grid = document.getElementById('cd-inv-grid'); 
+        if(grid) { 
+            grid.innerHTML = ''; 
+            p.inventory.forEach(item => { 
+                let d = document.createElement('div'); 
+                d.className = 'inv-slot'; 
+                d.innerText = item.name; 
+                d.classList.add('rarity-' + item.rarity); 
+                d.onmouseenter = () => showTooltip(item); 
+                d.onmouseleave = hideTooltip; 
+                grid.appendChild(d); 
+            }); 
+            for(let i=p.inventory.length; i<12; i++) { 
+                let d = document.createElement('div'); d.className = 'inv-slot'; grid.appendChild(d); 
+            } 
+        } 
+    } else { 
+        if(invSection) invSection.style.display = 'none'; 
+        if(hiddenMsg) hiddenMsg.style.display = 'block'; 
+    } 
+    
+    const modal = document.getElementById('char-detail-modal'); 
+    if(modal) modal.classList.add('active'); 
+} { if(invSection) invSection.style.display = 'block'; if(hiddenMsg) hiddenMsg.style.display = 'none'; ['head','body','main','off'].forEach(slot => { const item = p.equipment[slot]; const el = document.getElementById('cd-slot-'+slot); if(el) { el.innerHTML = item ? item.name : slot.toUpperCase(); el.className = 'equip-slot' + (item ? ' filled' : ''); if(item) { el.onmouseenter = () => showTooltip(item); el.onmouseleave = hideTooltip; } else { el.onmouseenter = null; } } }); const grid = document.getElementById('cd-inv-grid'); if(grid) { grid.innerHTML = ''; p.inventory.forEach(item => { let d = document.createElement('div'); d.className = 'inv-slot'; d.innerText = item.name; d.classList.add('rarity-' + item.rarity); d.onmouseenter = () => showTooltip(item); d.onmouseleave = hideTooltip; grid.appendChild(d); }); for(let i=p.inventory.length; i<12; i++) { let d = document.createElement('div'); d.className = 'inv-slot'; grid.appendChild(d); } } } else { if(invSection) invSection.style.display = 'none'; if(hiddenMsg) hiddenMsg.style.display = 'block'; } const modal = document.getElementById('char-detail-modal'); if(modal) modal.classList.add('active'); }
 function closeCharDetail() { document.getElementById('char-detail-modal').classList.remove('active'); hideTooltip(); }
 function getRarityColor(r) { if(r==='common')return '#fff'; if(r==='rare')return '#3b82f6'; if(r==='epic')return '#a855f7'; return '#f59e0b'; }
 function showTooltip(data, isSkillId = false) { 
