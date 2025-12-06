@@ -306,11 +306,15 @@
     #splash-screen button, #create-screen button { font-size: 1.2rem !important; padding: 15px 30px !important; width: auto !important; max-width: 80%; }
     #btn-start-game { width: 90% !important; font-size: 1.5rem !important; padding: 20px !important; margin-top: 20px !important; }
 
-    /* --- [B] MAIN UI CONTAINER --- */
+/* --- [B] MAIN UI CONTAINER --- */
     #board-overlay {
         width: 100vw !important; height: 100vh !important;
         top: 0 !important; left: 0 !important;
         transform: none !important; position: fixed !important;
+        
+        /* FIX: Lift the entire UI container (130) above the Cards (100) */
+        /* This ensures your P1-Sheet and Leaderboard can physically cover the card */
+        z-index: 130 !important; 
     }
 
     /* --- [C] TOP ELEMENTS --- */
@@ -335,7 +339,7 @@
         mask-image: linear-gradient(to bottom, black 70%, transparent 100%) !important;
     }
 
-    /* --- [D] THE BOTTOM UTILITY BAR --- */
+/* --- [D] THE BOTTOM UTILITY BAR --- */
     #hud-bottom {
         position: absolute !important;
         bottom: 0 !important; left: 0 !important;
@@ -346,9 +350,9 @@
         display: flex !important; flex-direction: column !important;
         justify-content: flex-end !important;
         padding-bottom: 5px !important;
-        z-index: 100 !important;
+        /* UPDATED Z-INDEX: Higher than panels (110) and cards (100) */
+        z-index: 120 !important; 
     }
-
     #skill-bar {
         width: 98% !important; margin: 0 auto !important;
         border: none !important; background: transparent !important;
@@ -380,36 +384,48 @@
         background: #000 !important; border: 1px solid #999 !important;
     }
 
-    /* --- [E] INTEGRATED BUTTONS --- */
+/* --- [E] INTEGRATED BUTTONS --- */
     #btn-help {
         position: absolute !important;
+        /* Positioned back on the UI Bar */
         bottom: 85px !important; left: 10px !important; top: auto !important;
+        
         width: 45px !important; height: 45px !important;
-        font-size: 24px !important; z-index: 105 !important;
+        font-size: 24px !important; 
+        
+        /* Z-INDEX 150: Above the HUD Background (120) so they are clickable */
+        z-index: 150 !important;
+        
         background: #333 !important; border: 2px solid #fff !important;
         box-shadow: none !important;
     }
 
     #controls {
         position: absolute !important;
+        /* Positioned back on the UI Bar */
         bottom: 88px !important; right: 10px !important; top: auto !important;
+        
         width: auto !important;
         display: flex !important; flex-direction: row !important; gap: 10px !important;
-        z-index: 105 !important;
+        
+        /* Z-INDEX 150: Above the HUD Background (120) */
+        z-index: 150 !important;
     }
+    
     #controls button {
         height: 40px !important; font-size: 12px !important; width: 80px !important;
         border-radius: 6px !important; margin: 0 !important; padding: 0 5px !important;
         box-shadow: 0 4px 6px rgba(0,0,0,0.5) !important;
     }
 
-    /* --- [F] PANELS (Sheet / Leaderboard) --- */
+/* --- [F] PANELS (Sheet / Leaderboard) --- */
     #p1-sheet, #leaderboard {
         position: absolute !important;
         bottom: 140px !important; /* On top of bar */
         top: auto !important;
         height: auto !important;
-        z-index: 90 !important;
+        /* UPDATED Z-INDEX: Higher than Card Modal (100) but lower than HUD (120) */
+        z-index: 110 !important;
         background: rgba(20, 25, 35, 0.98) !important;
         border-bottom: none !important;
         border-radius: 8px 8px 0 0 !important;
@@ -693,7 +709,7 @@
             <button class="help-tab" onclick="switchHelpTab('tab-loot')">Loot & Glory</button>
         </div>
 
-        <!-- TAB 1: BASICS -->
+<!-- TAB 1: BASICS -->
         <div id="tab-basics" class="help-section active">
             <h3><span style="color:var(--gold)">✦</span> The Objective</h3>
             <p>Be the last Hero standing! Bankrupt your rivals by capturing locations and hoarding Gold. When a player runs out of money and property, they are forgotten by history.</p>
@@ -704,6 +720,11 @@
                 <li><b>Passing Start:</b> Gain <span style="color:var(--success)">+200 Gold</span> and recharge all abilities.</li>
                 <li><b>Landing on Start:</b> Visit the Merchant to buy supplies.  If you are on a mobile phone long press items to sell them from your inventory or items that are currently equipped.</li>
             </ul>
+
+            <!-- NEW SECTION -->
+            <h3><span style="color:var(--gold)">✦</span> Mystery Spaces</h3>
+            <p><b>Fairy Ring</b> and <b>Smuggler Cove</b> (Purple) are unstable locations. They cannot be captured.</p>
+            <p>When you land here, you must face an Encounter. If you succeed, you are instantly <b>Teleported</b> to a random space on the board!</p>
 
             <h3><span style="color:var(--gold)">✦</span> The Dungeon</h3>
             <p>If you land on "Go to Dungeon," you are arrested! You must <b>Skip your next turn</b>. If you land on the Dungeon space itself (Just Visiting), you are safe to mock the prisoners.</p>
@@ -779,6 +800,8 @@ let tiles=[], players=[], turnIndex=0, gameState='SETUP', treasuryGold=0;
 let normalDeck, skirmishDeck, treasureDeck;
 let turnCount = 0, isNight = false;
 let selRace=null, selClass=null, selColor="#ef4444", selActiveId=null, selPassiveId=null;
+let nightBoard = null; 
+let fogGroup = null;
 
 const PLAYER_COLORS = ["#ef4444", "#3b82f6", "#10b981", "#f59e0b", "#8b5cf6", "#FFFFFF"];
 const EQUIP_ORDER = ['head', 'body', 'main', 'off'];
@@ -918,19 +941,77 @@ const ABILITY_LIBRARY = {
     haggler: { name: "Haggler", desc: "Passive: All Shop items cost 25% less.", type:'passive', img: "https://static.wixstatic.com/media/b16479_2ba70fe3c905462aba90a1c434163f08~mv2.jpeg" },
    // mountaineer: { name: "Mountaineer", desc: "Passive: +2 Combat Successes when fighting on Mountain or Peak tiles.", type:'passive', img: "" },
     gold_rush: { name: "Gold Rush", desc: "Passive: Gain +50G immediately whenever you land on a Chest tile.", type:'passive', onLanding: (p) => { if(tiles[p.pos].userData.info.type === 'chest') { p.gold += 50; addLog("Gold Rush: +50G!", "log-gold"); updateHUD(); } }, img: "https://static.wixstatic.com/media/b16479_a16b936431f54cb9b0c14fc110db0363~mv2.jpeg" },
-    escape_artist: { name: "Escape Artist", desc: "Passive: Fleeing from combat costs 0 Gold (Usually costs money).", type:'passive', img: "" },
+escape_artist: { 
+        name: "Escape Artist", 
+        desc: "Passive: Fleeing awards the gold reward without fighting (Does not capture).", 
+        type:'passive', 
+        img: "https://static.wixstatic.com/media/b16479_6c7a5d29595e42cdbc625397ad4a9a7d~mv2.jpeg" // Reusing an image or add new one
+    },
  //   builder: { name: "Master Builder", desc: "Passive: Upgrading a property costs 50G less.", type:'passive', img: "" },
     divine_shield: { name: "Divine Shield", desc: "Active: Ignore the next penalty/damage you would take. (One use per recharge).", fn: (p) => { addLog("Divine Shield activated! Next penalty ignored.", "log-epic"); }, img: "https://static.wixstatic.com/media/b16479_c8fb1f2502ce472bb9fb6d19d463285c~mv2.jpeg" },
     landlord: { name: "Landlord", desc: "Passive: Enemies pay +20% Rent when landing on your properties.", type:'passive', img: "https://static.wixstatic.com/media/b16479_8d16ceb9c83448528c0309942f785c8a~mv2.jpeg" },
     vampirism: { name: "Vampirism", desc: "Passive: Gain 10G for every successful die roll in combat.", type:'passive', img: "https://static.wixstatic.com/media/b16479_6a42b45b920a4bc6bd8f92bc8fc51ad1~mv2.jpeg" },
-    gamblers_luck: { name: "Gambler's Luck", desc: "Active: Reroll any 1s rolled during movement or combat.", fn: (p) => { addLog("Dice rerolled!", "log-success"); }, img: "https://static.wixstatic.com/media/b16479_613c6b72c1984c8d93398e7f00ae2ee0~mv2.jpeg" },
+	gamblers_luck: { 
+        name: "Gambler's Luck", 
+        desc: "Passive: Prompt to reroll 1s on Move or Combat.", 
+        type: 'active', // Active type so it shows in the UI slot
+        fn: (p) => { 
+            addLog("Passively triggers when you roll a 1.", "log-rare");
+            return false; // Prevent manual exhaustion
+        }, 
+        img: "https://static.wixstatic.com/media/b16479_613c6b72c1984c8d93398e7f00ae2ee0~mv2.jpeg" 
+    },
     ambush_master: { name: "Ambush", desc: "Passive: Start every combat with 1 automatic Success.", type:'passive', img: "https://static.wixstatic.com/media/b16479_6274cb33103f496d958019147a605599~mv2.jpeg" },
 
     // --- OTHER EXISTING SKILLS ---
     teleport: { name: "Town Portal", desc: "Teleport to Old Crooks Inn.", fn: (p) => { p.pos=0; p.mesh.position.copy(tiles[0].position); resolveLanding(p); addLog("Teleported to Inn.", "log-rare"); }, img: "https://static.wixstatic.com/media/b16479_e2653f032408459ea8d64eb87faf86fb~mv2.jpeg" },
     backtrack: { name: "Recall", desc: "Move backwards 3 spaces.", fn: (p) => { p.pos = (p.pos - 3 + 40) % 40; const t = tiles[p.pos]; new TWEEN.Tween(p.mesh.position).to({x:t.position.x, z:t.position.z}, 500).onComplete(()=>resolveLanding(p)).start(); addLog("Rewound time.", "log-epic"); }, img: "https://static.wixstatic.com/media/b16479_40db1c3f8b6b4c11bc8a509c62133e48~mv2.jpeg" },
    // sprint: { name: "Adrenaline", desc: "Add +2 to your next movement roll (Passive).", type:'passive', img: "" },
-    bribe: { name: "Silver Tongue", desc: "Steal ownership of a tile (TN 6 INT). Only usable when prompted during capture.", fn: (p) => { addLog("You cannot activate this skill at this time.", "log-fail"); }, img: "https://static.wixstatic.com/media/b16479_4eea8ba2071047a1bdc17eb37b648db3~mv2.jpeg" },
+    bribe: { 
+        name: "Silver Tongue", 
+        desc: "Pay 100G: Steal ownership of current enemy tile.", 
+        type: 'active',
+        img: "https://static.wixstatic.com/media/b16479_4eea8ba2071047a1bdc17eb37b648db3~mv2.jpeg", 
+        fn: (p) => { 
+            const t = tiles[p.pos];
+            
+            // 1. Validation
+            if (t.userData.owner === null || t.userData.owner === p.id) {
+                addLog("Can only bribe on Enemy Land.", "log-fail");
+                return false;
+            }
+            
+            if (p.gold < 100) {
+                addLog("Need 100 Gold to bribe.", "log-fail");
+                return false;
+            }
+
+            // 2. Execution
+            p.gold -= 100;
+            const prevOwner = players[t.userData.owner];
+            
+            // Steal Logic
+            t.userData.owner = p.id;
+            // Keep building level, but remove guards? Or keep them? Usually stealing keeps infrastructure.
+            // Let's keep the building, but flip the flag.
+            
+            // Visual update
+            if (t.userData.prop) {
+                // Update the color of the building/flag to new owner
+                t.userData.prop.children.forEach(mesh => {
+                    if(mesh.material) mesh.material.color.setHex(parseInt(p.color.replace('#','0x')));
+                });
+            }
+
+            addLog(`Bribed officials! Stole land from ${prevOwner.name}.`, "log-epic");
+            updateHUD();
+            
+            // Close any combat window that might be open
+            closeEnc();
+            
+            return true; 
+        } 
+    },
     swap: { name: "Chaos Swap", desc: "Swap positions with random player.", fn: (p) => { const targets = players.filter(t => t.id !== p.id && !t.isDead); if(targets.length > 0) { const t = targets[Math.floor(Math.random() * targets.length)]; const tempPos = p.pos; p.pos = t.pos; t.pos = tempPos; p.mesh.position.copy(tiles[p.pos].position); t.mesh.position.copy(tiles[t.pos].position); addLog(`Swapped with ${t.name}!`, "log-epic"); }}, img: "https://static.wixstatic.com/media/b16479_981b877ce6714658adb31c29d8e69685~mv2.jpeg" },
     might: { name: "Giant's Str", desc: "Gain +5 STR until end of turn.", fn: (p) => { p.stats.str += 5; addLog("Strength surged!", "log-success"); updateHUD(); }, img: "https://static.wixstatic.com/media/b16479_966a061562c2433bbcefaec1ecf83776~mv2.jpeg" },
     focus: { name: "Mind's Eye", desc: "Gain +5 INT until end of turn.", fn: (p) => { p.stats.int += 5; addLog("Focus sharpened!", "log-success"); updateHUD(); }, img: "https://static.wixstatic.com/media/b16479_1066eb1edb9b4611b0513793cbbfacbf~mv2.jpeg" },
@@ -938,7 +1019,16 @@ const ABILITY_LIBRARY = {
     transmute: { name: "Alchemy", desc: "Destroy a random inventory item for 300G.", fn: (p) => { if(p.inventory.length > 0) { const idx = Math.floor(Math.random()*p.inventory.length); const it = p.inventory.splice(idx, 1)[0]; p.gold += 300; addLog(`Transmuted ${it.name} to 300G.`, "log-gold"); updateHUD(); } else { addLog("No items to transmute.", "log-fail"); }}, img: "https://static.wixstatic.com/media/b16479_6c7a5d29595e42cdbc625397ad4a9a7d~mv2.jpeg" },
     tax_evade: { name: "Tax Dodge", desc: "Gain immunity to Tax tiles (Passive).", type:'passive', img: "https://static.wixstatic.com/media/b16479_faa8ed7823a34bcab4aa949ddde8ea08~mv2.jpeg" },
     bounty: { name: "Bounty Hunter", desc: "Gain 50G when winning a fight.", type: 'passive', onCombatVictory: (p) => { p.gold += 50; addLog("Bounty Hunter Reward: +50G", "log-gold"); updateHUD(); }, img: "https://static.wixstatic.com/media/b16479_e5a29d46970543149ab7224376250d34~mv2.jpeg" },
-    lucky: { name: "Lucky Charm", desc: "Reroll movement dice once.", fn: (p) => { rollMove(); addLog("Rerolled dice!", "log-success"); }, img: "https://static.wixstatic.com/media/b16479_c5e3924f36c94d2793f1f3fd2ee349ad~mv2.jpeg" },
+    lucky: { 
+        name: "Lucky Charm", 
+        desc: "Prompt to Reroll movement dice once per turn.", 
+        type: 'active', // Marked active so it has a button, but logic is handled in rollMove
+        fn: (p) => {
+            addLog("This skill triggers automatically when you roll.", "log-rare");
+            return false; // Don't exhaust on click, only on confirm in rollMove
+        },
+        img: "https://static.wixstatic.com/media/b16479_c5e3924f36c94d2793f1f3fd2ee349ad~mv2.jpeg" 
+    },
     anchor: { name: "Iron Anchor", desc: "You cannot be moved by enemy effects (Passive).", type:'passive', img: "https://static.wixstatic.com/media/b16479_1771400b778146b4871aad58992050b5~mv2.jpeg" },
     fireball: { name: "Fireball", desc: "Pay 100G. Nuke an enemy tile.", fn: (p) => { /* ... */ }, img: "https://static.wixstatic.com/media/b16479_29ff412f99834658ac8d32d32e16849a~mv2.jpg" },
     transmute_gold: { 
@@ -998,8 +1088,67 @@ const ABILITY_LIBRARY = {
     shadow_step: { name: "Shadow Step", desc: "Permanent +1 DEX and Movement.", type:'passive', effect:(s)=>s.dex+=1, img: "https://static.wixstatic.com/media/b16479_923e7271de194ba69a6d2243650e2c41~mv2.jpg" },
     greedy: { name: "Greedy", desc: "Start with +200G.", type:'passive', effect:(s)=>s.gold+=200, img: "https://static.wixstatic.com/media/b16479_9555d2fe87f74320a96619cdb7f057a4~mv2.jpg" },
     fence: { name: "Fence", desc: "Sell items for 80% value (usually 50%).", type:'passive', img: "https://static.wixstatic.com/media/b16479_7f7f664290b14d51a9aa304396c46d67~mv2.jpg" },
-    heal_light: { name: "Spirit Tithe", desc: "Passive: +5G on enemy land, +10G on owned land.", type: 'active', onLanding: (p) => { /* ... */ }, fn: (p) => { addLog("Spirit Tithe is always active.", "log-success"); }, img: "https://static.wixstatic.com/media/b16479_73cb0754c25246689fbe4db244b98da1~mv2.jpg" },
-    smite: { name: "Smite", desc: "Instant Capture/Upgrade/Guard.", type: 'active', fn: (p) => { /* ... */ }, onRoll: (p) => { /* ... */ }, onRecharge: (p) => { /* ... */ }, img: "https://static.wixstatic.com/media/b16479_de48e0494048408dbd67d6c2008aee28~mv2.jpg" },
+	heal_light: { 
+        name: "Spirit Tithe", 
+        desc: "Passive: Gain 5G on enemy land, +10G on owned land.", 
+        type: 'active', 
+        // Logic moved to onLanding below, fn just logs status
+        fn: (p) => { addLog("Spirit Tithe is always active.", "log-success"); }, 
+        onLanding: (p) => {
+            const t = tiles[p.pos];
+            if (t.userData.owner === p.id) {
+                p.gold += 10; addLog("Spirit Tithe: +10G", "log-gold");
+            } else if (t.userData.owner !== null) {
+                p.gold += 5; addLog("Spirit Tithe: +5G", "log-gold");
+            }
+            updateHUD();
+        },
+        img: "https://static.wixstatic.com/media/b16479_73cb0754c25246689fbe4db244b98da1~mv2.jpg" 
+    },
+
+smite: { 
+        name: "Smite", 
+        desc: "Instant Capture/Upgrade/Guard on current tile.", 
+        type: 'active', 
+        img: "https://static.wixstatic.com/media/b16479_de48e0494048408dbd67d6c2008aee28~mv2.jpg",
+        fn: (p) => { 
+            const t = tiles[p.pos];
+            const i = t.userData.info;
+
+            // 1. Validate Target (No Start, No Tax, No Goto, No Jail)
+            if (!i.cost || i.cost === 0 || i.type === 'start' || i.type === 'goto' || i.type === 'jail' || i.type === 'tax') {
+                addLog("Cannot Smite this location.", "log-fail");
+                return false; // Return FALSE to prevent exhaustion
+            }
+
+            // 2. Perform Action
+            addLog("Smite invoked!", "log-epic");
+            
+            const modal = document.getElementById('card-modal');
+            if(modal) modal.classList.remove('active');
+
+            let lvl = 1;
+            if (t.userData.owner === p.id) {
+                if (t.userData.buildingLevel === 1) {
+                    lvl = 2; // Upgrade
+                } else {
+                    t.userData.guardCount = (t.userData.guardCount || 0) + 1;
+                    addLog("Smite: Guard Summoned!", "log-success");
+                    // We return TRUE here because the action succeeded
+                    return true; 
+                }
+            }
+            
+            capture(t, p, lvl, () => {
+                // Determine if we need to end step inside capture callback
+                // But the skill button will handle the 'depleted' state based on return true
+                updateHUD();
+                endStep();
+            });
+            
+            return true; // Return TRUE to confirm usage
+        } 
+    },
     bless: { name: "Bless", desc: "Gain +5 INT until end of turn.", fn: (p) => { p.stats.int+=5; addLog("Blessed!", "log-success"); updateHUD(); }, img: "https://static.wixstatic.com/media/b16479_75752aecbee444ada136a1d9c923b8f8~mv2.jpg" },
     devotion: { name: "Devotion", desc: "Permanent +1 INT.", type:'passive', effect:(s)=>s.int+=1, img: "https://static.wixstatic.com/media/b16479_4ad91e74342448b08fd19799f492d69b~mv2.jpg" },
     medic: { name: "Medic", desc: "Permanent +1 STR.", type:'passive', effect:(s)=>s.str+=1, img: "https://static.wixstatic.com/media/b16479_e222db131e6e4e2180c5bd4dcd0dd6f4~mv2.jpg" },
@@ -1189,7 +1338,7 @@ const LOCATIONS = [
     {name:"Tax",type:"tax",cost:0,color:"#f87171",img:"https://static.wixstatic.com/media/b16479_b2ff79acb9db40c1b8e230e2b43f2a53~mv2.jpg",cardImg:"https://static.wixstatic.com/media/b16479_3671f830191345c1b8a315017da72a5b~mv2.jpg",flavor:"The King's tax collectors block the road with their armored carriage. Pay up or face the dungeon."},
     {name:"Stable",type:"shop",cost:200,color:"#78350f",img:"https://static.wixstatic.com/media/b16479_63e31ea7ac144c2c8086342125a30877~mv2.jpg",cardImg:"https://static.wixstatic.com/media/b16479_f660a75ab6284f56b2c90f4f221f53a3~mv2.jpg",flavor:"The smell of hay and horses is strong here. A merchant offers fresh mounts to speed your journey."},
     {name:"Goblin Camp",type:"combat",cost:100,tn:4,req:1,color:"#84cc16",img:"https://static.wixstatic.com/media/b16479_1d0dc90e90e04783a2cd04823ccf9255~mv2.jpg",cardImg:"https://static.wixstatic.com/media/b16479_c48e6fdf163d4dd68b411d5674de6b4b~mv2.jpg",flavor:"Crude tents made of animal skins dot the clearing. You hear the chaotic chatter of goblins."},
-    {name:"Fairy Ring",type:"check",tn:4,req:1,reward:100,cost:0,color:"#a855f7",img:"https://static.wixstatic.com/media/b16479_1437cc54895e4595a43f461ed959c5ce~mv2.jpg",cardImg:"https://static.wixstatic.com/media/b16479_65c314c4ef784a58b9b162d4d30b1698~mv2.jpg",flavor:"A circle of mushrooms glows with a soft, unnatural light. Stepping inside feels like leaving the world behind."},
+    {name:"Fairy Ring",type:"mystery",cost:0,color:"#a855f7",img:"https://static.wixstatic.com/media/b16479_1437cc54895e4595a43f461ed959c5ce~mv2.jpg",cardImg:"https://static.wixstatic.com/media/b16479_65c314c4ef784a58b9b162d4d30b1698~mv2.jpg",flavor:"A circle of mushrooms glows with a soft, unnatural light. The air hums with chaotic magic."},
     {name:"Bandit Road",type:"combat",cost:100,tn:4,req:1,color:"#84cc16",img:"https://static.wixstatic.com/media/b16479_5101a6720f074efcb628b70b85bcdac6~mv2.jpg",cardImg:"https://static.wixstatic.com/media/b16479_6364e428d9504a139a2c56e1e168eb3d~mv2.jpg",flavor:"This stretch of road is suspiciously quiet. Broken wagon wheels suggest travelers often meet a grim fate here."},
     {name:"Ogre Cave",type:"combat",cost:120,tn:4,req:1,color:"#84cc16",img:"https://static.wixstatic.com/media/b16479_778f6cf396474b47835aa4e8c103bffd~mv2.jpg",cardImg:"https://static.wixstatic.com/media/b16479_d5dcf031b6c24893b00b8fa6d0145eca~mv2.jpg",flavor:"A massive boulder blocks the wind, but not the smell of rotting meat. Something very large calls this home."},
     {name:"Dungeon",type:"jail",cost:0,color:"#fb923c",img:"https://static.wixstatic.com/media/b16479_a259ef3e7d8c4c09a88aea824537e57b~mv2.jpg",cardImg:"https://static.wixstatic.com/media/b16479_117e17f3d5b84577beb01fcca1cddad9~mv2.jpg",flavor:"Cold iron bars and damp stone walls surround you. It is a place of despair and lost time."},
@@ -1218,7 +1367,7 @@ const LOCATIONS = [
     {name:"Chest",type:"chest",cost:0,color:"#fcd34d",img:"https://static.wixstatic.com/media/b16479_5624f6d69ac6404e9aede7d4dd5f4d47~mv2.jpg",cardImg:"https://static.wixstatic.com/media/b16479_87f60295a50d4881bc95f728314e37fb~mv2.jpg",flavor:"A grand chest reinforced with steel bands sits in the open. The latch is broken, inviting you to look inside."},
     {name:"Void Edge",type:"combat",cost:320,tn:6,req:2,color:"#0f172a",img:"https://static.wixstatic.com/media/b16479_9eb9e98ea6084dccbe4e57fdcc525324~mv2.jpg",cardImg:"https://static.wixstatic.com/media/b16479_3e59b7d985d84b9688c33ea51322875c~mv2.jpg",flavor:"The world seems to end here, dropping off into nothingness. Stars shine brightly below you in the abyss."},
     {name:"Portal",type:"shop",cost:200,color:"#78350f",img:"https://static.wixstatic.com/media/b16479_062be0c2c7a3459b87645b4f86c8bfd0~mv2.jpg",cardImg:"https://static.wixstatic.com/media/b16479_aa482a0a26e94d6a9754eee718278aa1~mv2.jpg",flavor:"A swirling vortex of purple energy stands before you. It promises travel to distant lands in the blink of an eye."},
-    {name:"Smuggler Cove",type:"shop",cost:0,color:"#a855f7",img:"https://static.wixstatic.com/media/b16479_70c52b2f88864f7ca3f568cf44a3ad70~mv2.jpg",cardImg:"https://static.wixstatic.com/media/b16479_401a126718a64763924ed8ad5314899d~mv2.jpg",flavor:"A hidden cave by the sea hides illicit goods. Pirates and thieves trade secrets in hushed tones."},
+    {name:"Smuggler Cove",type:"mystery",cost:0,color:"#a855f7",img:"https://static.wixstatic.com/media/b16479_70c52b2f88864f7ca3f568cf44a3ad70~mv2.jpg",cardImg:"https://static.wixstatic.com/media/b16479_401a126718a64763924ed8ad5314899d~mv2.jpg",flavor:"A hidden cave by the sea. Thieves use secret tunnels here to vanish without a trace."},
     {name:"Royal Palace",type:"combat",cost:350,tn:6,req:3,color:"#fbbf24",img:"https://static.wixstatic.com/media/b16479_6434230067414f34a341a95383fe7896~mv2.jpg",cardImg:"https://static.wixstatic.com/media/b16479_8d01f5e2e59a4244a4101efb92c77487~mv2.jpg",flavor:"The seat of power in the realm, draped in gold and velvet. Nobles scheme in the corridors while the King sits upon his throne."},
     {name:"Luxury Tax",type:"tax",cost:0,color:"#f87171",img:"https://static.wixstatic.com/media/b16479_9b58c85963434fb3abe9ecfb4b114c67~mv2.jpg",cardImg:"https://static.wixstatic.com/media/b16479_2513d4cb760246f69570e8f7eb040a39~mv2.jpg",flavor:"The Crown demands a tribute for your continued prosperity. Jewelry and fine clothes make you a target for the taxman."},
     {name:"Ancient Vault",type:"combat",cost:400,tn:6,req:3,color:"#000000",img:"https://static.wixstatic.com/media/b16479_b8a71205363745b7ad11f72ca6ca30b2~mv2.jpg",cardImg:"https://static.wixstatic.com/media/b16479_0e78493512ad4e559cd6392a9341ddad~mv2.jpg",flavor:"Massive steel doors guard the greatest treasure in the realm. Traps and guardians wait for the foolish."}
@@ -1239,10 +1388,16 @@ function init() {
     const amb = new THREE.AmbientLight(0xffffff, 0.6); scene.add(amb);
     const dir = new THREE.DirectionalLight(0xffd700, 0.8); dir.position.set(30,40,20); dir.castShadow = true; scene.add(dir);
     
-    updateCamera(); // Initial Camera Setup based on size
+    updateCamera(); 
 
     window.addEventListener('resize', onWindowResize, false);
-    createEnvironment(); createBoard(); createDecks(); setupCreationUI(); setupEquipDragDrop();
+    createEnvironment(); 
+    createBoard(); 
+    createDecks(); 
+    createFog(); 
+
+    
+    setupCreationUI(); setupEquipDragDrop();
     animate();
 }
 
@@ -1278,7 +1433,24 @@ function updateCamera() {
     camera.lookAt(0, 0, 0);
 }
 
-function animate(){ requestAnimationFrame(animate); TWEEN.update(); renderer.render(scene,camera); }
+function animate(){ 
+    requestAnimationFrame(animate); 
+    TWEEN.update(); 
+    renderer.render(scene,camera); 
+    
+    // --- NEW: FOG ANIMATION ---
+    if(fogGroup) {
+        fogGroup.children.forEach((cloud, idx) => {
+            // Slow rotation
+            cloud.rotation.z += 0.001 * (idx % 2 === 0 ? 1 : -1);
+            // Slight drift if it's Night
+            if(isNight) {
+                cloud.position.x += Math.sin(Date.now() * 0.0005 + idx) * 0.005;
+            }
+        });
+    }
+    // --------------------------
+}
 
 function onWindowResize() {
     const width = window.innerWidth;
@@ -1304,15 +1476,108 @@ function createTileTexture(name, cStr, cost) {
 function createGrassTexture() { const c=document.createElement('canvas'); c.width=512; c.height=512; const ctx=c.getContext('2d'); ctx.fillStyle="#14532d"; ctx.fillRect(0,0,512,512); for(let i=0;i<2000;i++){ctx.fillStyle=Math.random()>0.5?"#166534":"#15803d";ctx.fillRect(Math.random()*512,Math.random()*512,3,3);} const t=new THREE.CanvasTexture(c); t.wrapS=t.wrapT=THREE.RepeatWrapping; t.repeat.set(8,8); return t; }
 function createEnvironment() { const g = new THREE.Mesh(new THREE.PlaneGeometry(600, 600), new THREE.MeshStandardMaterial({map:createGrassTexture()})); g.rotation.x = -Math.PI/2; g.position.y = -0.6; g.receiveShadow = true; scene.add(g); for(let i=0; i<400; i++) { const rad = 45 + Math.random() * 250; const ang = Math.random() * Math.PI * 2; const x = Math.cos(ang) * rad; const z = Math.sin(ang) * rad; if(z > 30 && x > -20 && x < 20) continue; const t = new THREE.Group(); const tr = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.8, 2), new THREE.MeshStandardMaterial({color:0x3e2723})); tr.position.y = 1; const lv = new THREE.Mesh(new THREE.ConeGeometry(3, 6, 8), new THREE.MeshStandardMaterial({color:0x15803d})); lv.position.y = 4; t.add(tr); t.add(lv); t.position.set(x, -0.6, z); t.scale.setScalar(0.8 + Math.random()); scene.add(t); } }
 function createBoard() {
-    const loader = new THREE.TextureLoader(); const boardTex = loader.load('https://static.wixstatic.com/media/b16479_5caac3525f59406d8ff175695ef11cb1~mv2.jpg');
+    const loader = new THREE.TextureLoader(); 
+    const boardTex = loader.load('https://static.wixstatic.com/media/b16479_5caac3525f59406d8ff175695ef11cb1~mv2.jpg');
     const board = new THREE.Mesh(new THREE.PlaneGeometry(45, 45), new THREE.MeshStandardMaterial({ map: boardTex }));
     board.rotation.x = -Math.PI / 2; board.position.y = -0.55; board.receiveShadow = true; scene.add(board);
+
+    // --- NEW: NIGHT BOARD OVERLAY ---
+    const nightTex = loader.load('https://static.wixstatic.com/media/b16479_2458008184884e2986ee9e7c6dc37fc8~mv2.jpg');
+    // Transparent, Opacity 0 to start. Sits slightly higher (-0.54) to avoid glitching
+    nightBoard = new THREE.Mesh(new THREE.PlaneGeometry(45, 45), new THREE.MeshStandardMaterial({ map: nightTex, transparent: true, opacity: 0 }));
+    nightBoard.rotation.x = -Math.PI / 2; 
+    nightBoard.position.y = -0.54; 
+    nightBoard.receiveShadow = true;
+    scene.add(nightBoard);
+    // --------------------------------
+
     for(let i=0; i<40; i++) {
         const info = LOCATIONS[i]; let mapTex = (info.img && info.img.length > 0) ? loader.load(info.img) : createTileTexture(info.name, info.color, info.cost);
         const mesh = new THREE.Mesh(new THREE.BoxGeometry(3.8, 0.5, 3.8), new THREE.MeshStandardMaterial({ map: mapTex }));
         const side = Math.floor(i/10); const pos = i%10; let x=0, z=0, rot=0; const off = 20; const spa = 4;
         if(side===0) { x = off - (pos*spa); z = off; rot=0; } else if(side===1) { x = -off; z = off - (pos*spa); rot=-Math.PI/2; } else if(side===2) { x = -off + (pos*spa); z = -off; rot=Math.PI; } else { x = off; z = -off + (pos*spa); rot=Math.PI/2; }
         if(i===0){x=off;z=off;} mesh.position.set(x, 0, z); mesh.rotation.y = rot; mesh.receiveShadow = true; mesh.userData = {id:i, info:info, owner:null, buildingLevel:0}; scene.add(mesh); tiles.push(mesh);
+    }
+}
+function createFog() {
+    fogGroup = new THREE.Group();
+    
+    // Create a procedural "Cloud" texture using Canvas (no external image needed)
+    const c = document.createElement('canvas'); c.width = 128; c.height = 128;
+    const ctx = c.getContext('2d');
+    const grd = ctx.createRadialGradient(64,64,0, 64,64,64);
+    grd.addColorStop(0, 'rgba(255,255,255,0.3)'); // Light white center
+    grd.addColorStop(1, 'rgba(255,255,255,0)');   // Transparent edges
+    ctx.fillStyle = grd; ctx.fillRect(0,0,128,128);
+    const fogTex = new THREE.CanvasTexture(c);
+
+    // Create 40 fog clouds
+    for(let i=0; i<40; i++) {
+        const mat = new THREE.MeshBasicMaterial({
+            map: fogTex, 
+            transparent: true, 
+            opacity: 0, // Invisible at start
+            depthWrite: false,
+            blending: THREE.AdditiveBlending 
+        });
+        const mesh = new THREE.Mesh(new THREE.PlaneGeometry(15, 15), mat);
+        
+        // Random placement over the board
+        mesh.position.set(Math.random()*60 - 30, 3 + Math.random()*2, Math.random()*60 - 30);
+        mesh.rotation.x = -Math.PI/2;
+        mesh.rotation.z = Math.random() * Math.PI * 2;
+        
+        // Save initial X pos for resetting later
+        mesh.userData = { initialX: mesh.position.x, initialZ: mesh.position.z };
+        
+        fogGroup.add(mesh);
+    }
+    scene.add(fogGroup);
+}
+function transitionDayNight(toNight) {
+    // 1. Board Transition (5 Seconds)
+    // Fade NightBoard IN (1) or OUT (0)
+    new TWEEN.Tween(nightBoard.material)
+        .to({ opacity: toNight ? 1 : 0 }, 5000)
+        .start();
+
+    // 2. Fog Transition
+    if (toNight) {
+        // --- DAY TO NIGHT: Fog Fades In ---
+        if(fogGroup) {
+            fogGroup.children.forEach(cloud => {
+                // Reset positions to random over board
+                cloud.position.x = cloud.userData.initialX;
+                cloud.position.z = cloud.userData.initialZ;
+                
+                // Fade In
+                new TWEEN.Tween(cloud.material)
+                    .to({ opacity: 0.5 + Math.random() * 0.3 }, 5000) // Varied opacity
+                    .start();
+            });
+        }
+        // Darken Background
+        new TWEEN.Tween(scene.background).to({r:0.02, g:0.02, b:0.06}, 5000).start();
+    } else {
+        // --- NIGHT TO DAY: Fog Moves Out & Fades Out ---
+        if(fogGroup) {
+            fogGroup.children.forEach(cloud => {
+                // Determine direction: Left or Right based on position
+                const destX = cloud.position.x > 0 ? 60 : -60;
+                
+                // Move Out
+                new TWEEN.Tween(cloud.position)
+                    .to({ x: destX }, 5000) // Move off screen over 5s
+                    .start();
+
+                // Fade Out
+                new TWEEN.Tween(cloud.material)
+                    .to({ opacity: 0 }, 5000)
+                    .start();
+            });
+        }
+        // Lighten Background
+        new TWEEN.Tween(scene.background).to({r:0.8, g:0.8, b:0.8}, 5000).start();
     }
 }
 function createDecks() {
@@ -1434,34 +1699,79 @@ function rollMove() {
     if(turnIndex === 0) {
         turnCount++;
         if(turnCount % 10 === 0) { 
-            isNight = !isNight; addLog(isNight ? "Night falls..." : "Sunrise.", isNight ? "log-fail":"log-success");
-            const targetColor = isNight ? 0x050510 : 0xcccccc; scene.background = new THREE.Color(targetColor);
+            isNight = !isNight; 
+            
+            // --- UPDATED TRANSITION LOGIC ---
+            // Triggers the Fog and Board Texture change
+            addLog(isNight ? "Night falls... Fog rolls in." : "Sunrise. The fog clears.", isNight ? "log-fail":"log-success");
+            transitionDayNight(isNight); 
+            // --------------------------------
         }
     }
     
     p.abilityUsed=false; 
     if(p.isSkipping){ p.isSkipping=false; addLog(p.name+" skips turn.","log-fail"); endStep(); return; } 
     
-    // --- MODULAR ROLL LOGIC ---
-    let r = null;
+    // 1. Roll 2d6 individually to detect 1s (Gambler's Luck Support)
+    let d1 = Math.floor(Math.random() * 6) + 1;
+    let d2 = Math.floor(Math.random() * 6) + 1;
 
-    // 1. Check Active Skill for Roll Override
-    const active = ABILITY_LIBRARY[p.activeSkillId];
-    if (active && active.onRoll) r = active.onRoll(p);
+    // --- GAMBLER'S LUCK CHECK (Human Only) ---
+    if (p.id === 0 && (d1 === 1 || d2 === 1)) {
+        // Find Skill Source
+        let skillSource = null;
+        let skillType = '';
 
-    // 2. Check Passive Skill for Roll Override (if active didn't override)
-    if (r === null) {
-        const passive = ABILITY_LIBRARY[p.passiveSkillId];
-        if (passive && passive.onRoll) r = passive.onRoll(p);
+        // Check Class Skill
+        if (ABILITY_LIBRARY[p.activeSkillId].name === "Gambler's Luck" && !p.classSkillDepleted) {
+            skillSource = ABILITY_LIBRARY[p.activeSkillId]; skillType = 'class';
+        } else {
+            // Check Equipment
+            ['head','body','main','off'].forEach(slot => {
+                const it = p.equipment[slot];
+                if (it && it.ability && it.ability.name === "Gambler's Luck" && !it.isDepleted) {
+                    skillSource = it; skillType = 'equip';
+                }
+            });
+        }
+
+        if (skillSource) {
+            showModal(`Rolled: ${d1} & ${d2}`, "Use Gambler's Luck to reroll 1s?", [
+                { txt: "Keep Roll", act: () => { 
+                    document.getElementById('card-modal').classList.remove('active');
+                    finishRollLogic(p, d1 + d2);
+                }},
+                { txt: "Reroll 1s", act: () => { 
+                    document.getElementById('card-modal').classList.remove('active');
+                    // Deplete
+                    if(skillType === 'class') p.classSkillDepleted = true;
+                    else if(skillType === 'equip') skillSource.isDepleted = true;
+                    updateHUD();
+
+                    // Reroll specific dice
+                    let logMsg = `Gambler's Luck: `;
+                    if(d1 === 1) { d1 = Math.floor(Math.random() * 6) + 1; logMsg += "d1 rerolled. "; }
+                    if(d2 === 1) { d2 = Math.floor(Math.random() * 6) + 1; logMsg += "d2 rerolled. "; }
+                    addLog(logMsg, "log-gold");
+                    
+                    finishRollLogic(p, d1 + d2);
+                }}
+            ]);
+            return; // Pause for input
+        }
     }
 
-    // 3. Default Roll (2d6)
-    if (r === null) {
-        r = Math.floor(Math.random() * 11) + 2;
-        addLog(`${p.name} rolled ${r}.`);
-    }
-    // --------------------------
+    addLog(`${p.name} rolled ${d1+d2}.`);
+    finishRollLogic(p, d1 + d2);
+}
 
+function finishRollLogic(p, r) {
+    // Shadow Step Logic (Passive +1)
+    const passive = ABILITY_LIBRARY[p.passiveSkillId];
+    if (passive && passive.name === "Shadow Step") { 
+        r += 1; 
+        addLog("Shadow Step: +1 Move"); 
+    }
     gameState='MOVING'; 
     animateMove(p,r); 
 }
@@ -1543,21 +1853,33 @@ function endTurn(){
 }
 
 function resolveLanding(p) {
-    // 1. SELF PASSIVE TRIGGER (e.g., Holy Aura)
+    // 1. SELF PASSIVE TRIGGER (Class)
     const passive = ABILITY_LIBRARY[p.passiveSkillId];
     if (passive && passive.onLanding) passive.onLanding(p);
 
-    // 2. SELF ACTIVE TRIGGER (e.g., Spirit Tithe)
+    // 2. SELF ACTIVE TRIGGER (Class)
     const active = ABILITY_LIBRARY[p.activeSkillId];
     if (active && active.onLanding) active.onLanding(p);
 
-    // 3. TRAP TRIGGER (New for Skeleton Key)
-    // Check if any OTHER player is here and has a trap ability
+    // --- FIX: CHECK EQUIPMENT TRIGGERS (Gold Rush, etc) ---
+    ['head', 'body', 'main', 'off'].forEach(slot => {
+        const item = p.equipment[slot];
+        if (item && item.ability) {
+            // We must look up the original library entry because item.ability only contains the name/desc/fn copies
+            const libAbil = Object.values(ABILITY_LIBRARY).find(a => a.name === item.ability.name);
+            if (libAbil && libAbil.onLanding) {
+                libAbil.onLanding(p);
+            }
+        }
+    });
+    // ------------------------------------------------------
+
+    // 3. TRAP TRIGGER (Skeleton Key)
     players.forEach(other => {
         if (other.id !== p.id && !other.isDead && other.pos === p.pos) {
             const trapPassive = ABILITY_LIBRARY[other.passiveSkillId];
             if (trapPassive && trapPassive.onEnemyLanding) {
-                trapPassive.onEnemyLanding(p, other); // Pass victim (p) and owner (other)
+                trapPassive.onEnemyLanding(p, other);
             }
         }
     });
@@ -1581,6 +1903,16 @@ function continueFromArrival() {
     
     if(i.type === 'start') { if(p.id === 0) showEncounter(p, i, t, 'shop'); else endStep(); return; }
     
+    // --- NEW MYSTERY LOGIC ---
+    if(i.type === 'mystery') {
+        // Draw standard Encounter or Skirmish based on time of day
+        const deckType = isNight ? 'skirmish' : 'normal';
+        // Pass 'mystery_event' so showEncounter knows to set up Teleport buttons
+        drawCardAnim(deckType, () => showEncounter(p, i, t, 'mystery_event'));
+        return;
+    }
+    // -------------------------
+
     if(i.type === 'park') { 
         if(treasuryGold > 0){ 
             p.gold += treasuryGold; 
@@ -1594,46 +1926,32 @@ function continueFromArrival() {
         return; 
     }
     
-    // --- UPDATED TAX LOGIC (Court Mage Support) ---
-    if(i.type === 'tax') { 
-        processTax(p, 50); // Changed from pay(p, 50) to processTax
-        endStep(); 
-        return; 
-    } 
-    // ----------------------------------------------
+    if(i.type === 'tax') { processTax(p, 50); endStep(); return; } 
     
-    // --- DUNGEON LOGIC (Skeleton Key) ---
     if(i.type === 'goto') { 
-        // Check for Immunity
         if (p.passiveSkillId === 'smoke_bomb' || p.activeSkillId === 'smoke_bomb') { 
             addLog("Skeleton Key: Evaded Dungeon!", "log-epic");
             endStep();
         } else {
-            p.pos = 10; 
-            p.mesh.position.copy(tiles[10].position); 
-            addLog("Jailed!", "log-fail"); 
-            p.isSkipping = true; 
-            endStep(); 
+            p.pos = 10; p.mesh.position.copy(tiles[10].position); 
+            addLog("Jailed!", "log-fail"); p.isSkipping = true; endStep(); 
         }
         return; 
     } 
-    // ------------------------------------
 
     if(i.type === 'jail') { endStep(); return; }
     if(i.type === 'chest') { drawCardAnim('treasure', () => showEncounter(p, i, t, "loot")); return; }
 
     const deckType = isNight ? 'skirmish' : 'normal'; const modeType = isNight ? 'wild_skirmish' : 'wild'; const owner = t.userData.owner;
+    
     if(owner === p.id) { 
         if(t.userData.buildingLevel === 1) { 
             showModal("Upgrade?", `Build Tavern ${i.cost*2}G? (Skirmish)`, [ 
                 { txt: "Upgrade", act: () => { 
                     if(p.gold >= i.cost*2) { 
                         p.gold -= i.cost*2; 
-                        drawCardAnim('skirmish', () => showEncounter(p, i, t, "skirmish")); 
-                    } else { 
-                        addLog("No Gold"); 
-                        endStep(); 
-                    } 
+                        drawCardAnim('skirmish', () => showEncounter(p, i, t, "upgrade")); 
+                    } else { addLog("No Gold"); endStep(); } 
                 }}, 
                 { txt: "Skip", act: endStep } 
             ]); 
@@ -1644,13 +1962,8 @@ function continueFromArrival() {
                     if(p.gold >= 50) { 
                         p.gold -= 50; 
                         t.userData.guardCount = (t.userData.guardCount || 0) + 1; 
-                        addLog("Guard Hired!", "log-gold"); 
-                        updateHUD(); 
-                        endStep(); 
-                    } else { 
-                        addLog("Not enough Gold"); 
-                        endStep(); 
-                    } 
+                        addLog("Guard Hired!", "log-gold"); updateHUD(); endStep(); 
+                    } else { addLog("Not enough Gold"); endStep(); } 
                 }}, 
                 { txt: "Rest (Skip)", act: endStep } 
             ]); 
@@ -1785,9 +2098,7 @@ function processAiTurn(p, t, i) {
 }
 
 function showEncounter(p, i, t, mode) {
-    // 1. Capture the Original Intent (e.g., 'skirmish' for Upgrade)
     const originalMode = mode;
-
     const m = document.getElementById('card-modal'); 
     const l = document.getElementById('choice-list'); 
     l.innerHTML = ''; 
@@ -1796,9 +2107,22 @@ function showEncounter(p, i, t, mode) {
     
     // 2. Draw Card based on Mode
     let card;
-    if (mode === 'loot') card = DECK_TREASURE[Math.floor(Math.random() * DECK_TREASURE.length)]; 
-    else if (mode === 'skirmish' || mode === 'wild_skirmish') card = DECK_SKIRMISH[Math.floor(Math.random() * DECK_SKIRMISH.length)]; 
-    else card = DECK_ENCOUNTER[Math.floor(Math.random() * DECK_ENCOUNTER.length)];
+    if (mode === 'loot') {
+        card = DECK_TREASURE[Math.floor(Math.random() * DECK_TREASURE.length)]; 
+    }
+    else if (mode === 'mystery_event') {
+        if (isNight) {
+            card = DECK_SKIRMISH[Math.floor(Math.random() * DECK_SKIRMISH.length)];
+        } else {
+            card = DECK_ENCOUNTER[Math.floor(Math.random() * DECK_ENCOUNTER.length)];
+        }
+    }
+    else if (mode === 'skirmish' || mode === 'wild_skirmish' || mode === 'upgrade') {
+        card = DECK_SKIRMISH[Math.floor(Math.random() * DECK_SKIRMISH.length)]; 
+    }
+    else {
+        card = DECK_ENCOUNTER[Math.floor(Math.random() * DECK_ENCOUNTER.length)];
+    }
     
     // 3. Handle Card Types Overriding Mode
     if (card.type === 'shop') mode = 'shop'; 
@@ -1810,7 +2134,10 @@ function showEncounter(p, i, t, mode) {
     // 4. Set Visual Header
     let title = card.name; 
     let cls = 'card-header'; 
-    if (mode.includes('skirmish')) { cls += ' skirmish'; title += " (SKIRMISH)"; } 
+    
+    if (mode.includes('skirmish') || mode === 'upgrade' || (mode === 'mystery_event' && isNight)) { 
+        cls += ' skirmish'; title += " (SKIRMISH)"; 
+    } 
     else if (mode === 'loot') { cls += ' loot'; } 
     else if (mode === 'shop') { cls += ' market'; }
     
@@ -1828,114 +2155,124 @@ function showEncounter(p, i, t, mode) {
         opts = [{ txt: "Keep", act: () => { 
             p.inventory.push({...card}); 
             addLog("Gained " + card.name, "log-success"); 
-            
-            // Alchemist Logic
             if (card.name === "Pouch of Gold" && p.passiveSkillId === 'alchemist_pas') {
                 addLog("Alchemist: Transmuting extra loot...", "log-epic");
                 updateHUD(); 
-                setTimeout(() => {
-                    drawCardAnim('treasure', () => showEncounter(p, null, null, 'loot'));
-                }, 500);
+                setTimeout(() => { drawCardAnim('treasure', () => showEncounter(p, null, null, 'loot')); }, 500);
                 return; 
             }
-
-            updateHUD(); 
-            closeEnc(); 
+            updateHUD(); closeEnc(); 
         }}]; 
     } 
-    // B. SHOP (MERCHANT) - WITH FIX
+    // B. SHOP
     else if (mode === 'shop' || i.type === 'start') { 
         desc = card.desc || "The merchant displays their wares."; 
         document.getElementById('market-sell-area').style.display = 'flex'; 
-        
-        // Generate Shop Items
         let pool = DECK_TREASURE.filter(item => item.name !== "Pouch of Gold"); 
         if(card.rare) pool = pool.filter(x => x.rarity === 'legendary'); 
         let items = []; 
         if(pool.length > 0) { for(let k=0; k<3; k++) items.push(pool[Math.floor(Math.random() * pool.length)]); } 
-        
         items.forEach(it => opts.push({ txt: `Buy ${it.name} (${it.cost}G)`, act: (btn) => { 
             if (p.gold >= it.cost) { 
                 if(p.inventory.length >= 12) { addLog("Inventory Full", "log-fail"); return; } 
-                p.gold -= it.cost; 
-                p.inventory.push({...it}); 
-                addLog(`Bought ${it.name}`, "log-success"); 
-                updateHUD(); 
-                if(btn) btn.remove(); 
+                p.gold -= it.cost; p.inventory.push({...it}); 
+                addLog(`Bought ${it.name}`, "log-success"); updateHUD(); if(btn) btn.remove(); 
             } else { addLog("No Gold", "log-fail"); } 
         } })); 
-        
-        // --- FIX START: Retry Logic on Leave ---
         opts.push({ txt: "Leave", act: () => { 
-            // If we were trying to capture/upgrade (Combat Modes) and got a Shop:
-            const isCombatMode = (originalMode === 'wild' || originalMode === 'wild_skirmish' || originalMode === 'skirmish');
-            
+            const isCombatMode = (originalMode === 'wild' || originalMode === 'wild_skirmish' || originalMode === 'skirmish' || originalMode === 'upgrade' || originalMode === 'mystery_event');
             if (isCombatMode) {
-                // Don't end turn. Draw another card to resolve the combat.
                 addLog("Merchant departs. The challenge approaches...", "log-rare");
-                let deckName = originalMode.includes('skirmish') ? 'skirmish' : 'normal';
+                let deckName;
+                if (originalMode === 'mystery_event') {
+                     deckName = isNight ? 'skirmish' : 'normal';
+                } else {
+                     deckName = (originalMode.includes('skirmish') || originalMode === 'upgrade') ? 'skirmish' : 'normal';
+                }
                 drawCardAnim(deckName, () => showEncounter(p, i, t, originalMode));
-            } else {
-                // Just visiting shop (or Start tile), so end turn normally.
-                closeEnc(); 
-            }
+            } else { closeEnc(); }
         }}); 
-        // --- FIX END ---
     } 
     // C. COMBAT / EVENTS
-    else if (mode === 'wild' || mode === 'wild_skirmish' || mode === 'skirmish') { 
+    else if (mode === 'wild' || mode === 'wild_skirmish' || mode === 'skirmish' || mode === 'upgrade' || mode === 'mystery_event') { 
         if (card.choices) { 
             card.choices.forEach(c => { 
                 let btnTxt = c.txt; 
                 if(c.fail) btnTxt += ` | Fail: -${c.fail}G`; 
-                opts.push({ txt: btnTxt, stat: c.stat, tn: c.tn, req: c.req || 1, mode: c.mode, val: c.val || 0, failCost: c.fail || 50 }); 
+                let useMode = (originalMode === 'mystery_event') ? 'teleport' : (originalMode === 'upgrade' ? 'upgrade' : c.mode);
+                opts.push({ txt: btnTxt, stat: c.stat, tn: c.tn, req: c.req || 1, mode: useMode, val: c.val || 0, failCost: c.fail || 50 }); 
             }); 
-            opts.push({ txt: "Leave / Flee", act: closeEnc }); 
+            
+            // Escape Artist Logic
+            let hasEscapeArtist = (p.passiveSkillId === 'escape_artist');
+            if(!hasEscapeArtist) {
+                ['head','body','main','off'].forEach(s => {
+                    if(p.equipment[s] && p.equipment[s].ability && p.equipment[s].ability.name === "Escape Artist") hasEscapeArtist = true;
+                });
+            }
+
+            if (hasEscapeArtist) {
+                opts.push({ txt: "★ Escape Artist (Flee & Loot)", act: () => {
+                    let maxVal = 0;
+                    card.choices.forEach(ch => { if(ch.val && ch.val > maxVal) maxVal = ch.val; });
+                    if (maxVal > 0) {
+                        p.gold += maxVal;
+                        addLog(`Escape Artist: Snagged ${maxVal}G!`, "log-success");
+                        updateHUD();
+                    } else {
+                        addLog("Escape Artist: Escaped safely.", "log-success");
+                    }
+                    closeEnc();
+                }});
+            } else {
+                opts.push({ txt: "Leave / Flee", act: closeEnc }); 
+            }
         } 
         else if (card.type === 'pay') { 
-            opts = [{ txt: `Pay ${card.cost}G`, act: () => { 
-                processTax(p, card.cost); // Uses Court Mage logic
-                closeEnc(); 
-            }}]; 
+            opts = [{ txt: `Pay ${card.cost}G`, act: () => { processTax(p, card.cost); closeEnc(); }}]; 
         } 
     } 
     // D. ENEMY LAND
     else if (mode === 'enemy') { 
         let guards = t.userData.guardCount || 0; 
         let defStat = t.userData.defendingStat || 'str'; 
-        let tn = i.tn || 3; 
-        let req = i.req || 1; 
+        let tn = i.tn || 3; let req = i.req || 1; 
+        
+        // --- FIX START: RENT CALCULATION ---
+        // 1. Check Upgrade Status (Level 2 = Tavern = 2x multiplier)
+        let rentMultiplier = (t.userData.buildingLevel > 1) ? 2 : 1;
+        
+        // 2. Calculate Rent: (Base * Multiplier) + (Guards * 20)
+        let rentCost = (i.cost * rentMultiplier) + (guards * 20);
+
+        // Calculate Siege Risk (Failure Cost)
         let failCost = (i.cost * 2) + (guards * 10); 
+        // --- FIX END ---
+
         desc = `Owned by ${players[t.userData.owner].name}. Defending Stat: ${defStat.toUpperCase()}. Guards: ${guards}.`; 
+        
         opts = [ 
-            { txt: `Pay Rent ${i.cost}G`, act: () => { pay(p, i.cost, players[t.userData.owner]); closeEnc(); } }, 
+            { txt: `Pay Rent ${rentCost}G`, act: () => { pay(p, rentCost, players[t.userData.owner]); closeEnc(); } }, 
             { txt: `Siege (${defStat.toUpperCase()} ${tn}+) | Risk: -${failCost}G`, stat: defStat, tn: tn, req: req, mode: 'capture', penalty: false, failCost: failCost, isSiege: true } 
         ]; 
     } else { 
         opts = [{ txt: "Continue", act: closeEnc }]; 
     }
     
-    // E. SILVER TONGUE BUTTON
+    // E. SILVER TONGUE
     const silverTongueItem = ['head','body','main','off'].map(s => p.equipment[s]).find(i => i && i.ability && i.ability.name === "Silver Tongue" && !i.isDepleted);
-    if (silverTongueItem && (mode === 'wild' || mode === 'wild_skirmish' || mode === 'enemy')) { 
+    if (silverTongueItem && (mode === 'wild' || mode === 'wild_skirmish' || mode === 'enemy' || mode === 'upgrade' || mode === 'mystery_event')) { 
         opts.unshift({ txt: `★ Use Silver Tongue (INT 6+)`, act: () => { 
-            silverTongueItem.isDepleted = true; 
-            updateHUD(); 
-            addLog("Used Silver Tongue!", "log-epic"); 
-            rollCombat(p, 'int', 6, 1, t, 'capture', false, 0, 50, false); 
+            silverTongueItem.isDepleted = true; updateHUD(); addLog("Used Silver Tongue!", "log-epic"); 
+            let useMode = (originalMode === 'mystery_event') ? 'teleport' : (originalMode === 'upgrade' ? 'upgrade' : 'capture');
+            rollCombat(p, 'int', 6, 1, t, useMode, false, 0, 50, false); 
         } }); 
     }
     
-    // RENDER CHOICES
     const descEl = document.getElementById('enc-desc'); if(descEl) descEl.innerText = desc;
     opts.forEach(o => { 
-        let b = document.createElement('div'); 
-        b.className = 'choice-btn'; 
-        b.innerText = o.txt; 
-        b.onclick = () => { 
-            if (o.act) o.act(b); 
-            else rollCombat(p, o.stat, o.tn, o.req, t, o.mode, o.penalty, o.val, o.failCost, o.isSiege); 
-        }; 
+        let b = document.createElement('div'); b.className = 'choice-btn'; b.innerText = o.txt; 
+        b.onclick = () => { if (o.act) o.act(b); else rollCombat(p, o.stat, o.tn, o.req, t, o.mode, o.penalty, o.val, o.failCost, o.isSiege); }; 
         l.appendChild(b); 
     }); 
     m.classList.add('active');
@@ -1952,77 +2289,156 @@ function drawCardAnim(type, cb) {
 }
 
 function rollCombat(p, stat, tn, req, t, mode, penalty, rewardVal, failCost, isSiege) {
-    const d = document.getElementById('dice-result'); d.innerHTML = ''; 
-    let wins = 0; 
-    let pool = p.stats[stat] || 1; 
-    if (penalty) pool = Math.floor(pool / 2); if (pool < 1) pool = 1;
+    const d = document.getElementById('dice-result'); 
+    d.innerHTML = ''; 
     
-    // Roll Dice Visuals
-    for(let i=0; i<pool; i++){ 
-        let r = null;
-        // Check hooks for roll manipulation (e.g. Smite debuff)
-        const active = ABILITY_LIBRARY[p.activeSkillId];
-        if (active && active.onRoll) r = active.onRoll(p);
-        if (r === null) r = Math.floor(Math.random()*6)+1;
+    // 1. Calculate Dice Pool Size
+    let poolSize = p.stats[stat] || 1; 
+    if (penalty) poolSize = Math.floor(poolSize / 2); 
+    if (poolSize < 1) poolSize = 1;
 
-        let b = document.createElement('div'); 
-        b.className = 'mini-die ' + (r >= tn ? 'win' : 'lose'); 
-        b.innerText = r; 
-        d.appendChild(b); 
-        
-        if(r >= tn) { 
-            wins++; 
-            if (r === 6 && p.passiveSkillId === 'executioner') { 
-                wins++; b.style.boxShadow = "0 0 10px #ef4444"; b.style.borderColor = "#ef4444"; 
-            } 
-        } 
+    // 2. Generate Initial Results Array
+    let results = [];
+    for(let i=0; i<poolSize; i++) {
+        // Check active skill hooks (like Smite/Focus)
+        const active = ABILITY_LIBRARY[p.activeSkillId];
+        let r = null;
+        if (active && active.onRoll) r = active.onRoll(p); // Some skills force a result
+        if (r === null) r = Math.floor(Math.random()*6)+1;
+        results.push(r);
     }
 
-    setTimeout(() => {
-        let autoClose = true;
-        if(wins >= req) { 
-            addLog(`Success! (${wins} wins)`, "log-success"); 
+    // 3. Define the Finish Function (Visuals & Logic)
+    const finalizeCombat = (finalResults) => {
+        let wins = 0;
+        d.innerHTML = ''; // Clear previous if any
+
+        finalResults.forEach(r => {
+            let b = document.createElement('div'); 
+            b.className = 'mini-die ' + (r >= tn ? 'win' : 'lose'); 
+            b.innerText = r; 
+            d.appendChild(b);
             
-            // Trigger Passives (Bounty Hunter etc)
-            if (mode === 'capture' || mode === 'upgrade' || isSiege) { 
-                const passive = ABILITY_LIBRARY[p.passiveSkillId]; 
-                if (passive && passive.onCombatVictory) passive.onCombatVictory(p); 
-            }
-
-            // Define what happens AFTER capture/upgrade
-            const lootCallback = () => checkForBonusLoot(p);
-
-            if(isSiege) { 
-                let guards = t.userData.guardCount || 0; 
-                if (guards > 0) { 
-                    t.userData.guardCount--; 
-                    addLog(`Guard Defeated! (${t.userData.guardCount} remaining)`, "log-success"); 
-                } else { 
-                    // SIEGE SUCCESS: Capture -> Then Loot
-                    capture(t, p, 1, lootCallback); 
-                    if(p.id === 0) autoClose = false; // Don't close, wait for Defense Picker
+            if(r >= tn) { 
+                wins++; 
+                if (r === 6 && p.passiveSkillId === 'executioner') { 
+                    wins++; 
+                    b.style.boxShadow = "0 0 10px #ef4444"; b.style.borderColor = "#ef4444"; 
                 } 
-            } 
-            else if(mode === 'capture') { 
-                // STANDARD CAPTURE: Capture -> Then Loot
-                capture(t, p, 1, lootCallback); 
-                if(rewardVal > 0) { p.gold += rewardVal; addLog(`Bonus: +${rewardVal}G`, "log-gold"); } 
-                if(p.id === 0) autoClose = false; 
             }
-            else if(mode === 'upgrade') { 
-                // UPGRADE: Upgrade -> Then Loot
-                capture(t, p, 2, lootCallback); 
-                if(p.id === 0) autoClose = false; 
+        });
+
+        setTimeout(() => {
+            let autoClose = true;
+            if(wins >= req) { 
+                addLog(`Success! (${wins} wins)`, "log-success"); 
+                
+                if (mode === 'capture' || mode === 'upgrade' || isSiege) { 
+                    const passive = ABILITY_LIBRARY[p.passiveSkillId]; 
+                    if (passive && passive.onCombatVictory) passive.onCombatVictory(p); 
+                }
+                const lootCallback = () => checkForBonusLoot(p);
+
+                // --- NEW TELEPORT LOGIC (Fairy Ring / Smuggler Cove) ---
+                if (mode === 'teleport') {
+                    addLog("The portal opens... Teleporting!", "log-epic");
+                    
+                    // 1. Pick Random Spot
+                    const newPos = Math.floor(Math.random() * 40);
+                    
+                    // 2. Move Mesh visually
+                    p.pos = newPos;
+                    const targetTile = tiles[newPos];
+                    
+                    // Use Tween for smooth movement to new spot
+                    new TWEEN.Tween(p.mesh.position)
+                        .to({ x: targetTile.position.x, z: targetTile.position.z }, 1000)
+                        .easing(TWEEN.Easing.Quadratic.Out)
+                        .onComplete(() => {
+                            // 3. Resolve New Location
+                            resolveLanding(p);
+                        })
+                        .start();
+
+                    if(p.id === 0) autoClose = false; // Keep window open briefly
+                    // Note: We intentionally DO NOT call capture() or give gold here.
+                }
+                // -------------------------------------------------------
+                else if(isSiege) { 
+                    let guards = t.userData.guardCount || 0; 
+                    if (guards > 0) { 
+                        t.userData.guardCount--; 
+                        addLog(`Guard Defeated! (${t.userData.guardCount} remaining)`, "log-success"); 
+                    } else { 
+                        capture(t, p, 1, lootCallback); 
+                        if(p.id === 0) autoClose = false; 
+                    } 
+                } 
+                else if(mode === 'capture') { 
+                    capture(t, p, 1, lootCallback); 
+                    if(rewardVal > 0) { p.gold += rewardVal; addLog(`Bonus: +${rewardVal}G`, "log-gold"); } 
+                    if(p.id === 0) autoClose = false; 
+                }
+                else if(mode === 'upgrade') { 
+                    capture(t, p, 2, lootCallback); 
+                    if(p.id === 0) autoClose = false; 
+                }
+            } else { 
+                addLog("Failure!", "log-fail"); 
+                if(isSiege) { pay(p, failCost, players[t.userData.owner]); } else { pay(p, failCost); } 
             }
-        } else { 
-            addLog("Failure!", "log-fail"); 
-            if(isSiege) { pay(p, failCost, players[t.userData.owner]); } else { pay(p, failCost); } 
+            
+            updateHUD(); 
+            if(autoClose) setTimeout(closeEnc, 1000);
+        }, 600);
+    };
+
+    // 4. Gambler's Luck Logic (Check for 1s)
+    const hasOnes = results.includes(1);
+    if (p.id === 0 && hasOnes) {
+        let skillSource = null;
+        let skillType = '';
+
+        if (ABILITY_LIBRARY[p.activeSkillId].name === "Gambler's Luck" && !p.classSkillDepleted) {
+            skillSource = ABILITY_LIBRARY[p.activeSkillId]; skillType = 'class';
+        } else {
+            ['head','body','main','off'].forEach(slot => {
+                const it = p.equipment[slot];
+                if (it && it.ability && it.ability.name === "Gambler's Luck" && !it.isDepleted) {
+                    skillSource = it; skillType = 'equip';
+                }
+            });
         }
-        
-        updateHUD(); 
-        if(autoClose) setTimeout(closeEnc, 1000);
-    }, 600);
+
+        if (skillSource) {
+            // Temporarily show dice so user sees what they got
+            d.innerHTML = '<div style="width:100%; text-align:center; margin-bottom:10px; font-size:0.9rem; color:#aaa;">Rolled: ' + results.join(', ') + '</div>';
+
+            showModal("Combat Roll: " + results.join(', '), "Use Gambler's Luck to reroll 1s?", [
+                { txt: "Keep Roll", act: () => { 
+                     document.getElementById('card-modal').classList.add('active'); 
+                     finalizeCombat(results); 
+                }},
+                { txt: "Reroll 1s", act: () => { 
+                     document.getElementById('card-modal').classList.add('active');
+                     
+                     if(skillType === 'class') p.classSkillDepleted = true;
+                     else if(skillType === 'equip') skillSource.isDepleted = true;
+                     updateHUD();
+
+                     results = results.map(r => (r === 1 ? Math.floor(Math.random()*6)+1 : r));
+                     addLog("Gambler's Luck: Rerolled 1s!", "log-gold");
+                     finalizeCombat(results);
+                }}
+            ]);
+            return;
+        }
+    }
+
+    // 5. No Interruption
+    finalizeCombat(results);
 }
+
 function checkForBonusLoot(p) { 
     const roll = Math.floor(Math.random() * 6) + 1; 
     
@@ -2244,27 +2660,18 @@ function updateHUD() {
     const cur = players[turnIndex]; setT('turn-banner', cur.id === 0 ? "YOUR TURN" : `${cur.name}'S TURN`);
     const btnRoll = document.getElementById('btn-roll'); const btnEnd = document.getElementById('btn-end'); if(btnRoll && btnEnd){ btnRoll.disabled = (gameState !== 'ROLL' || cur.id !== 0); btnEnd.disabled = (gameState !== 'END' || cur.id !== 0); }
     
-    // --- INVENTORY GRID UPDATES (Added Long Press) ---
+    // Inventory Grid
     const invDiv = document.getElementById('p1-inv'); 
     if(invDiv){ 
         invDiv.innerHTML = ''; 
         for(let i=0; i<12; i++){ 
-            let d = document.createElement('div'); 
-            d.className = 'inv-slot'; 
-            d.dataset.idx = i; 
-            d.draggable = true; 
-            
+            let d = document.createElement('div'); d.className = 'inv-slot'; d.dataset.idx = i; d.draggable = true; 
             d.ondragstart = (e) => { if(document.getElementById('context-menu').style.display === 'flex') { e.preventDefault(); return; } dragStart(e, i); }; 
             d.oncontextmenu = (e) => { e.preventDefault(); handleContextOpen(e, i, 'inv'); }; 
             d.onclick = () => { if(document.getElementById('context-menu').style.display !== 'flex') equipItem(0, i); }; 
-            
             if(p.inventory[i]){ 
-                d.innerText = p.inventory[i].name; 
-                d.classList.add('rarity-' + p.inventory[i].rarity); 
-                d.onmouseenter = () => showTooltip(p.inventory[i]); 
-                d.onmouseleave = hideTooltip;
-                
-                // NEW: Add Long Press to Sell for Inventory Items
+                d.innerText = p.inventory[i].name; d.classList.add('rarity-' + p.inventory[i].rarity); 
+                d.onmouseenter = () => showTooltip(p.inventory[i]); d.onmouseleave = hideTooltip;
                 setupLongPressSell(d, i, 'inv');
             } 
             invDiv.appendChild(d); 
@@ -2273,6 +2680,7 @@ function updateHUD() {
     
     const lb = document.getElementById('leader-list'); if(lb){ lb.innerHTML = ''; players.forEach(pl => { let d = document.createElement('div'); d.className = 'leader-row' + (pl.isDead ? ' dead' : ''); let nameSpan = document.createElement('span'); nameSpan.className = "leader-name"; nameSpan.style.color = pl.color; nameSpan.innerText = pl.name; if(!pl.isDead) { nameSpan.addEventListener('click', function() { openCharDetail(pl.id); }); } let goldSpan = document.createElement('span'); goldSpan.innerText = pl.isDead ? "DEAD" : `${pl.gold}G`; d.appendChild(nameSpan); d.appendChild(goldSpan); lb.appendChild(d); }); }
     
+    // Class Skill
     const s0 = document.getElementById('skill-0'); const txt0 = document.getElementById('txt-skill-0'); const actSkill = ABILITY_LIBRARY[p.activeSkillId]; 
     if(actSkill && s0 && txt0) { 
         if(p.classSkillDepleted) { s0.className="skill-slot"; s0.style.opacity="0.5"; txt0.innerText="Recharge"; } 
@@ -2281,7 +2689,7 @@ function updateHUD() {
         s0.onmouseenter = () => showTooltip(p.activeSkillId, true); s0.onmouseleave = hideTooltip; 
     }
 
-    // --- EQUIPMENT UPDATES (Added Long Press) ---
+    // --- FIX: Equipment Images (Active AND Passive) ---
     EQUIP_ORDER.forEach((slotName, i) => { 
         const idx = i + 1; const el = document.getElementById(`skill-${idx}`); const txt = document.getElementById(`txt-skill-${idx}`); 
         const item = p.equipment[slotName]; const dollEl = document.getElementById('slot-'+slotName); 
@@ -2290,42 +2698,48 @@ function updateHUD() {
             dollEl.innerHTML = item ? item.name : slotName.toUpperCase(); 
             dollEl.className = 'equip-slot' + (item ? ' filled' : ''); 
             dollEl.oncontextmenu = (e) => { e.preventDefault(); handleContextOpen(e, slotName, 'equip'); }; 
-            
-            if(item) { 
-                dollEl.onmouseenter = () => showTooltip(item); 
-                dollEl.onmouseleave = hideTooltip; 
-                
-                // NEW: Add Long Press to Sell for Equipped Items
-                setupLongPressSell(dollEl, slotName, 'equip');
-            } else { 
-                dollEl.onmouseenter = null; 
-                dollEl.onmouseleave = null; 
-            } 
+            if(item) { dollEl.onmouseenter = () => showTooltip(item); dollEl.onmouseleave = hideTooltip; setupLongPressSell(dollEl, slotName, 'equip'); } 
+            else { dollEl.onmouseenter = null; dollEl.onmouseleave = null; } 
         } 
         
         if(el && txt) { 
+            // Reset background
             el.style.backgroundImage = 'none'; 
-            if (item && item.ability && item.ability.type === 'active') { 
-                if(item.isDepleted) { el.className = "skill-slot"; el.style.opacity="0.5"; txt.innerText = "Recharge"; } 
-                else { el.className = "skill-slot filled"; el.style.opacity="1"; txt.innerText = item.ability.name; } 
+            
+            if (item) {
+                // 1. Try to find the image in library
+                if (item.ability) {
+                    const libSkill = Object.values(ABILITY_LIBRARY).find(s => s.name === item.ability.name);
+                    if(libSkill && libSkill.img) el.style.backgroundImage = `url('${libSkill.img}')`;
+                }
                 
-                const libSkill = Object.values(ABILITY_LIBRARY).find(s => s.name === item.ability.name);
-                if(libSkill && libSkill.img) el.style.backgroundImage = `url('${libSkill.img}')`;
+                // 2. Handle Text & Status
+                if (item.ability && item.ability.type === 'active') { 
+                    if(item.isDepleted) { el.className = "skill-slot"; el.style.opacity="0.5"; txt.innerText = "Recharge"; } 
+                    else { el.className = "skill-slot filled"; el.style.opacity="1"; txt.innerText = item.ability.name; } 
+                } else { 
+                    // Passive
+                    el.className = "skill-slot"; el.style.opacity="1"; 
+                    txt.innerText = item.ability ? item.ability.name : "(Passive)"; 
+                }
                 
                 el.onmouseenter = () => showTooltip(item); el.onmouseleave = hideTooltip; 
             } else { 
-                el.className = "skill-slot"; el.style.opacity="1"; txt.innerText = item ? "(Passive)" : "Empty"; 
-                if(item) { el.onmouseenter = () => showTooltip(item); el.onmouseleave = hideTooltip; } else { el.onmouseenter = null; el.onmouseleave = null; } 
-            } 
+                // Empty Slot
+                el.className = "skill-slot"; el.style.opacity="1"; txt.innerText = "Empty"; 
+                el.onmouseenter = null; el.onmouseleave = null; 
+            }
         } 
     });
     
+    // Quick Slots
     p.quickSlots.forEach((item, i) => { 
         const idx = i + 5; const el = document.getElementById(`skill-${idx}`); const txt = document.getElementById(`txt-skill-${idx}`); 
         if(el && txt) { 
             el.style.backgroundImage = 'none'; 
             if (item && p.inventory.includes(item)) { 
                 el.className = "skill-slot consumable"; txt.innerText = item.name; 
+                // Try to find image for scroll
                 const libSkill = Object.values(ABILITY_LIBRARY).find(s => s.name === item.name);
                 if(libSkill && libSkill.img) el.style.backgroundImage = `url('${libSkill.img}')`;
                 
@@ -2493,8 +2907,81 @@ function setupEquipDragDrop() { ['head', 'body', 'main', 'off'].forEach(slot => 
 function handleEquipDrop(ev, slotName) { ev.preventDefault(); const invIdx = ev.dataTransfer.getData("idx"); const p = players[0]; if (invIdx !== null && p.inventory[invIdx]) { const item = p.inventory[invIdx]; if(item.slot === slotName) equipItem(0, invIdx); else addLog(`Cannot equip ${item.name} to ${slotName.toUpperCase()}`, "log-fail"); } }
 function unequipItem(slot) { const p=players[0]; if(p.equipment[slot] && p.inventory.length < 12) { const it = p.equipment[slot]; p.stats[Object.keys(it.bonus)[0]] -= Object.values(it.bonus)[0]; p.equipment[slot] = null; p.inventory.push(it); updateHUD(); } }
 function equipItem(pId, invIdx) { const p=players[pId]; const item=p.inventory[invIdx]; if(item.type==='scroll'){ item.fn(p); p.inventory.splice(invIdx,1); } else { const slot=item.slot; const cur=p.equipment[slot]; if(cur){p.stats[Object.keys(cur.bonus)[0]]-=Object.values(cur.bonus)[0]; p.inventory[invIdx]=cur;} else{p.inventory.splice(invIdx,1);} p.equipment[slot]=item; p.stats[Object.keys(item.bonus)[0]]+=Object.values(item.bonus)[0]; } updateHUD(); }
-function useEquipped(slot) { const p = players[0]; const it = p.equipment[slot]; if (it && it.ability && it.ability.type === 'active') { if (!it.isDepleted) { it.ability.fn(p); it.isDepleted = true; updateHUD(); } else { addLog("Ability depleted! Pass Start to recharge.", "log-fail"); } } }
-function useSkill(slotIndex) { const p = players[0]; if (turnIndex !== 0) { addLog("Not your turn!", "log-fail"); return; } if(slotIndex === 0) { if(p.classSkillDepleted) { addLog("Skill depleted! Visit Inn to recharge.", "log-fail"); return; } const skill = ABILITY_LIBRARY[p.activeSkillId]; if(skill && skill.fn) { skill.fn(p); p.classSkillDepleted = true; updateHUD(); } return; } if(slotIndex >= 1 && slotIndex <= 4) { const equipSlot = EQUIP_ORDER[slotIndex - 1]; const item = p.equipment[equipSlot]; if (item && item.ability && item.ability.type === 'active') { if (!item.isDepleted) { item.ability.fn(p); item.isDepleted = true; updateHUD(); } else { addLog("Ability depleted! Visit Inn to recharge.", "log-fail"); } } else { addLog("Passive or Empty.", "log-fail"); } return; } if(slotIndex >= 5) { const qIdx = slotIndex - 5; const item = p.quickSlots[qIdx]; if(item && item.type === 'scroll' && item.fn) { item.fn(p); const invIdx = p.inventory.indexOf(item); if(invIdx > -1) p.inventory.splice(invIdx, 1); p.quickSlots[qIdx] = null; updateHUD(); } } }
+function useEquipped(slot) { 
+    const p = players[0]; 
+    const it = p.equipment[slot]; 
+    if (it && it.ability && it.ability.type === 'active') { 
+        if (!it.isDepleted) { 
+            // FIX: Check return value
+            const success = it.ability.fn(p); 
+            if (success === true) {
+                it.isDepleted = true; 
+                updateHUD(); 
+            }
+        } else { 
+            addLog("Ability depleted! Pass Start to recharge.", "log-fail"); 
+        } 
+    } 
+}
+
+function useSkill(slotIndex) { 
+    const p = players[0]; 
+    if (turnIndex !== 0) { addLog("Not your turn!", "log-fail"); return; } 
+    
+    // Class Skill (Slot 1)
+    if(slotIndex === 0) { 
+        if(p.classSkillDepleted) { addLog("Skill depleted! Visit Inn to recharge.", "log-fail"); return; } 
+        const skill = ABILITY_LIBRARY[p.activeSkillId]; 
+        if(skill && skill.fn) { 
+            // FIX: Check return value
+            const success = skill.fn(p); 
+            if (success === true) {
+                p.classSkillDepleted = true; 
+                updateHUD(); 
+            }
+        } 
+        return; 
+    } 
+    
+    // Equipped Skills (Slots 2-5)
+    if(slotIndex >= 1 && slotIndex <= 4) { 
+        const equipSlot = EQUIP_ORDER[slotIndex - 1]; 
+        const item = p.equipment[equipSlot]; 
+        if (item && item.ability && item.ability.type === 'active') { 
+            if (!item.isDepleted) { 
+                // FIX: Check return value
+                const success = item.ability.fn(p); 
+                if (success === true) {
+                    item.isDepleted = true; 
+                    updateHUD(); 
+                }
+            } else { 
+                addLog("Ability depleted! Visit Inn to recharge.", "log-fail"); 
+            } 
+        } else { 
+            addLog("Passive or Empty.", "log-fail"); 
+        } 
+        return; 
+    } 
+    
+    // Quick Slots (Slots 6-7)
+    if(slotIndex >= 5) { 
+        const qIdx = slotIndex - 5; 
+        const item = p.quickSlots[qIdx]; 
+        if(item && item.type === 'scroll' && item.fn) { 
+            // Scrolls always consume on click, logic inside fn usually handles validation or is generic
+            const success = item.fn(p); 
+            // If scroll returns false (cancelled), don't consume? 
+            // For now assuming scrolls are generic, but let's add safety:
+            if (success !== false) {
+                const invIdx = p.inventory.indexOf(item); 
+                if(invIdx > -1) p.inventory.splice(invIdx, 1); 
+                p.quickSlots[qIdx] = null; 
+                updateHUD(); 
+            }
+        } 
+    } 
+}
 function sellItem(identifier, source='inv'){ 
     const p = players[0]; 
     let item = (source === 'equip') ? p.equipment[identifier] : p.inventory[identifier]; 
