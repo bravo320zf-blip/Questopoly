@@ -392,6 +392,28 @@
     }
 
 
+	/* ================================================================
+   [06.8] HIDE CLOSE BUTTON ON ENCOUNTERS
+   ================================================================ */
+    #card-modal .close-x { display: none !important; }
+
+
+	/* ================================================================
+   [06.9] GAME OVER STATS & GRAPH
+   ================================================================ */
+    .stat-summary { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; text-align: left; margin-bottom: 20px; font-size: 0.9rem; }
+    .stat-row { border-bottom: 1px solid #444; padding: 5px 0; display: flex; justify-content: space-between; }
+    
+    #graph-container { 
+        display: none; width: 100%; height: 300px; background: #222; border: 2px solid #555; margin-top: 15px; position: relative; 
+    }
+    canvas#game-chart { width: 100%; height: 100%; display: block; }
+    .graph-controls { display: flex; justify-content: center; gap: 15px; margin-top: 5px; font-size: 0.8rem; color: #ccc; }
+    .graph-legend { display: flex; gap: 10px; justify-content: center; margin-bottom: 5px; flex-wrap: wrap; }
+    .legend-item { display: flex; align-items: center; gap: 5px; font-size: 0.8rem; }
+    .legend-box { width: 12px; height: 12px; border: 1px solid #fff; }
+
+
 /* ================================================================
    [07] MOBILE SCALING CORRECTION
    Paste this at the very bottom of your <style> section
@@ -596,6 +618,26 @@
         background-size: cover;
     }
 }
+
+/* --- CHARACTER SHEET FIXES --- */
+    #char-detail-modal {
+        /* Make it wider to remove horizontal scrollbar */
+        width: 95% !important; 
+        max-width: 400px !important; 
+        
+        /* Force hide the bottom scrollbar */
+        overflow-x: hidden !important; 
+    }
+
+    /* Move Close Button inside the frame */
+    #char-detail-modal .close-x {
+        top: 10px !important;
+        right: 10px !important;
+        
+        /* Ensure it sits on top of content */
+        z-index: 200 !important; 
+        background: #ef4444 !important; /* Keep red background */
+    }
 
     </style>
 </head>
@@ -820,10 +862,28 @@
 </div>
 
 <div id="game-over-modal" class="modal-overlay">
-    <div class="modal-content">
+    <div class="modal-content" style="max-width: 700px; width: 95%;">
         <h1 id="go-title" class="modal-title">GAME OVER</h1>
-        <p id="go-msg" class="modal-text">Your journey ends here.</p>
-        <button class="primary" onclick="resetGame()">PLAY AGAIN</button>
+        <p id="go-msg" class="modal-text" style="margin-bottom: 20px;">The game has ended.</p>
+        
+        <!-- WINNER STATS -->
+        <div id="go-stats" class="stat-summary"></div>
+
+        <button class="primary" onclick="toggleGraph()">View History Graph</button>
+        
+        <!-- GRAPH SECTION -->
+        <div id="graph-container">
+            <div class="graph-controls">
+                <label><input type="checkbox" id="chk-gold" checked onchange="drawGraph()"> Gold</label>
+                <label><input type="checkbox" id="chk-props" checked onchange="drawGraph()"> Properties</label>
+            </div>
+            <div id="graph-legend" class="graph-legend"></div>
+            <canvas id="game-chart"></canvas>
+        </div>
+
+        <div style="margin-top: 20px;">
+            <button class="primary" onclick="resetGame()">PLAY AGAIN</button>
+        </div>
     </div>
 </div>
 
@@ -1886,7 +1946,16 @@ function spawnPlayer(id, n, r, c, actId, pasId, ai, col) {
         activeSkillId: actId, passiveSkillId: pasId,
         stats: stats, gold: stats.gold, pos: 0, mesh: g, color: col, isAi: ai,
         archetype: archetype, equipment: { main: null, off: null, head: null, body: null },
-        inventory: [], quickSlots: [null, null], isSkipping: false, abilityUsed: false
+        inventory: [], quickSlots: [null, null], isSkipping: false, abilityUsed: false,
+        
+        // --- NEW STAT TRACKING ---
+        metrics: {
+            spacesMoved: 0,
+            successfulSieges: 0,
+            guardsHired: 0
+        },
+        history: [{ turn: 0, gold: 1000, props: 0 }] 
+        // -------------------------
     });
 }
 
@@ -2061,37 +2130,27 @@ function animateMove(p, s) {
     if (s <= 0) { resolveLanding(p); return; } 
     p.pos = (p.pos + 1) % 40; 
     
-    // --- PASSING START / RECHARGE ---
+    // --- TRACK STAT ---
+    p.metrics.spacesMoved++;
+    // ------------------
+
     if (p.pos === 0) {
         p.gold += 200; addLog("Passed Inn (+200G)", "log-success");
         let recharged = false;
         
-        // 1. Standard Class Skill Recharge
         if(p.classSkillDepleted) { p.classSkillDepleted = false; recharged = true; }
-        
-        // 2. Item Recharge
         ['head', 'body', 'main', 'off'].forEach(slot => { 
             const item = p.equipment[slot]; 
             if (item && item.isDepleted) { item.isDepleted = false; recharged = true; } 
         });
-
-        // 3. MODULAR SKILL RECHARGE HOOKS
-        // Ask Active Skill if it needs to reset anything
         const active = ABILITY_LIBRARY[p.activeSkillId];
-        if (active && active.onRecharge) {
-            if (active.onRecharge(p)) recharged = true;
-        }
-
-        // Ask Passive Skill
+        if (active && active.onRecharge) { if (active.onRecharge(p)) recharged = true; }
         const passive = ABILITY_LIBRARY[p.passiveSkillId];
-        if (passive && passive.onRecharge) {
-            if (passive.onRecharge(p)) recharged = true;
-        }
+        if (passive && passive.onRecharge) { if (passive.onRecharge(p)) recharged = true; }
 
         if(recharged) addLog("All Abilities Recharged!", "log-epic");
         updateHUD();
     } 
-    // --------------------------------
 
     const t = tiles[p.pos].position.clone(); if (p.id > 0) { t.x += Math.random() - 0.5; t.z += Math.random() - 0.5; } 
     new TWEEN.Tween(p.mesh.position).to({x: t.x, z: t.z}, 250).start(); 
@@ -2108,6 +2167,11 @@ function endTurn(){
     recalcStats(prevP);
     if(prevP.isAi) manageAiInventory(prevP); 
     
+    // --- RECORD HISTORY ---
+    const props = tiles.filter(t => t.userData.owner === prevP.id).length;
+    prevP.history.push({ turn: turnCount, gold: prevP.gold, props: props });
+    // ---------------------
+
     let nextIndex = (turnIndex + 1) % players.length;
     let safetyCount = 0;
     
@@ -2117,14 +2181,10 @@ function endTurn(){
     }
     
     turnIndex = nextIndex;
-    // ------------------------------------------------
-
     gameState='ROLL'; 
     updateHUD();
     
     const curP = players[turnIndex];
-    
-    // Safety check: If the game is somehow broken and everyone is dead, stop.
     if(curP.isDead) return;
 
     if(curP.isAi) { 
@@ -2184,43 +2244,22 @@ function continueFromArrival() {
     const p = players[turnIndex]; const t = tiles[p.pos]; const i = t.userData.info;
     
     if(i.type === 'start') { if(p.id === 0) showEncounter(p, i, t, 'shop'); else endStep(); return; }
-    
-    // --- NEW MYSTERY LOGIC ---
     if(i.type === 'mystery') {
-        // Draw standard Encounter or Skirmish based on time of day
         const deckType = isNight ? 'skirmish' : 'normal';
-        // Pass 'mystery_event' so showEncounter knows to set up Teleport buttons
         drawCardAnim(deckType, () => showEncounter(p, i, t, 'mystery_event'));
         return;
     }
-    // -------------------------
-
     if(i.type === 'park') { 
-        if(treasuryGold > 0){ 
-            p.gold += treasuryGold; 
-            addLog(`Won ${treasuryGold}G!`, "log-success"); 
-            treasuryGold = 0; 
-            updateHUD(); 
-        } else { 
-            addLog("Treasury empty."); 
-        } 
-        endStep(); 
-        return; 
+        if(treasuryGold > 0){ p.gold += treasuryGold; addLog(`Won ${treasuryGold}G!`, "log-success"); treasuryGold = 0; updateHUD(); } 
+        else { addLog("Treasury empty."); } 
+        endStep(); return; 
     }
-    
     if(i.type === 'tax') { processTax(p, 50); endStep(); return; } 
-    
     if(i.type === 'goto') { 
-        if (p.passiveSkillId === 'smoke_bomb' || p.activeSkillId === 'smoke_bomb') { 
-            addLog("Skeleton Key: Evaded Dungeon!", "log-epic");
-            endStep();
-        } else {
-            p.pos = 10; p.mesh.position.copy(tiles[10].position); 
-            addLog("Jailed!", "log-fail"); p.isSkipping = true; endStep(); 
-        }
+        if (p.passiveSkillId === 'smoke_bomb' || p.activeSkillId === 'smoke_bomb') { addLog("Skeleton Key: Evaded Dungeon!", "log-epic"); endStep(); } 
+        else { p.pos = 10; p.mesh.position.copy(tiles[10].position); addLog("Jailed!", "log-fail"); p.isSkipping = true; endStep(); }
         return; 
     } 
-
     if(i.type === 'jail') { endStep(); return; }
     if(i.type === 'chest') { drawCardAnim('treasure', () => showEncounter(p, i, t, "loot")); return; }
 
@@ -2244,6 +2283,8 @@ function continueFromArrival() {
                     if(p.gold >= 50) { 
                         p.gold -= 50; 
                         t.userData.guardCount = (t.userData.guardCount || 0) + 1; 
+                        // --- TRACK GUARD ---
+                        p.metrics.guardsHired++;
                         addLog("Guard Hired!", "log-gold"); updateHUD(); endStep(); 
                     } else { addLog("Not enough Gold"); endStep(); } 
                 }}, 
@@ -2258,76 +2299,18 @@ function continueFromArrival() {
 }
 
 function processAiTurn(p, t, i) {
-    // 1. Handle Tax (Using new Court Mage logic)
-    if(i.type==='tax') { 
-        processTax(p, 50); 
-        endStep(); 
-        return; 
-    } 
+    if(i.type==='tax') { processTax(p, 50); endStep(); return; } 
+    if(i.type==='park'){ if(treasuryGold>0){ p.gold+=treasuryGold; addLog(`${p.name} wins the Treasury!`, "log-gold"); treasuryGold=0; } endStep(); return; } 
+    if(i.type==='goto'){ if (p.passiveSkillId === 'smoke_bomb' || p.activeSkillId === 'smoke_bomb') { addLog(`${p.name} uses Skeleton Key to evade Dungeon!`, "log-epic"); } else { p.pos=10; p.mesh.position.copy(tiles[10].position); addLog(`${p.name} jailed.`, "log-fail"); p.isSkipping = true; } endStep(); return; } 
+    if(i.type==='chest'){ const card = DECK_TREASURE[Math.floor(Math.random() * DECK_TREASURE.length)]; p.inventory.push({...card}); addLog(`${p.name} found ${card.name}.`, "log-success"); if (card.name === "Pouch of Gold" && p.passiveSkillId === 'alchemist_pas') { const extra = DECK_TREASURE[Math.floor(Math.random() * DECK_TREASURE.length)]; p.inventory.push({...extra}); addLog(`${p.name} (Alchemist) found bonus: ${extra.name}!`, "log-epic"); } endStep(); return; }
 
-    // 2. Handle Park (Capital City)
-    if(i.type==='park'){ 
-        if(treasuryGold>0){
-            p.gold+=treasuryGold; 
-            addLog(`${p.name} wins the Treasury!`, "log-gold"); 
-            treasuryGold=0;
-        } 
-        endStep(); 
-        return; 
-    } 
-
-    // 3. Handle Dungeon
-    if(i.type==='goto'){ 
-        // Check for Skeleton Key Immunity (AI)
-        if (p.passiveSkillId === 'smoke_bomb' || p.activeSkillId === 'smoke_bomb') {
-            addLog(`${p.name} uses Skeleton Key to evade Dungeon!`, "log-epic");
-        } else {
-            p.pos=10; 
-            p.mesh.position.copy(tiles[10].position); 
-            addLog(`${p.name} jailed.`, "log-fail"); 
-            p.isSkipping = true; 
-        }
-        endStep(); 
-        return; 
-    } 
-
-    // 4. Handle Chests (FIXED: Instant Loot + Alchemist Check)
-    if(i.type==='chest'){ 
-        // Draw 1
-        const card = DECK_TREASURE[Math.floor(Math.random() * DECK_TREASURE.length)];
-        p.inventory.push({...card});
-        addLog(`${p.name} found ${card.name}.`, "log-success");
-        
-        // Alchemist Logic (AI)
-        if (card.name === "Pouch of Gold" && p.passiveSkillId === 'alchemist_pas') {
-            const extra = DECK_TREASURE[Math.floor(Math.random() * DECK_TREASURE.length)];
-            p.inventory.push({...extra});
-            addLog(`${p.name} (Alchemist) found bonus: ${extra.name}!`, "log-epic");
-        }
-        
-        endStep(); 
-        return; 
-    }
-
-    // 5. Handle Unowned Property (Purchase)
     if(i.cost > 0 && t.userData.owner === null) { 
         const safetyRatio = (p.class.id === 'rogue' || p.race.id === 'dragonborn') ? 1.2 : 2.0; 
-        if (p.gold >= i.cost * safetyRatio) { 
-            // AI buys/captures instant
-            capture(t, p, 1, () => {
-                // Callback for bonus loot check (AI)
-                checkForBonusLoot(p);
-                endStep();
-            }); 
-            return; // Capture function handles the rest
-        } else { 
-            addLog(`${p.name} passes on ${i.name}.`); 
-        } 
-        endStep(); 
-        return; 
+        if (p.gold >= i.cost * safetyRatio) { capture(t, p, 1, () => { checkForBonusLoot(p); endStep(); }); return; } 
+        else { addLog(`${p.name} passes on ${i.name}.`); } 
+        endStep(); return; 
     } 
 
-    // 6. Handle Enemy Property (Siege or Pay)
     if(t.userData.owner !== null && t.userData.owner !== p.id) {
         const enemyDefStat = t.userData.defendingStat || 'str'; 
         const tn = i.tn || 3; 
@@ -2335,10 +2318,8 @@ function processAiTurn(p, t, i) {
         const chancePerDie = (7 - tn) / 6; 
         const expectedWins = aiDicePool * chancePerDie; 
         const requiredWins = (i.req || 1) + (t.userData.guardCount || 0);
-        
         let willSiege = false; 
         const failCost = (i.cost * 2) + ((t.userData.guardCount || 0) * 10);
-        
         if (expectedWins >= requiredWins) willSiege = true; 
         if (p.gold < i.cost) willSiege = true; 
         if (failCost > p.gold && expectedWins < requiredWins + 0.5) willSiege = false;
@@ -2346,31 +2327,25 @@ function processAiTurn(p, t, i) {
         if (willSiege) { 
             attemptAiAbilities(p, 'combat'); 
             addLog(`${p.name} attacks ${players[t.userData.owner].name}'s tile!`, "log-accent"); 
-            setTimeout(() => { 
-                rollCombat(p, enemyDefStat, tn, requiredWins, t, 'capture', false, 0, failCost, true); 
-            }, 500); 
+            setTimeout(() => { rollCombat(p, enemyDefStat, tn, requiredWins, t, 'capture', false, 0, failCost, true); }, 500); 
             return; 
         } else { 
-            pay(p, i.cost, players[t.userData.owner]); 
-            endStep(); 
-            return; 
+            pay(p, i.cost, players[t.userData.owner]); endStep(); return; 
         }
     }
 
-    // 7. Handle Own Property (Upgrade)
     if (t.userData.owner === p.id) { 
         if (t.userData.buildingLevel === 1 && p.gold > i.cost * 3) { 
             addLog(`${p.name} attempts to upgrade...`); 
-            
-            // AI draws a skirmish card to upgrade
             const card = DECK_SKIRMISH[Math.floor(Math.random() * DECK_SKIRMISH.length)]; 
             const bestChoice = card.choices[0].tn < card.choices[1].tn ? card.choices[0] : card.choices[1]; 
-            
             rollCombat(p, bestChoice.stat, bestChoice.tn, bestChoice.req, t, 'upgrade', false, 0, 50, false); 
             return; 
         } else if (t.userData.buildingLevel > 1 && p.gold > 200 && (t.userData.guardCount || 0) < 2) { 
             p.gold -= 50; 
             t.userData.guardCount = (t.userData.guardCount || 0) + 1; 
+            // --- TRACK GUARD ---
+            p.metrics.guardsHired++;
             addLog(`${p.name} hired a guard.`, "log-gold"); 
             updateHUD(); 
         } 
@@ -2562,24 +2537,45 @@ function showEncounter(p, i, t, mode) {
 function closeEnc(){document.getElementById('card-modal').classList.remove('active');endStep();}
 function closeFlavor() { document.getElementById('flavor-modal').classList.remove('active'); continueFromArrival(); }
 function drawCardAnim(type, cb) {
-    let deck, texUrl; if(type === 'treasure') { deck = treasureDeck; texUrl = 'https://static.wixstatic.com/media/b16479_03570af932d9445ea8b35d26c915366d~mv2.jpg'; } else if(type === 'skirmish') { deck = skirmishDeck; texUrl = 'https://static.wixstatic.com/media/b16479_cd6258f031004df4962a76830ae296f3~mv2.jpg'; } else { deck = normalDeck; texUrl = 'https://static.wixstatic.com/media/b16479_b3d23c888e524e31a6ba70275de7f665~mv2.jpg'; }
-    const loader = new THREE.TextureLoader(); const tex = loader.load(texUrl); const whiteMat = new THREE.MeshStandardMaterial({color: 0xffffff}); const mats = [whiteMat, whiteMat, new THREE.MeshStandardMaterial({map: tex}), whiteMat, whiteMat, whiteMat];
-    const c = new THREE.Mesh(new THREE.BoxGeometry(7.5, 0.15, 10.5), mats); c.position.copy(deck.position); c.position.y += 2; scene.add(c);
+    let deck, texUrl; 
+    if(type === 'treasure') { deck = treasureDeck; texUrl = 'https://static.wixstatic.com/media/b16479_03570af932d9445ea8b35d26c915366d~mv2.jpg'; } 
+    else if(type === 'skirmish') { deck = skirmishDeck; texUrl = 'https://static.wixstatic.com/media/b16479_cd6258f031004df4962a76830ae296f3~mv2.jpg'; } 
+    else { deck = normalDeck; texUrl = 'https://static.wixstatic.com/media/b16479_b3d23c888e524e31a6ba70275de7f665~mv2.jpg'; }
+    
+    const loader = new THREE.TextureLoader(); 
+    const tex = loader.load(texUrl); 
+    const whiteMat = new THREE.MeshStandardMaterial({color: 0xffffff}); 
+    const mats = [whiteMat, whiteMat, new THREE.MeshStandardMaterial({map: tex}), whiteMat, whiteMat, whiteMat];
+    const c = new THREE.Mesh(new THREE.BoxGeometry(7.5, 0.15, 10.5), mats); 
+    c.position.copy(deck.position); 
+    c.position.y += 2; 
+    scene.add(c);
+    
+    // --- FIX: Ensure Callback Runs Exactly Once ---
+    let hasRun = false;
+    const finish = () => {
+        if(!hasRun) {
+            hasRun = true;
+            scene.remove(c); 
+            if(cb) cb();
+        }
+    };
+    // ----------------------------------------------
+
     new TWEEN.Tween(c.position).to({x: camera.position.x * 0.8, y: camera.position.y - 20, z: camera.position.z * 0.8}, 600).start();
-    new TWEEN.Tween(c.rotation).to({x: Math.PI / 2, y: Math.PI, z: 0}, 600).onComplete(() => { scene.remove(c); if(cb) cb(); }).start();
-    setTimeout(()=>{ if(document.getElementById('card-modal').style.transform.indexOf('scale(1)')===-1 && cb) cb(); }, 800);
+    new TWEEN.Tween(c.rotation).to({x: Math.PI / 2, y: Math.PI, z: 0}, 600).onComplete(finish).start();
+    
+    // Safety fallback
+    setTimeout(finish, 800);
 }
 
 function rollCombat(p, stat, tn, req, t, mode, penalty, rewardVal, failCost, isSiege) {
     const d = document.getElementById('dice-result'); 
     d.innerHTML = ''; 
-    
-    // 1. Calculate Dice Pool Size
     let poolSize = p.stats[stat] || 1; 
     if (penalty) poolSize = Math.floor(poolSize / 2); 
     if (poolSize < 1) poolSize = 1;
 
-    // 2. Generate Initial Results Array
     let results = [];
     for(let i=0; i<poolSize; i++) {
         const active = ABILITY_LIBRARY[p.activeSkillId];
@@ -2589,23 +2585,14 @@ function rollCombat(p, stat, tn, req, t, mode, penalty, rewardVal, failCost, isS
         results.push(r);
     }
 
-    // 3. Define the Finish Function (Visuals & Logic)
     const finalizeCombat = (finalResults) => {
         let wins = 0;
         d.innerHTML = ''; 
-
         finalResults.forEach(r => {
-            let b = document.createElement('div'); 
-            b.className = 'mini-die ' + (r >= tn ? 'win' : 'lose'); 
-            b.innerText = r; 
-            d.appendChild(b);
-            
+            let b = document.createElement('div'); b.className = 'mini-die ' + (r >= tn ? 'win' : 'lose'); b.innerText = r; d.appendChild(b);
             if(r >= tn) { 
                 wins++; 
-                if (r === 6 && p.passiveSkillId === 'executioner') { 
-                    wins++; 
-                    b.style.boxShadow = "0 0 10px #ef4444"; b.style.borderColor = "#ef4444"; 
-                } 
+                if (r === 6 && p.passiveSkillId === 'executioner') { wins++; b.style.boxShadow = "0 0 10px #ef4444"; b.style.borderColor = "#ef4444"; } 
             }
         });
 
@@ -2613,104 +2600,56 @@ function rollCombat(p, stat, tn, req, t, mode, penalty, rewardVal, failCost, isS
             let autoClose = true;
             if(wins >= req) { 
                 addLog(`Success! (${wins} wins)`, "log-success"); 
-                
                 if (p.id === 0) AUDIO.playSound('sfx_win');
-                
                 if (mode === 'capture' || mode === 'upgrade' || isSiege) { 
                     const passive = ABILITY_LIBRARY[p.passiveSkillId]; 
                     if (passive && passive.onCombatVictory) passive.onCombatVictory(p); 
                 }
                 const lootCallback = () => checkForBonusLoot(p);
 
-                // --- TELEPORT LOGIC ---
+                // --- TRACK SIEGE ---
+                if (isSiege) p.metrics.successfulSieges++;
+
                 if (mode === 'teleport') {
                     addLog("The portal opens... Teleporting!", "log-epic");
                     const newPos = Math.floor(Math.random() * 40);
                     p.pos = newPos;
                     const targetTile = tiles[newPos];
-                    
-                    new TWEEN.Tween(p.mesh.position)
-                        .to({ x: targetTile.position.x, z: targetTile.position.z }, 1000)
-                        .easing(TWEEN.Easing.Quadratic.Out)
-                        .onComplete(() => { resolveLanding(p); })
-                        .start();
-
+                    new TWEEN.Tween(p.mesh.position).to({ x: targetTile.position.x, z: targetTile.position.z }, 1000).easing(TWEEN.Easing.Quadratic.Out).onComplete(() => { resolveLanding(p); }).start();
                     if(p.id === 0) autoClose = false; 
                 }
-                // ----------------------
                 else if(isSiege) { 
                     let guards = t.userData.guardCount || 0; 
-                    if (guards > 0) { 
-                        t.userData.guardCount--; 
-                        addLog(`Guard Defeated! (${t.userData.guardCount} remaining)`, "log-success"); 
-                    } else { 
-                        capture(t, p, 1, lootCallback); 
-                        if(p.id === 0) autoClose = false; 
-                    } 
+                    if (guards > 0) { t.userData.guardCount--; addLog(`Guard Defeated! (${t.userData.guardCount} remaining)`, "log-success"); } 
+                    else { capture(t, p, 1, lootCallback); if(p.id === 0) autoClose = false; } 
                 } 
-                else if(mode === 'capture') { 
-                    capture(t, p, 1, lootCallback); 
-                    if(rewardVal > 0) { p.gold += rewardVal; addLog(`Bonus: +${rewardVal}G`, "log-gold"); } 
-                    if(p.id === 0) autoClose = false; 
-                }
-                else if(mode === 'upgrade') { 
-                    capture(t, p, 2, lootCallback); 
-                    if(p.id === 0) autoClose = false; 
-                }
+                else if(mode === 'capture') { capture(t, p, 1, lootCallback); if(rewardVal > 0) { p.gold += rewardVal; addLog(`Bonus: +${rewardVal}G`, "log-gold"); } if(p.id === 0) autoClose = false; }
+                else if(mode === 'upgrade') { capture(t, p, 2, lootCallback); if(p.id === 0) autoClose = false; }
             } else { 
                 addLog("Failure!", "log-fail"); 
-                
-                // --- AUDIO FIX: Play Fail Sound ---
                 if (p.id === 0) AUDIO.playSound('sfx_fail');
-                // ----------------------------------
-
                 if(isSiege) { pay(p, failCost, players[t.userData.owner]); } else { pay(p, failCost); } 
             }
-            
             updateHUD(); 
             if(autoClose) setTimeout(closeEnc, 1000);
         }, 600);
     };
 
-    // 4. Gambler's Luck Logic
     const hasOnes = results.includes(1);
     if (p.id === 0 && hasOnes) {
-        let skillSource = null;
-        let skillType = '';
-
-        if (ABILITY_LIBRARY[p.activeSkillId].name === "Gambler's Luck" && !p.classSkillDepleted) {
-            skillSource = ABILITY_LIBRARY[p.activeSkillId]; skillType = 'class';
-        } else {
-            ['head','body','main','off'].forEach(slot => {
-                const it = p.equipment[slot];
-                if (it && it.ability && it.ability.name === "Gambler's Luck" && !it.isDepleted) {
-                    skillSource = it; skillType = 'equip';
-                }
-            });
-        }
+        let skillSource = null; let skillType = '';
+        if (ABILITY_LIBRARY[p.activeSkillId].name === "Gambler's Luck" && !p.classSkillDepleted) { skillSource = ABILITY_LIBRARY[p.activeSkillId]; skillType = 'class'; } 
+        else { ['head','body','main','off'].forEach(slot => { const it = p.equipment[slot]; if (it && it.ability && it.ability.name === "Gambler's Luck" && !it.isDepleted) { skillSource = it; skillType = 'equip'; } }); }
 
         if (skillSource) {
             d.innerHTML = '<div style="width:100%; text-align:center; margin-bottom:10px; font-size:0.9rem; color:#aaa;">Rolled: ' + results.join(', ') + '</div>';
-
             showModal("Combat Roll: " + results.join(', '), "Use Gambler's Luck to reroll 1s?", [
-                { txt: "Keep Roll", act: () => { 
-                     document.getElementById('card-modal').classList.add('active'); 
-                     finalizeCombat(results); 
-                }},
-                { txt: "Reroll 1s", act: () => { 
-                     document.getElementById('card-modal').classList.add('active');
-                     if(skillType === 'class') p.classSkillDepleted = true;
-                     else if(skillType === 'equip') skillSource.isDepleted = true;
-                     updateHUD();
-                     results = results.map(r => (r === 1 ? Math.floor(Math.random()*6)+1 : r));
-                     addLog("Gambler's Luck: Rerolled 1s!", "log-gold");
-                     finalizeCombat(results);
-                }}
+                { txt: "Keep Roll", act: () => { document.getElementById('card-modal').classList.add('active'); finalizeCombat(results); }},
+                { txt: "Reroll 1s", act: () => { document.getElementById('card-modal').classList.add('active'); if(skillType === 'class') p.classSkillDepleted = true; else if(skillType === 'equip') skillSource.isDepleted = true; updateHUD(); results = results.map(r => (r === 1 ? Math.floor(Math.random()*6)+1 : r)); addLog("Gambler's Luck: Rerolled 1s!", "log-gold"); finalizeCombat(results); }}
             ]);
             return;
         }
     }
-
     if (p.id === 0) AUDIO.playSound('sfx_roll');
     finalizeCombat(results);
 }
@@ -2830,7 +2769,49 @@ function showBankruptcyModal(p, debt, recipient, ownedTiles) {
 }
 function eliminatePlayer(p) { p.isDead = true; p.gold = 0; scene.remove(p.mesh); tiles.forEach(t => { if(t.userData.owner === p.id) { t.userData.owner = null; t.userData.buildingLevel = 0; if(t.userData.prop) { t.remove(t.userData.prop); t.userData.prop = null; } } }); addLog(`${p.name} has been ELIMINATED!`, "log-fail"); updateHUD(); if (!p.isAi) { showGameOver(false); } else { checkWinCondition(); } }
 function checkWinCondition() { const livingAi = players.filter(pl => pl.isAi && !pl.isDead); const human = players[0]; if (livingAi.length === 0 && !human.isDead) { showGameOver(true); } }
-function showGameOver(victory) { const m = document.getElementById('game-over-modal'); const t = document.getElementById('go-title'); const msg = document.getElementById('go-msg'); m.style.display = 'flex'; if(victory) { t.innerText = "VICTORY!"; t.style.color = "var(--gold)"; msg.innerText = "You have defeated all rivals and conquered the realm!"; } else { t.innerText = "DEFEAT"; t.style.color = "var(--accent)"; msg.innerText = "You have lost everything. Your legend ends here."; } }
+function showGameOver(victory) { 
+    const m = document.getElementById('game-over-modal'); 
+    const t = document.getElementById('go-title'); 
+    const msg = document.getElementById('go-msg'); 
+    const statsDiv = document.getElementById('go-stats');
+    const legend = document.getElementById('graph-legend');
+    
+    m.style.display = 'flex'; 
+    
+    if(victory) { 
+        t.innerText = "VICTORY!"; t.style.color = "var(--gold)"; 
+        msg.innerText = "You have defeated all rivals and conquered the realm!"; 
+        AUDIO.playSound('sfx_win');
+    } else { 
+        t.innerText = "DEFEAT"; t.style.color = "var(--accent)"; 
+        msg.innerText = "You have lost everything. Your legend ends here."; 
+        AUDIO.playSound('sfx_fail');
+    } 
+    
+    // Populate Stats & Legend
+    statsDiv.innerHTML = '';
+    legend.innerHTML = '';
+    
+    players.forEach(p => {
+        const camps = tiles.filter(tile => tile.userData.owner === p.id && tile.userData.buildingLevel === 1).length;
+        const taverns = tiles.filter(tile => tile.userData.owner === p.id && tile.userData.buildingLevel === 2).length;
+        
+        // Stats Row
+        const row = document.createElement('div');
+        row.className = 'stat-row';
+        row.innerHTML = `
+            <span style="color:${p.color}; font-weight:bold;">${p.name}</span>
+            <span>💰${p.gold} | ⛺${camps} | 🍺${taverns} | ⚔️${p.metrics.successfulSieges}</span>
+        `;
+        statsDiv.appendChild(row);
+        
+        // Legend Item
+        const li = document.createElement('div');
+        li.className = 'legend-item';
+        li.innerHTML = `<div class="legend-box" style="background:${p.color}"></div> ${p.name}`;
+        legend.appendChild(li);
+    });
+}
 function resetGame() {
     // Hide Modals
     document.getElementById('game-over-modal').style.display = 'none';
@@ -2937,7 +2918,6 @@ function updateHUD() {
     const cur = players[turnIndex]; setT('turn-banner', cur.id === 0 ? "YOUR TURN" : `${cur.name}'S TURN`);
     const btnRoll = document.getElementById('btn-roll'); const btnEnd = document.getElementById('btn-end'); if(btnRoll && btnEnd){ btnRoll.disabled = (gameState !== 'ROLL' || cur.id !== 0); btnEnd.disabled = (gameState !== 'END' || cur.id !== 0); }
     
-    // Inventory Grid
     const invDiv = document.getElementById('p1-inv'); 
     if(invDiv){ 
         invDiv.innerHTML = ''; 
@@ -2955,9 +2935,30 @@ function updateHUD() {
         } 
     }
     
-    const lb = document.getElementById('leader-list'); if(lb){ lb.innerHTML = ''; players.forEach(pl => { let d = document.createElement('div'); d.className = 'leader-row' + (pl.isDead ? ' dead' : ''); let nameSpan = document.createElement('span'); nameSpan.className = "leader-name"; nameSpan.style.color = pl.color; nameSpan.innerText = pl.name; if(!pl.isDead) { nameSpan.addEventListener('click', function() { openCharDetail(pl.id); }); } let goldSpan = document.createElement('span'); goldSpan.innerText = pl.isDead ? "DEAD" : `${pl.gold}G`; d.appendChild(nameSpan); d.appendChild(goldSpan); lb.appendChild(d); }); }
+    const lb = document.getElementById('leader-list'); 
+    if(lb){ 
+        lb.innerHTML = ''; 
+        players.forEach(pl => { 
+            let d = document.createElement('div'); 
+            d.className = 'leader-row' + (pl.isDead ? ' dead' : ''); 
+            
+            // --- NEW STATS ---
+            const camps = tiles.filter(t => t.userData.owner === pl.id && t.userData.buildingLevel === 1).length;
+            const taverns = tiles.filter(t => t.userData.owner === pl.id && t.userData.buildingLevel === 2).length;
+
+            let nameSpan = document.createElement('span'); 
+            nameSpan.className = "leader-name"; nameSpan.style.color = pl.color; nameSpan.innerText = pl.name; 
+            if(!pl.isDead) { nameSpan.addEventListener('click', function() { openCharDetail(pl.id); }); } 
+            
+            let infoSpan = document.createElement('div');
+            infoSpan.style.display = 'flex'; infoSpan.style.alignItems = 'center'; infoSpan.style.gap = '8px';
+            infoSpan.innerHTML = `<span style="font-size:0.9rem">⛺${camps} 🍺${taverns}</span><span style="font-weight:bold">${pl.isDead ? "DEAD" : pl.gold + "G"}</span>`;
+
+            d.appendChild(nameSpan); d.appendChild(infoSpan); 
+            lb.appendChild(d); 
+        }); 
+    }
     
-    // Class Skill
     const s0 = document.getElementById('skill-0'); const txt0 = document.getElementById('txt-skill-0'); const actSkill = ABILITY_LIBRARY[p.activeSkillId]; 
     if(actSkill && s0 && txt0) { 
         if(p.classSkillDepleted) { s0.className="skill-slot"; s0.style.opacity="0.5"; txt0.innerText="Recharge"; } 
@@ -2966,11 +2967,9 @@ function updateHUD() {
         s0.onmouseenter = () => showTooltip(p.activeSkillId, true); s0.onmouseleave = hideTooltip; 
     }
 
-    // --- FIX: Equipment Images (Active AND Passive) ---
     EQUIP_ORDER.forEach((slotName, i) => { 
         const idx = i + 1; const el = document.getElementById(`skill-${idx}`); const txt = document.getElementById(`txt-skill-${idx}`); 
         const item = p.equipment[slotName]; const dollEl = document.getElementById('slot-'+slotName); 
-        
         if(dollEl) { 
             dollEl.innerHTML = item ? item.name : slotName.toUpperCase(); 
             dollEl.className = 'equip-slot' + (item ? ' filled' : ''); 
@@ -2978,52 +2977,29 @@ function updateHUD() {
             if(item) { dollEl.onmouseenter = () => showTooltip(item); dollEl.onmouseleave = hideTooltip; setupLongPressSell(dollEl, slotName, 'equip'); } 
             else { dollEl.onmouseenter = null; dollEl.onmouseleave = null; } 
         } 
-        
         if(el && txt) { 
-            // Reset background
             el.style.backgroundImage = 'none'; 
-            
             if (item) {
-                // 1. Try to find the image in library
-                if (item.ability) {
-                    const libSkill = Object.values(ABILITY_LIBRARY).find(s => s.name === item.ability.name);
-                    if(libSkill && libSkill.img) el.style.backgroundImage = `url('${libSkill.img}')`;
-                }
-                
-                // 2. Handle Text & Status
+                if (item.ability) { const libSkill = Object.values(ABILITY_LIBRARY).find(s => s.name === item.ability.name); if(libSkill && libSkill.img) el.style.backgroundImage = `url('${libSkill.img}')`; }
                 if (item.ability && item.ability.type === 'active') { 
                     if(item.isDepleted) { el.className = "skill-slot"; el.style.opacity="0.5"; txt.innerText = "Recharge"; } 
                     else { el.className = "skill-slot filled"; el.style.opacity="1"; txt.innerText = item.ability.name; } 
-                } else { 
-                    // Passive
-                    el.className = "skill-slot"; el.style.opacity="1"; 
-                    txt.innerText = item.ability ? item.ability.name : "(Passive)"; 
-                }
-                
+                } else { el.className = "skill-slot"; el.style.opacity="1"; txt.innerText = item.ability ? item.ability.name : "(Passive)"; }
                 el.onmouseenter = () => showTooltip(item); el.onmouseleave = hideTooltip; 
-            } else { 
-                // Empty Slot
-                el.className = "skill-slot"; el.style.opacity="1"; txt.innerText = "Empty"; 
-                el.onmouseenter = null; el.onmouseleave = null; 
-            }
+            } else { el.className = "skill-slot"; el.style.opacity="1"; txt.innerText = "Empty"; el.onmouseenter = null; el.onmouseleave = null; }
         } 
     });
     
-    // Quick Slots
     p.quickSlots.forEach((item, i) => { 
         const idx = i + 5; const el = document.getElementById(`skill-${idx}`); const txt = document.getElementById(`txt-skill-${idx}`); 
         if(el && txt) { 
             el.style.backgroundImage = 'none'; 
             if (item && p.inventory.includes(item)) { 
                 el.className = "skill-slot consumable"; txt.innerText = item.name; 
-                // Try to find image for scroll
                 const libSkill = Object.values(ABILITY_LIBRARY).find(s => s.name === item.name);
                 if(libSkill && libSkill.img) el.style.backgroundImage = `url('${libSkill.img}')`;
-                
                 el.onmouseenter = () => showTooltip(item); el.onmouseleave = hideTooltip; 
-            } else { 
-                p.quickSlots[i] = null; el.className = "skill-slot"; txt.innerText = "Drag Item"; el.onmouseenter = null; el.onmouseleave = null; 
-            } 
+            } else { p.quickSlots[i] = null; el.className = "skill-slot"; txt.innerText = "Drag Item"; el.onmouseenter = null; el.onmouseleave = null; } 
         } 
     });
 }
@@ -3045,93 +3021,83 @@ function openCharDetail(id) {
     const p = players[id]; 
     if(!p) return; 
     
-    // 1. Header Info
     setT('cd-header', p.name); 
     setT('cd-sub', p.race.name + " " + p.class.name); 
     setT('cd-str', p.stats.str); 
     setT('cd-dex', p.stats.dex); 
     setT('cd-int', p.stats.int); 
     
-    // 2. Portrait
+    // --- NEW STATS INJECTION ---
+    const camps = tiles.filter(t => t.userData.owner === p.id && t.userData.buildingLevel === 1).length;
+    const taverns = tiles.filter(t => t.userData.owner === p.id && t.userData.buildingLevel === 2).length;
+    const totalGuards = tiles.filter(t => t.userData.owner === p.id).reduce((sum, t) => sum + (t.userData.guardCount || 0), 0);
+    
+    let statsHtml = `
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:15px; font-size:0.9rem; color:#ccc;">
+            <div class="stat-row"><span>⛺ Campsites:</span> <b style="color:#fff">${camps}</b></div>
+            <div class="stat-row"><span>🍺 Taverns:</span> <b style="color:#fff">${taverns}</b></div>
+            <div class="stat-row"><span>🛡️ Guards Active:</span> <b style="color:#fff">${totalGuards}</b></div>
+            <div class="stat-row"><span>🛡️ Total Hired:</span> <b style="color:#fff">${p.metrics.guardsHired}</b></div>
+            <div class="stat-row"><span>⚔️ Sieges Won:</span> <b style="color:#fff">${p.metrics.successfulSieges}</b></div>
+            <div class="stat-row"><span>👣 Spaces Moved:</span> <b style="color:#fff">${p.metrics.spacesMoved}</b></div>
+        </div>
+    `;
+    
+    const body = document.querySelector('#char-detail-modal .card-body');
+    const existingStats = document.getElementById('cd-extra-stats');
+    if(existingStats) existingStats.remove();
+    
+    const statDiv = document.createElement('div');
+    statDiv.id = 'cd-extra-stats';
+    statDiv.innerHTML = statsHtml;
+    
+    const attrGrid = body.querySelector('div[style*="display:flex; justify-content:space-around"]');
+    attrGrid.insertAdjacentElement('afterend', statDiv);
+    // ----------------------------
+
     const portraitEl = document.getElementById('cd-portrait'); 
     if(portraitEl) portraitEl.style.backgroundImage = `url('${p.portrait}')`; 
     
-    // 3. Abilities with Icons
     const act = ABILITY_LIBRARY[p.activeSkillId]; 
     const pas = ABILITY_LIBRARY[p.passiveSkillId]; 
     
-    // Helper function to build the HTML for the ability row
     const buildAbilityHTML = (skill) => {
         if (!skill) return '-';
-        // Only show image tag if skill.img exists
-        const imgTag = (skill.img && skill.img !== "") 
-            ? `<img src="${skill.img}" style="width:40px;height:40px;border:1px solid #666;margin-right:10px;vertical-align:middle;border-radius:4px;object-fit:cover;background:#000;">` 
-            : '';
+        const imgTag = (skill.img && skill.img !== "") ? `<img src="${skill.img}" style="width:40px;height:40px;border:1px solid #666;margin-right:10px;vertical-align:middle;border-radius:4px;object-fit:cover;background:#000;">` : '';
         return `<div style="display:flex;align-items:center;">${imgTag}<span style="font-weight:bold;font-size:1.1rem;">${skill.name}</span></div>`;
     };
 
-    // Active Skill Injection
-    const actEl = document.getElementById('cd-active');
-    if(actEl) actEl.innerHTML = buildAbilityHTML(act);
-    setT('cd-active-desc', act ? act.desc : ''); 
+    const actEl = document.getElementById('cd-active'); if(actEl) actEl.innerHTML = buildAbilityHTML(act); setT('cd-active-desc', act ? act.desc : ''); 
+    const pasEl = document.getElementById('cd-passive'); if(pasEl) pasEl.innerHTML = buildAbilityHTML(pas); setT('cd-passive-desc', pas ? pas.desc : ''); 
     
-    // Passive Skill Injection
-    const pasEl = document.getElementById('cd-passive');
-    if(pasEl) pasEl.innerHTML = buildAbilityHTML(pas);
-    setT('cd-passive-desc', pas ? pas.desc : ''); 
-    
-    // 4. Inventory / Equipment (Only show for Player 1)
     const invSection = document.getElementById('cd-inventory-section'); 
     const hiddenMsg = document.getElementById('cd-hidden-msg'); 
     
     if (id === 0) { 
         if(invSection) invSection.style.display = 'block'; 
         if(hiddenMsg) hiddenMsg.style.display = 'none'; 
-        
-        // Update Paper Doll in Modal
         ['head','body','main','off'].forEach(slot => { 
             const item = p.equipment[slot]; 
             const el = document.getElementById('cd-slot-'+slot); 
             if(el) { 
                 el.innerHTML = item ? item.name : slot.toUpperCase(); 
                 el.className = 'equip-slot' + (item ? ' filled' : ''); 
-                if(item) { 
-                    el.onmouseenter = () => showTooltip(item); 
-                    el.onmouseleave = hideTooltip; 
-                } else { 
-                    el.onmouseenter = null; 
-                } 
+                if(item) { el.onmouseenter = () => showTooltip(item); el.onmouseleave = hideTooltip; } else { el.onmouseenter = null; } 
             } 
         }); 
-        
-        // Update Inventory Grid in Modal
         const grid = document.getElementById('cd-inv-grid'); 
         if(grid) { 
             grid.innerHTML = ''; 
-            // Fill existing items
             p.inventory.forEach(item => { 
-                let d = document.createElement('div'); 
-                d.className = 'inv-slot'; 
-                d.innerText = item.name; 
-                d.classList.add('rarity-' + item.rarity); 
-                d.onmouseenter = () => showTooltip(item); 
-                d.onmouseleave = hideTooltip; 
-                grid.appendChild(d); 
+                let d = document.createElement('div'); d.className = 'inv-slot'; d.innerText = item.name; d.classList.add('rarity-' + item.rarity); 
+                d.onmouseenter = () => showTooltip(item); d.onmouseleave = hideTooltip; grid.appendChild(d); 
             }); 
-            // Fill empty slots up to 12
-            for(let i=p.inventory.length; i<12; i++) { 
-                let d = document.createElement('div'); 
-                d.className = 'inv-slot'; 
-                grid.appendChild(d); 
-            } 
+            for(let i=p.inventory.length; i<12; i++) { let d = document.createElement('div'); d.className = 'inv-slot'; grid.appendChild(d); } 
         } 
     } else { 
-        // Hide Inventory for AI/Other players
         if(invSection) invSection.style.display = 'none'; 
         if(hiddenMsg) hiddenMsg.style.display = 'block'; 
     } 
-    
-    // 5. Show Modal
     const modal = document.getElementById('char-detail-modal'); 
     if(modal) modal.classList.add('active'); 
 }
@@ -3427,6 +3393,58 @@ function forcePortrait() {
 
 // Attempt to lock when the game starts
 document.getElementById('btn-start-game').addEventListener('click', forcePortrait);
+
+function toggleGraph() {
+    const gc = document.getElementById('graph-container');
+    if (gc.style.display === 'none' || gc.style.display === '') {
+        gc.style.display = 'block';
+        setTimeout(drawGraph, 100); 
+    } else {
+        gc.style.display = 'none';
+    }
+}
+
+function drawGraph() {
+    const canvas = document.getElementById('game-chart');
+    const ctx = canvas.getContext('2d');
+    const rect = canvas.getBoundingClientRect();
+    canvas.width = rect.width; canvas.height = rect.height;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
+    const showGold = document.getElementById('chk-gold').checked;
+    const showProps = document.getElementById('chk-props').checked;
+    const pad = 40; const gw = canvas.width - pad * 2; const gh = canvas.height - pad * 2;
+    
+    let maxGold = 100; let maxProps = 1; let maxTurns = 1;
+    players.forEach(p => {
+        if(p.history.length > maxTurns) maxTurns = p.history.length;
+        p.history.forEach(h => {
+            if(h.gold > maxGold) maxGold = h.gold;
+            if(h.props > maxProps) maxProps = h.props;
+        });
+    });
+    
+    ctx.strokeStyle = '#666'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(pad, pad); ctx.lineTo(pad, canvas.height - pad); ctx.lineTo(canvas.width - pad, canvas.height - pad); ctx.stroke();
+    
+    players.forEach(p => {
+        if(showGold) drawLine(ctx, p, 'gold', maxGold, pad, gw, gh, maxTurns, p.color, false);
+        if(showProps) drawLine(ctx, p, 'props', maxProps, pad, gw, gh, maxTurns, p.color, true);
+    });
+}
+
+function drawLine(ctx, p, key, maxVal, pad, gw, gh, maxTurns, color, dashed) {
+    if(p.history.length < 2) return;
+    ctx.beginPath(); ctx.strokeStyle = color; ctx.lineWidth = 2;
+    if(dashed) ctx.setLineDash([5, 5]); else ctx.setLineDash([]);
+    p.history.forEach((h, i) => {
+        const x = pad + (i / (maxTurns - 1)) * gw;
+        const y = (canvas.height - pad) - (h[key] / maxVal) * gh;
+        if(i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+    ctx.setLineDash([]);
+}
 
 // Start Engine
 init();
