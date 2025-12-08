@@ -881,24 +881,42 @@
             bottom: 150px; /* Sits above the bottom controls */
             right: 10px;
         }
+		#mystats-widget {
+            /* Lock to the actual screen corner on phone */
+            top: 2% !important;
+            right: 2% !important;
+            
+            /* Reset Desktop "hang" style */
+            left: auto !important; 
+            
+            /* Scale down slightly for phone screens */
+            padding: 1vmin 2vmin !important;
+            border-radius: 15px !important; /* Full rounded on mobile */
+            min-width: 12vmin;
+        }
+		#mystats-widget .ms-icon { font-size: 3.5vmin !important; }
+        #mystats-widget .treasury-amount { font-size: 3vmin !important; }
+        #mystats-widget .treasury-label { font-size: 1.5vmin !important; }
     }
 	
-	/* --- NEW: PLAYER STATS WIDGET --- */
+/* --- NEW: PLAYER STATS WIDGET --- */
     #mystats-widget {
         position: absolute; 
+        
         top: -5%; 
-        right: -5%; /* Pinned to corner */
-        background: radial-gradient(circle, #451a03 0%, #000 100%);
+        right: -5%; 
+        
+        background: radial-gradient(circle, #0f172a 0%, #000 100%);
         border: 2px solid var(--gold-main); 
-        border-radius: 15px;
-        padding: 1vmin 2vmin; 
-        box-shadow: 2px 2px 10px rgba(0,0,0,0.8);
+        border-radius: 0 0 0 15px; /* Rounded bottom-left */
+        padding: 10px 20px; 
+        box-shadow: -2px 2px 10px rgba(0,0,0,0.8);
+        
         display: flex; 
         flex-direction: column; 
-        align-items: center; 
+        align-items: flex-end; 
         pointer-events: auto;
         z-index: 150;
-        min-width: 12vmin;
     }
 
     .stat-row {
@@ -2805,18 +2823,72 @@ function continueFromArrival() {
 }
 
 function processAiTurn(p, t, i) {
-    if(i.type==='tax') { processTax(p, 50); endStep(); return; } 
-    if(i.type==='park'){ if(treasuryGold>0){ p.gold+=treasuryGold; addLog(`${p.name} wins the Treasury!`, "log-gold"); treasuryGold=0; } endStep(); return; } 
-    if(i.type==='goto'){ if (p.passiveSkillId === 'smoke_bomb' || p.activeSkillId === 'smoke_bomb') { addLog(`${p.name} uses Skeleton Key to evade Dungeon!`, "log-epic"); } else { p.pos=10; p.mesh.position.copy(tiles[10].position); addLog(`${p.name} jailed.`, "log-fail"); p.isSkipping = true; } endStep(); return; } 
-    if(i.type==='chest'){ const card = DECK_TREASURE[Math.floor(Math.random() * DECK_TREASURE.length)]; p.inventory.push({...card}); addLog(`${p.name} found ${card.name}.`, "log-success"); if (card.name === "Pouch of Gold" && p.passiveSkillId === 'alchemist_pas') { const extra = DECK_TREASURE[Math.floor(Math.random() * DECK_TREASURE.length)]; p.inventory.push({...extra}); addLog(`${p.name} (Alchemist) found bonus: ${extra.name}!`, "log-epic"); } endStep(); return; }
+    // 1. Handle Instant Events
+    if(i.type === 'tax') { processTax(p, 50); endStep(); return; } 
+    if(i.type === 'park') { 
+        if(treasuryGold > 0){ p.gold += treasuryGold; addLog(`${p.name} wins the Treasury!`, "log-gold"); treasuryGold = 0; } 
+        endStep(); return; 
+    } 
+    if(i.type === 'goto') { 
+        if (p.passiveSkillId === 'smoke_bomb' || p.activeSkillId === 'smoke_bomb') { addLog(`${p.name} uses Skeleton Key to evade Dungeon!`, "log-epic"); } 
+        else { p.pos=10; p.mesh.position.copy(tiles[10].position); addLog(`${p.name} jailed.`, "log-fail"); p.isSkipping = true; } 
+        endStep(); return; 
+    } 
+    if(i.type === 'chest') { 
+        const card = DECK_TREASURE[Math.floor(Math.random() * DECK_TREASURE.length)]; 
+        p.inventory.push({...card}); 
+        addLog(`${p.name} found ${card.name}.`, "log-success"); 
+        if (card.name === "Pouch of Gold" && p.passiveSkillId === 'alchemist_pas') { 
+            const extra = DECK_TREASURE[Math.floor(Math.random() * DECK_TREASURE.length)]; 
+            p.inventory.push({...extra}); 
+            addLog(`Alchemist Bonus: Found ${extra.name}!`, "log-epic"); 
+        } 
+        endStep(); return; 
+    }
 
+    // 2. Handle Mystery / Teleport (NEW FIXED SECTION)
+    if (i.type === 'mystery') {
+        addLog(`${p.name} explores the ${i.name}...`, "log-rare");
+        
+        // Pick a card based on Day/Night
+        const deck = isNight ? DECK_SKIRMISH : DECK_ENCOUNTER;
+        const card = deck[Math.floor(Math.random() * deck.length)];
+        
+        // If card has choices, pick the one the AI is best at
+        if (card.choices) {
+            let best = card.choices[0];
+            // Compare stats: If option 2 stat > option 1 stat, pick option 2
+            if (card.choices[1]) {
+                const stat1 = p.stats[best.stat] || 0;
+                const stat2 = p.stats[card.choices[1].stat] || 0;
+                if (stat2 > stat1) best = card.choices[1];
+            }
+
+            // Trigger Combat -> Teleport on Success
+            // We use a small timeout to simulate "reading" the card
+            setTimeout(() => {
+                rollCombat(p, best.stat, best.tn, best.req || 1, t, 'teleport', false, best.val || 0, best.fail || 50, false);
+            }, 1000);
+            return;
+        } else {
+            // Fallback for non-choice cards (rare in this context)
+            endStep();
+            return;
+        }
+    }
+
+    // 3. Buy Empty Land
     if(i.cost > 0 && t.userData.owner === null) { 
         const safetyRatio = (p.class.id === 'rogue' || p.race.id === 'dragonborn') ? 1.2 : 2.0; 
-        if (p.gold >= i.cost * safetyRatio) { capture(t, p, 1, () => { checkForBonusLoot(p); endStep(); }); return; } 
+        if (p.gold >= i.cost * safetyRatio) { 
+            capture(t, p, 1, () => { checkForBonusLoot(p); endStep(); }); 
+            return; 
+        } 
         else { addLog(`${p.name} passes on ${i.name}.`); } 
         endStep(); return; 
     } 
 
+    // 4. Enemy Land (Pay or Attack)
     if(t.userData.owner !== null && t.userData.owner !== p.id) {
         const enemyDefStat = t.userData.defendingStat || 'str'; 
         const tn = i.tn || 3; 
@@ -2826,9 +2898,10 @@ function processAiTurn(p, t, i) {
         const requiredWins = (i.req || 1) + (t.userData.guardCount || 0);
         let willSiege = false; 
         const failCost = (i.cost * 2) + ((t.userData.guardCount || 0) * 10);
+        
         if (expectedWins >= requiredWins) willSiege = true; 
-        if (p.gold < i.cost) willSiege = true; 
-        if (failCost > p.gold && expectedWins < requiredWins + 0.5) willSiege = false;
+        if (p.gold < i.cost) willSiege = true; // Desperation
+        if (failCost > p.gold && expectedWins < requiredWins + 0.5) willSiege = false; // Too risky
 
         if (willSiege) { 
             attemptAiAbilities(p, 'combat'); 
@@ -2840,6 +2913,7 @@ function processAiTurn(p, t, i) {
         }
     }
 
+    // 5. Own Land (Upgrade or Guard)
     if (t.userData.owner === p.id) { 
         if (t.userData.buildingLevel === 1 && p.gold > i.cost * 3) { 
             addLog(`${p.name} attempts to upgrade...`); 
@@ -2850,7 +2924,6 @@ function processAiTurn(p, t, i) {
         } else if (t.userData.buildingLevel > 1 && p.gold > 200 && (t.userData.guardCount || 0) < 2) { 
             p.gold -= 50; 
             t.userData.guardCount = (t.userData.guardCount || 0) + 1; 
-            // --- TRACK GUARD ---
             p.metrics.guardsHired++;
             addLog(`${p.name} hired a guard.`, "log-gold"); 
             updateHUD(); 
@@ -3120,7 +3193,6 @@ function rollCombat(p, stat, tn, req, t, mode, penalty, rewardVal, failCost, isS
                 if (isSiege) p.metrics.successfulSieges++;
 
                 if (mode === 'teleport') {
-                    // ... existing teleport logic ...
                     addLog("The portal opens... Teleporting!", "log-epic");
                     const newPos = Math.floor(Math.random() * 40);
                     p.pos = newPos;
