@@ -2337,17 +2337,37 @@ const MAP_EVENTS = [
             }
         }
     },
-    {
+{
         id: 'boss_wraith', name: "Void Wraith", type: 'boss', duration: 10, modelType: 'wraith',
         desc: "A fast-moving spirit that drains gold.",
         onStart: () => { activeEvent.playerRef = spawnBossAsPlayer(MAP_EVENTS[1]); },
         onEnd: () => { removeBossPlayer(activeEvent.playerRef); },
-        onTurn: (me) => false, // Standard move (speed handled in processBossTurn)
+        onTurn: (me) => false, 
         onLand: (p, me) => {
-            p.gold = Math.max(0, p.gold - 150);
-            addLog("Wraith drained 150G from " + p.name + "!", "log-fail");
+            // Note: 'p' is the PLAYER (Victim), 'me' is the BOSS.
+            // When boss lands on player, p=player, me=boss.
+            // When player lands on boss, p=player, me=boss.
+            
+            // Logic: Drain Gold from Player
+            const drain = 150;
+            if (p.gold >= drain) {
+                p.gold -= drain;
+                addLog(`Wraith drained ${drain}G from ${p.name}!`, "log-fail");
+            } else {
+                addLog(`Wraith drained all of ${p.name}'s gold!`, "log-fail");
+                p.gold = 0;
+            }
             updateHUD();
-            if(p.isAi) endStep();
+            
+            // Only end step here if it was the PLAYER'S turn and they walked into the boss
+            // If it is the BOSS'S turn, resolveLanding -> processAiTurn will handle the endStep
+            if (!me.isBoss) { 
+               // If 'me' isn't the boss, that means arguments are swapped? 
+               // No, our resolveLanding calls onLand(victim, boss).
+            }
+            
+            // Actually, we don't need to call endStep() here anymore.
+            // resolveLanding handles the flow control now.
         }
     },
     {
@@ -3350,57 +3370,76 @@ function endTurn(){
     }, 1200); 
 }
 function resolveLanding(p) {
-    // --- 1. CHECK BOSS/MERCHANT COLLISION ---
-    if (activeEvent && activeEvent.playerRef && (activeEvent.data.type === 'boss' || activeEvent.data.type === 'merchant')) {
-        // Check if player matches boss position AND is not the boss itself
-        if (p.pos === activeEvent.playerRef.pos && p.id !== activeEvent.playerRef.id) {
+    // --- 1. BOSS/MERCHANT COLLISION LOGIC ---
+    
+    // CASE A: Boss (p) lands on a Player (other)
+    if (p.isBoss) {
+        // Find if any player is on this tile
+        const victim = players.find(other => other.id !== p.id && !other.isDead && other.pos === p.pos);
+        if (victim) {
+            addLog(`${p.name} caught ${victim.name}!`, "log-fail");
             
-            // Trigger the interaction (e.g. Fight or Shop)
+            // Execute the Boss's "onLand" logic against the victim
+            // We look up the event definition to get the logic
+            if (activeEvent && activeEvent.data && activeEvent.data.onLand) {
+                // Note: onLand expects (player, boss). Here 'victim' is player, 'p' is boss.
+                activeEvent.data.onLand(victim, p);
+            }
+        }
+    }
+    
+    // CASE B: Player (p) lands on Boss (activeEvent.playerRef)
+    else if (activeEvent && activeEvent.playerRef && activeEvent.data) {
+        // If player is on same tile as boss
+        if (p.pos === activeEvent.playerRef.pos) {
+            // Trigger interaction
             activeEvent.data.onLand(p, activeEvent.playerRef);
             
-            // If it's a boss fight, stop processing the tile underneath
+            // If it's a boss fight, STOP here (don't process the tile underneath)
             if(activeEvent.data.type === 'boss') return; 
         }
     }
 
-    // --- 2. SKILL TRIGGERS ---
-    const passive = ABILITY_LIBRARY[p.passiveSkillId];
-    if (passive && passive.onLanding) passive.onLanding(p);
+    // --- 2. SKILL TRIGGERS (Standard Players) ---
+    if (!p.isBoss) {
+        const passive = ABILITY_LIBRARY[p.passiveSkillId];
+        if (passive && passive.onLanding) passive.onLanding(p);
 
-    const active = ABILITY_LIBRARY[p.activeSkillId];
-    if (active && active.onLanding) active.onLanding(p);
+        const active = ABILITY_LIBRARY[p.activeSkillId];
+        if (active && active.onLanding) active.onLanding(p);
 
-    // Equipment Triggers
-    ['head', 'body', 'main', 'off'].forEach(slot => {
-        const item = p.equipment[slot];
-        if (item && item.ability) {
-            const libAbil = Object.values(ABILITY_LIBRARY).find(a => a.name === item.ability.name);
-            if (libAbil && libAbil.onLanding) {
-                libAbil.onLanding(p);
+        ['head', 'body', 'main', 'off'].forEach(slot => {
+            const item = p.equipment[slot];
+            if (item && item.ability) {
+                const libAbil = Object.values(ABILITY_LIBRARY).find(a => a.name === item.ability.name);
+                if (libAbil && libAbil.onLanding) libAbil.onLanding(p);
             }
-        }
-    });
+        });
+    }
 
-    // Trap Trigger (Skeleton Key)
-    players.forEach(other => {
-        if (other.id !== p.id && !other.isDead && other.pos === p.pos) {
-            const trapPassive = ABILITY_LIBRARY[other.passiveSkillId];
-            if (trapPassive && trapPassive.onEnemyLanding) {
-                trapPassive.onEnemyLanding(p, other);
+    // --- 3. TRAP TRIGGER ---
+    if (!p.isBoss) {
+        players.forEach(other => {
+            if (other.id !== p.id && !other.isDead && other.pos === p.pos && !other.isBoss) {
+                const trapPassive = ABILITY_LIBRARY[other.passiveSkillId];
+                if (trapPassive && trapPassive.onEnemyLanding) {
+                    trapPassive.onEnemyLanding(p, other);
+                }
             }
-        }
-    });
+        });
+    }
 
-    // --- 3. HANDLE AI vs HUMAN FLOW ---
+    // --- 4. HANDLE TURN FLOW ---
     const t = tiles[p.pos]; 
     const i = t.userData.info;
     
-    if(p.isAi) { 
+    // AI and BOSSES go to processAiTurn to decide what to do (or just end turn)
+    if(p.isAi || p.isBoss) { 
         processAiTurn(p, t, i); 
         return; 
     }
     
-    // --- 4. HUMAN UI POPUP ---
+    // HUMAN UI
     const m = document.getElementById('arrival-modal');
     if(m) {
         const imgEl = document.getElementById('arrival-image');
@@ -3492,14 +3531,18 @@ function processAiTurn(p, t, i) {
     // --- FASTER THINKING (600ms) ---
     setTimeout(() => {
         try {
-            // Boss Logic Override
+            // --- BOSS LOGIC OVERRIDE (CRITICAL FIX) ---
             if (p.isBoss) {
-                if (activeEvent && activeEvent.data.onTileEffect) {
+                // 1. Tile Destruction (Dragon)
+                if (activeEvent && activeEvent.data && activeEvent.data.onTileEffect) {
                     activeEvent.data.onTileEffect(t);
                 }
+                
+                // 2. Force End Turn
                 endStep();
-                return;
+                return; 
             }
+            // ------------------------------------------
 
             // 1. Instant Events
             if(i.type === 'tax') { processTax(p, 50); endStep(); return; } 
@@ -3514,11 +3557,11 @@ function processAiTurn(p, t, i) {
             } 
             if(i.type === 'chest') { 
                 const card = DECK_TREASURE[Math.floor(Math.random() * DECK_TREASURE.length)]; 
-                p.inventory.push({...card}); 
+                p.inventory.push(createItemInstance(card)); 
                 addLog(`${p.name} found ${card.name}.`, "log-success"); 
                 if (card.name === "Pouch of Gold" && p.passiveSkillId === 'alchemist_pas') { 
                     const extra = DECK_TREASURE[Math.floor(Math.random() * DECK_TREASURE.length)]; 
-                    p.inventory.push({...extra}); 
+                    p.inventory.push(createItemInstance(extra)); 
                     addLog(`Alchemist Bonus: ${extra.name}!`, "log-epic"); 
                 } 
                 endStep(); return; 
@@ -3532,7 +3575,8 @@ function processAiTurn(p, t, i) {
                 
                 if (card.choices) {
                     let best = card.choices[0];
-                    if (activeEvent && activeEvent.data.id === 'event_fog') {
+                    // Fog Logic
+                    if (activeEvent && activeEvent.data && activeEvent.data.id === 'event_fog') {
                         best = card.choices[Math.floor(Math.random() * card.choices.length)];
                     } 
                     else if (card.choices[1]) {
@@ -3540,7 +3584,7 @@ function processAiTurn(p, t, i) {
                         const stat2 = p.stats[card.choices[1].stat] || 0;
                         if (stat2 > stat1) best = card.choices[1];
                     }
-                    // Fast reaction
+
                     setTimeout(() => {
                         rollCombat(p, best.stat, best.tn, best.req || 1, t, 'teleport', false, best.val || 0, best.fail || 50, false);
                     }, 500);
@@ -3594,7 +3638,7 @@ function processAiTurn(p, t, i) {
                     const card = DECK_SKIRMISH[Math.floor(Math.random() * DECK_SKIRMISH.length)]; 
                     let bestChoice = card.choices[0];
                     if (card.choices[1]) {
-                        if (activeEvent && activeEvent.data.id === 'event_fog') bestChoice = card.choices[Math.floor(Math.random() * 2)];
+                        if (activeEvent && activeEvent.data && activeEvent.data.id === 'event_fog') bestChoice = card.choices[Math.floor(Math.random() * 2)];
                         else if (card.choices[1].tn < card.choices[0].tn) bestChoice = card.choices[1];
                     }
                     rollCombat(p, bestChoice.stat, bestChoice.tn, bestChoice.req, t, 'upgrade', false, 0, 50, false); 
@@ -3607,13 +3651,15 @@ function processAiTurn(p, t, i) {
                     updateHUD(); 
                 } 
             }
+            
             endStep();
 
         } catch (err) {
             console.error("AI Error:", err);
+            addLog("AI glitched... passing turn.", "log-fail");
             endStep();
         }
-    }, 600); // Changed from 1500 to 600
+    }, 600); 
 }
 
 function showEncounter(p, i, t, mode) {
