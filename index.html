@@ -46,13 +46,17 @@
     #ui-layer {
         position: absolute; top: 0; left: 0; width: 100%; height: 100%;
         z-index: 100; pointer-events: none;
-        display: flex; justify-content: center; align-items: center;
-        gap: 20px; overflow: hidden;
+        /* REMOVED display: flex; justify-content... */
+        /* Now acts as a static canvas for absolute children */
+        overflow: hidden; 
     }
 
     /* THE BLUE BOX (Board Anchor - Keeps Aspect Ratio) */
     #board-anchor {
-        position: relative;
+        position: absolute;
+        top: 50%; 
+        left: 50%; 
+        transform: translate(-50%, -50%); /* Keeps it dead center */
         height: 96vh; width: 96vh; 
         max-width: 96vw; max-height: 96vw; 
         pointer-events: none;
@@ -70,11 +74,24 @@
     .glass-panel, button, .modal-content, .skill-slot, .equip-slot, .inv-slot, .util-btn, #btn-action, #turn-widget, #adventure-log-widget { pointer-events: auto; }
 
     /* SIDEBARS */
-    #p1-sheet { width: 280px; height: 80%; transition: transform 0.3s ease; z-index: 20; }
+    #p1-sheet { 
+        position: absolute;
+        top: 10%;
+        left: 20px; /* Pinned to left */
+        width: 280px; 
+        height: 80%; 
+        z-index: 20; 
+        transition: transform 0.3s ease;
+    }
     #leaderboard { 
-        width: 240px; height: auto; max-height: 60%; 
-        transition: transform 0.3s ease; z-index: 20; 
-        align-self: flex-start; margin-top: 10%;
+        position: absolute;
+        top: 10%;
+        right: 20px; /* Pinned to right */
+        width: 240px; 
+        height: auto; 
+        max-height: 60%; 
+        z-index: 20; 
+        transition: transform 0.3s ease; 
     }
     
 /* HIDE SIDEBARS LOGIC & ACTIVE STATE */
@@ -3035,6 +3052,8 @@ function rollCombat(p, stat, tn, req, t, mode, penalty, rewardVal, failCost, isS
 
         setTimeout(() => {
             let autoClose = true;
+            
+            // --- SUCCESS LOGIC ---
             if(wins >= req) { 
                 addLog(`Success! (${wins} wins)`, "log-success"); 
                 if (p.id === 0) AUDIO.playSound('sfx_win');
@@ -3045,27 +3064,18 @@ function rollCombat(p, stat, tn, req, t, mode, penalty, rewardVal, failCost, isS
                 }
                 const lootCallback = () => checkForBonusLoot(p);
 
-                // --- TRACK SIEGE ---
+                // Track Siege Stat
                 if (isSiege) p.metrics.successfulSieges++;
 
-                // --- UPDATED TELEPORT LOGIC ---
                 if (mode === 'teleport') {
+                    // ... existing teleport logic ...
                     addLog("The portal opens... Teleporting!", "log-epic");
-                    
                     const newPos = Math.floor(Math.random() * 40);
                     p.pos = newPos;
                     const targetTile = tiles[newPos];
-                    
-                    // Call the new helper function for smooth camera/player travel
-                    animateTeleport(p, targetTile, () => {
-                        resolveLanding(p);
-                    });
-
-                    // Don't auto-close immediately, let the animation start
+                    animateTeleport(p, targetTile, () => { resolveLanding(p); });
                     if(p.id === 0) autoClose = false; 
                 }
-                // ------------------------------
-
                 else if(isSiege) { 
                     let guards = t.userData.guardCount || 0; 
                     if (guards > 0) { t.userData.guardCount--; addLog(`Guard Defeated! (${t.userData.guardCount} remaining)`, "log-success"); } 
@@ -3081,18 +3091,38 @@ function rollCombat(p, stat, tn, req, t, mode, penalty, rewardVal, failCost, isS
                     if(p.id === 0) autoClose = false; 
                 }
 
-            } else { 
+            } 
+            // --- FAILURE LOGIC (Updated to fix AI Freeze) ---
+            else { 
                 addLog("Failure!", "log-fail"); 
                 if (p.id === 0) AUDIO.playSound('sfx_fail');
-                if(isSiege) { pay(p, failCost, players[t.userData.owner]); } else { pay(p, failCost); } 
+                
+                // Pay penalties
+                if(isSiege) { pay(p, failCost, players[t.userData.owner]); } 
+                else { pay(p, failCost); } 
             }
             
             updateHUD(); 
-            if(autoClose) setTimeout(closeEnc, 1000);
+            
+            // --- CRITICAL FIX: Ensure AI turn ends after combat ---
+            if(autoClose) {
+                setTimeout(() => {
+                    // For Human: Close modal which triggers endStep
+                    if(!p.isAi) {
+                        closeEnc();
+                    } 
+                    // For AI: Manually trigger endStep if the loop halted here
+                    else {
+                        document.getElementById('card-modal').classList.remove('active');
+                        endStep();
+                    }
+                }, 1000);
+            }
+
         }, 600);
     };
 
-    // Gambler's Luck Logic
+    // Gambler's Luck Logic (Human Only)
     const hasOnes = results.includes(1);
     if (p.id === 0 && hasOnes) {
         let skillSource = null; let skillType = '';
