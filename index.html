@@ -2101,38 +2101,52 @@ function zoomToPiece(p) {
 
 // Moves Player and Camera together to a specific tile
 function animateTeleport(p, targetTile, onComplete) {
-    // 1. Lock Camera Tracking
+    // 1. Lock Game State
+    gameState = 'MOVING';
+    
+    // 2. Lock Camera
     isZoomed = true;
     cameraTarget = p.mesh;
 
-    // 2. Move Player Mesh
+    // 3. Calculate destination coordinates
+    const startPos = p.mesh.position.clone();
+    const endPos = targetTile.position.clone();
+    
+    // Height arc (jump effect)
+    const midPoint = startPos.clone().add(endPos).multiplyScalar(0.5);
+    midPoint.y += 15; // Arc height
+
+    // 4. Move Player
     new TWEEN.Tween(p.mesh.position)
-        .to({ x: targetTile.position.x, z: targetTile.position.z }, 1500) // 1.5 seconds travel
+        .to({ x: endPos.x, y: endPos.y, z: endPos.z }, 1500)
         .easing(TWEEN.Easing.Quadratic.InOut)
         .onComplete(() => {
-            if (onComplete) onComplete();
+            // Animation Done
+            if (onComplete) {
+                // Small buffer before logic runs to let camera settle
+                setTimeout(() => {
+                    onComplete();
+                }, 100); 
+            }
         })
         .start();
 
-    // 3. Move Camera (Maintain offset relative to destination)
-    // We calculate where the camera SHOULD be when the player arrives
-    const width = window.innerWidth;
-    const isMobileMode = document.body.classList.contains('force-mobile') || width <= 768;
-    
-    // Use the Zoom offset
-    const offset = { x: 0, y: 15, z: 12 };
+    // 5. Move Camera (Maintain relative offset)
+    // We get the current offset of the camera relative to the player
+    const offset = { 
+        x: camera.position.x - startPos.x, 
+        y: camera.position.y - startPos.y, 
+        z: camera.position.z - startPos.z 
+    };
 
     new TWEEN.Tween(camera.position)
         .to({
-            x: targetTile.position.x + offset.x,
-            y: p.mesh.position.y + offset.y, 
-            z: targetTile.position.z + offset.z
+            x: endPos.x + offset.x,
+            y: endPos.y + offset.y, 
+            z: endPos.z + offset.z
         }, 1500)
         .easing(TWEEN.Easing.Quadratic.InOut)
-        .onUpdate(() => {
-            // Force look at player during flight
-            camera.lookAt(p.mesh.position.x, 0, p.mesh.position.z);
-        })
+        // Note: The 'lookAt' in the animate() loop handles the rotation
         .start();
 }
 
@@ -3249,18 +3263,24 @@ function endStep(){
 }
 
 function endTurn(){
-    // 1. Safety Check: If we are already switching turns, stop.
-    if (turnProcessing) return;
+    // --- SAFETY CHECKS ---
+    if (turnProcessing) return; // Already switching
+    if (gameState === 'MOVING') {
+        console.log("Attempted to end turn while moving. Blocked.");
+        return; // Block turn end if animation is playing
+    }
+    // ---------------------
+
     turnProcessing = true;
 
-    // 2. Lock UI immediately
+    // Lock UI
     const btnAction = document.getElementById('btn-action');
     if(btnAction) {
         btnAction.disabled = true;
         btnAction.innerText = "...";
     }
 
-    // 3. Process Previous Player Stats
+    // Process Previous Player Stats
     const prevP = players[turnIndex]; 
     recalcStats(prevP);
     if(prevP.isAi) manageAiInventory(prevP); 
@@ -3269,7 +3289,7 @@ function endTurn(){
     const props = tiles.filter(t => t.userData.owner === prevP.id).length;
     prevP.history.push({ turn: turnCount, gold: prevP.gold, props: props });
 
-    // 4. THE DELAY (1 Second Break)
+    // THE DELAY (1 Second Break)
     setTimeout(() => {
         // Calculate Next Player
         let nextIndex = (turnIndex + 1) % players.length;
@@ -3293,22 +3313,25 @@ function endTurn(){
         if(curP.isDead) return;
 
         // Start Next Turn Logic
-        if(curP.isAi) { 
-            attemptAiAbilities(curP, 'pre-roll'); 
-            
-            // Zoom to AI before they roll
+        if(curP.isAi || curP.isBoss) { 
+            // Zoom to them
             zoomToPiece(curP);
             
-            // Roll after visual setup
-            setTimeout(rollMove, 1000); 
+            // If it's a boss, process boss turn
+            if(curP.isBoss) {
+                setTimeout(() => processBossTurn(curP), 1000);
+            } 
+            // If it's AI, standard roll logic
+            else {
+                attemptAiAbilities(curP, 'pre-roll'); 
+                setTimeout(rollMove, 1000); 
+            }
         } else {
             // Human Turn
             addLog("Your Turn!");
-            
-            // Optionally auto-zoom to human, or let them look around
-            // zoomToPiece(curP); 
+            zoomToPiece(curP); // Auto zoom to human on start
         }
-    }, 1000); // 1000ms = 1 second break
+    }, 1000); 
 }
 function resolveLanding(p) {
     // --- 1. CHECK BOSS/MERCHANT COLLISION ---
@@ -3801,10 +3824,13 @@ function drawCardAnim(type, cb) {
 function rollCombat(p, stat, tn, req, t, mode, penalty, rewardVal, failCost, isSiege) {
     const d = document.getElementById('dice-result'); 
     d.innerHTML = ''; 
+    
+    // 1. Calculate Dice Pool
     let poolSize = p.stats[stat] || 1; 
     if (penalty) poolSize = Math.floor(poolSize / 2); 
     if (poolSize < 1) poolSize = 1;
 
+    // 2. Roll Dice (Check for active skills modifying roll)
     let results = [];
     for(let i=0; i<poolSize; i++) {
         const active = ABILITY_LIBRARY[p.activeSkillId];
@@ -3814,47 +3840,78 @@ function rollCombat(p, stat, tn, req, t, mode, penalty, rewardVal, failCost, isS
         results.push(r);
     }
 
+    // 3. Define the completion logic
     const finalizeCombat = (finalResults) => {
         let wins = 0;
         d.innerHTML = ''; 
+        
+        // Render Dice
         finalResults.forEach(r => {
-            let b = document.createElement('div'); b.className = 'mini-die ' + (r >= tn ? 'win' : 'lose'); b.innerText = r; d.appendChild(b);
+            let b = document.createElement('div'); 
+            b.className = 'mini-die ' + (r >= tn ? 'win' : 'lose'); 
+            b.innerText = r; 
+            d.appendChild(b);
+            
             if(r >= tn) { 
                 wins++; 
-                if (r === 6 && p.passiveSkillId === 'executioner') { wins++; b.style.boxShadow = "0 0 10px #ef4444"; b.style.borderColor = "#ef4444"; } 
+                // Executioner Passive: 6 counts as 2 wins
+                if (r === 6 && p.passiveSkillId === 'executioner') { 
+                    wins++; 
+                    b.style.boxShadow = "0 0 10px #ef4444"; 
+                    b.style.borderColor = "#ef4444"; 
+                } 
             }
         });
 
+        // Wait a moment for visual impact, then process result
         setTimeout(() => {
             let autoClose = true;
             
-            // --- SUCCESS LOGIC ---
+            // --- SUCCESS ---
             if(wins >= req) { 
                 addLog(`Success! (${wins} wins)`, "log-success"); 
                 if (p.id === 0) AUDIO.playSound('sfx_win');
                 
+                // Trigger Passives
                 if (mode === 'capture' || mode === 'upgrade' || isSiege) { 
                     const passive = ABILITY_LIBRARY[p.passiveSkillId]; 
                     if (passive && passive.onCombatVictory) passive.onCombatVictory(p); 
                 }
                 const lootCallback = () => checkForBonusLoot(p);
 
-                // Track Siege Stat
+                // Track Stats
                 if (isSiege) p.metrics.successfulSieges++;
 
+                // A. TELEPORT LOGIC
                 if (mode === 'teleport') {
                     addLog("The portal opens... Teleporting!", "log-epic");
+                    
+                    // CRITICAL FIX: Lock state so turn doesn't end while flying
+                    gameState = 'MOVING';
+                    autoClose = false; 
+
                     const newPos = Math.floor(Math.random() * 40);
                     p.pos = newPos;
                     const targetTile = tiles[newPos];
-                    animateTeleport(p, targetTile, () => { resolveLanding(p); });
-                    if(p.id === 0) autoClose = false; 
+                    
+                    animateTeleport(p, targetTile, () => { 
+                        // Once arrived, trigger logic for the NEW tile
+                        resolveLanding(p); 
+                    });
                 }
+                // B. SIEGE LOGIC
                 else if(isSiege) { 
                     let guards = t.userData.guardCount || 0; 
-                    if (guards > 0) { t.userData.guardCount--; addLog(`Guard Defeated! (${t.userData.guardCount} remaining)`, "log-success"); } 
-                    else { capture(t, p, 1, lootCallback); if(p.id === 0) autoClose = false; } 
+                    if (guards > 0) { 
+                        t.userData.guardCount--; 
+                        addLog(`Guard Defeated! (${t.userData.guardCount} remaining)`, "log-success"); 
+                    } 
+                    else { 
+                        capture(t, p, 1, lootCallback); 
+                        if(p.id === 0) autoClose = false; // Let human see victory
+                    } 
                 } 
+                // C. CAPTURE/UPGRADE
                 else if(mode === 'capture') { 
                     capture(t, p, 1, lootCallback); 
                     if(rewardVal > 0) { p.gold += rewardVal; addLog(`Bonus: +${rewardVal}G`, "log-gold"); } 
@@ -3866,27 +3923,25 @@ function rollCombat(p, stat, tn, req, t, mode, penalty, rewardVal, failCost, isS
                 }
 
             } 
-            // --- FAILURE LOGIC (Updated to fix AI Freeze) ---
+            // --- FAILURE ---
             else { 
                 addLog("Failure!", "log-fail"); 
                 if (p.id === 0) AUDIO.playSound('sfx_fail');
                 
-                // Pay penalties
                 if(isSiege) { pay(p, failCost, players[t.userData.owner]); } 
                 else { pay(p, failCost); } 
             }
             
             updateHUD(); 
             
-            // --- CRITICAL FIX: Ensure AI turn ends after combat ---
+            // --- CLOSING LOGIC ---
             if(autoClose) {
                 setTimeout(() => {
-                    // For Human: Close modal which triggers endStep
                     if(!p.isAi) {
+                        // Human: Close modal (which triggers endStep)
                         closeEnc();
-                    } 
-                    // For AI: Manually trigger endStep if the loop halted here
-                    else {
+                    } else {
+                        // AI: Force UI close and End Step
                         document.getElementById('card-modal').classList.remove('active');
                         endStep();
                     }
@@ -3896,7 +3951,7 @@ function rollCombat(p, stat, tn, req, t, mode, penalty, rewardVal, failCost, isS
         }, 600);
     };
 
-    // Gambler's Luck Logic (Human Only)
+    // 4. Gambler's Luck (Human Only)
     const hasOnes = results.includes(1);
     if (p.id === 0 && hasOnes) {
         let skillSource = null; let skillType = '';
@@ -3913,7 +3968,10 @@ function rollCombat(p, stat, tn, req, t, mode, penalty, rewardVal, failCost, isS
         }
     }
     
+    // Play Roll Sound
     if (p.id === 0) AUDIO.playSound('sfx_roll');
+    
+    // Execute
     finalizeCombat(results);
 }
 
