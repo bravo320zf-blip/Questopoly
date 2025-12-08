@@ -719,6 +719,152 @@
         z-index: 3000 !important; 
         pointer-events: auto !important;
     }
+	
+	/* Ensure Help Modal is always on top */
+#help-modal {
+    z-index: 2000 !important; /* Higher than UI overlay (130) */
+}
+
+/* Fix Help Window Layout */
+.help-window { 
+    width: 95%; 
+    max-width: 700px; 
+    height: 85vh; /* Taller on mobile */
+    display: flex; 
+    flex-direction: column; 
+    padding: 0; 
+    background: #111; 
+    border: 2px solid var(--gold); 
+    overflow: hidden; 
+    position: relative;
+    border-radius: 8px;
+}
+
+/* Header & Tabs - Fixed Height */
+.help-header-title { 
+    background: var(--gold); 
+    color: #ffffff; /* CHANGED: White text */
+    font-weight: 900; 
+    font-size: 1.5rem; 
+    text-align: center; 
+    padding: 10px; 
+    flex-shrink: 0; 
+    /* ADDED: Drop shadow for readability on gold */
+    text-shadow: 0 2px 4px rgba(0,0,0,0.8);
+}
+
+.help-tabs { 
+    display: flex; 
+    background: #222; 
+    border-bottom: 2px solid #444; 
+    flex-shrink: 0; 
+    overflow-x: auto; 
+}
+
+.help-tab { 
+    flex: 1; 
+    background: transparent; 
+    border: none; 
+    color: #888; 
+    padding: 15px 5px; 
+    font-weight: bold; 
+    font-size: 1rem; 
+    cursor: pointer; 
+    border-bottom: 4px solid transparent; 
+}
+
+.help-tab.active { 
+    color: var(--gold); 
+    border-bottom-color: var(--gold); 
+    background: rgba(251, 191, 36, 0.1); 
+}
+
+/* Content Section - Scrollable */
+.help-section { 
+    display: none; 
+    padding: 20px; 
+    overflow-y: auto; 
+    flex-grow: 1; 
+    text-align: left; 
+    color: #ccc; 
+    font-size: 1rem; 
+    line-height: 1.5;
+    
+    /* CRITICAL FOR MOBILE SCROLLING */
+    touch-action: pan-y; 
+    -webkit-overflow-scrolling: touch;
+}
+
+.help-section.active { 
+    display: block; 
+}
+
+/* --- NEW CLOSE BUTTONS (Inside Panels) --- */
+    .panel-close-btn {
+        margin-top: auto; /* Pushes to bottom of flex container */
+        align-self: center; /* Centers horizontally */
+        background: rgba(127, 29, 29, 0.8); /* Dark Red */
+        border: 1px solid #ef4444;
+        color: #fff;
+        font-family: var(--font-head);
+        font-size: 0.8rem;
+        padding: 8px 0;
+        width: 80%;
+        border-radius: 4px;
+        cursor: pointer;
+        box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+        margin-bottom: 10px;
+        transition: 0.2s;
+        text-shadow: 0 1px 2px #000;
+    }
+    .panel-close-btn:hover { 
+        background: #b91c1c; 
+        transform: scale(1.05);
+        box-shadow: 0 0 15px #ef4444;
+    }
+
+    /* Hide close button when panel is minimized to prevent clutter */
+    .panel.minimized .panel-close-btn { display: none; }
+
+    /* --- NEW HUD TOGGLES (Open Buttons) --- */
+    #hud-toggles {
+        position: absolute;
+        top: 20%; 
+        right: 2%; /* Desktop: Sits to the right of the board */
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        pointer-events: auto;
+        z-index: 140;
+    }
+
+    .hud-toggle-btn {
+        width: 5vmin; height: 5vmin;
+        min-width: 40px; min-height: 40px;
+        background: rgba(20, 25, 35, 0.9);
+        border: 2px solid #555;
+        color: var(--gold);
+        font-size: 1.5rem;
+        border-radius: 50%;
+        cursor: pointer;
+        display: flex; align-items: center; justify-content: center;
+        box-shadow: 0 0 10px #000;
+        transition: 0.2s;
+    }
+    .hud-toggle-btn:hover { 
+        border-color: var(--gold); 
+        transform: scale(1.1); 
+        background: #000;
+    }
+
+    /* Mobile Positioning for Toggles */
+    @media only screen and (max-width: 768px) {
+        #hud-toggles {
+            top: auto;
+            bottom: 150px; /* Sits above the bottom controls */
+            right: 10px;
+        }
+    }
 </style>
 </head>
 
@@ -759,7 +905,7 @@
 <!-- MAIN UI OVERLAY (REPLACED WITH NEW GLASS UI) -->
 <div id="ui-layer">
 
-    <!-- LEFT SIDEBAR -->
+    <!-- LEFT SIDEBAR: PLAYER SHEET -->
     <div id="p1-sheet" class="glass-panel gold-border">
         <div class="char-header">
             <div style="display:flex; align-items:center;">
@@ -784,6 +930,9 @@
         </div>
         <div style="padding:0 10px; font-size:0.7rem; color:#888; margin-bottom:5px;">INVENTORY</div>
         <div id="p1-inv" class="inv-grid"></div>
+        
+        <!-- CLOSE BUTTON -->
+        <button class="panel-close-btn" onclick="togglePanelVisibility('p1-sheet')">CLOSE</button>
     </div>
 
     <!-- CENTER BOARD AREA -->
@@ -796,7 +945,7 @@
                 <div id="day-night-indicator">☀ DAY</div>
             </div>
 
-            <!-- NEW TREASURY WIDGET -->
+            <!-- TREASURY WIDGET -->
             <div id="treasury-widget">
                 <div class="treasury-icon">👑</div>
                 <div id="treasury-val" class="treasury-amount">0</div>
@@ -826,23 +975,27 @@
                 </div>
             </div>
 
-            <!-- Utility Stack -->
+            <!-- Utility Stack (OPEN BUTTONS) -->
             <div id="utility-stack">
                 <div id="btn-help" class="util-btn" onclick="toggleHelpModal()">?</div>
                 <div id="btn-settings" class="util-btn" onclick="toggleSettingsModal()">⚙</div>
-                <div class="util-btn mobile-toggle-btn" onclick="document.getElementById('p1-sheet').classList.toggle('active')">👤</div>
-                <div class="util-btn mobile-toggle-btn" onclick="document.getElementById('leaderboard').classList.toggle('active')">📜</div>
+                <!-- REMOVED 'mobile-toggle-btn' class so they show on desktop -->
+                <div class="util-btn" onclick="togglePanelVisibility('p1-sheet')">👤</div>
+                <div class="util-btn" onclick="togglePanelVisibility('leaderboard')">📜</div>
             </div>
 
         </div>
     </div>
 
-    <!-- RIGHT SIDEBAR (Leaderboard) -->
+    <!-- RIGHT SIDEBAR: LEADERBOARD -->
     <div id="leaderboard" class="glass-panel">
         <div style="padding:10px; background:rgba(0,0,0,0.3); border-bottom:1px solid #444; font-weight:bold; font-size:0.9rem; text-align:center;">
             LEADERBOARD
         </div>
         <div id="leader-list"></div>
+        
+        <!-- CLOSE BUTTON -->
+        <button class="panel-close-btn" onclick="togglePanelVisibility('leaderboard')">CLOSE</button>
     </div>
 
 </div>
@@ -940,15 +1093,15 @@
         
         <div class="help-header-title">ADVENTURER'S GUIDE</div>
 
-        <!-- TABS NAVIGATION -->
+        <!-- TABS NAVIGATION (Updated with data-tab attributes) -->
         <div class="help-tabs">
-            <button class="help-tab active" onclick="switchHelpTab('tab-basics')">Basics</button>
-            <button class="help-tab" onclick="switchHelpTab('tab-combat')">Conquest</button>
-            <button class="help-tab" onclick="switchHelpTab('tab-upgrades')">Upgrades</button>
-            <button class="help-tab" onclick="switchHelpTab('tab-loot')">Loot & Glory</button>
+            <button class="help-tab active" onclick="switchHelpTab('tab-basics')" data-tab="tab-basics">Basics</button>
+            <button class="help-tab" onclick="switchHelpTab('tab-combat')" data-tab="tab-combat">Conquest</button>
+            <button class="help-tab" onclick="switchHelpTab('tab-upgrades')" data-tab="tab-upgrades">Upgrades</button>
+            <button class="help-tab" onclick="switchHelpTab('tab-loot')" data-tab="tab-loot">Loot & Glory</button>
         </div>
 
-<!-- TAB 1: BASICS -->
+        <!-- TAB 1: BASICS -->
         <div id="tab-basics" class="help-section active">
             <h3><span style="color:var(--gold)">✦</span> The Objective</h3>
             <p>Be the last Hero standing! Bankrupt your rivals by capturing locations and hoarding Gold. When a player runs out of money and property, they are forgotten by history.</p>
@@ -957,19 +1110,18 @@
             <p>Every journey begins at <b>Old Crooks Inn</b>. Roll <b>2d6</b> to move.</p>
             <ul>
                 <li><b>Passing Start:</b> Gain <span style="color:var(--success)">+200 Gold</span> and recharge all abilities.</li>
-                <li><b>Landing on Start:</b> Visit the Merchant to buy supplies.  If you are on a mobile phone long press items to sell them from your inventory or items that are currently equipped.</li>
+                <li><b>Landing on Start:</b> Visit the Merchant to buy supplies. Long-press items in your inventory to sell them.</li>
             </ul>
 
-            <!-- NEW SECTION -->
             <h3><span style="color:var(--gold)">✦</span> Mystery Spaces</h3>
             <p><b>Fairy Ring</b> and <b>Smuggler Cove</b> (Purple) are unstable locations. They cannot be captured.</p>
             <p>When you land here, you must face an Encounter. If you succeed, you are instantly <b>Teleported</b> to a random space on the board!</p>
 
             <h3><span style="color:var(--gold)">✦</span> The Dungeon</h3>
-            <p>If you land on "Go to Dungeon," you are arrested! You must <b>Skip your next turn</b>. If you land on the Dungeon space itself (Just Visiting), you are safe to mock the prisoners.</p>
+            <p>If you land on "Go to Dungeon," you are arrested! You must <b>Skip your next turn</b>. If you land on the Dungeon space itself (Just Visiting), you are safe.</p>
         </div>
 
-        <!-- TAB 2: CONQUEST (Combat & Rent) -->
+        <!-- TAB 2: CONQUEST -->
         <div id="tab-combat" class="help-section">
             <h3><span style="color:var(--gold)">✦</span> Empty Lands</h3>
             <p>When you discover a new location, you draw an <b>Encounter Card</b>. You must pass a Stat Check (Str, Dex, or Int) to save the town.</p>
@@ -991,7 +1143,7 @@
             </ol>
         </div>
 
-        <!-- TAB 3: UPGRADES & DEFENSE -->
+        <!-- TAB 3: UPGRADES -->
         <div id="tab-upgrades" class="help-section">
             <h3><span style="color:var(--gold)">✦</span> Building Taverns</h3>
             <p>If you land on a location you already own, you can upgrade your Camp into a <b>Tavern</b>.</p>
@@ -1002,7 +1154,7 @@
             <p>If an enemy successfully Sieges your land, a Guard dies to protect the property. You only lose the property if there are no Guards left.</p>
         </div>
 
-        <!-- TAB 4: LOOT & TREASURY -->
+        <!-- TAB 4: LOOT -->
         <div id="tab-loot" class="help-section">
             <h3><span style="color:var(--gold)">✦</span> Treasure</h3>
             <p>Items range from <span style="color:#fff">Common</span>, <span style="color:var(--rare)">Magic</span>, <span style="color:var(--epic)">Rare</span>, to <span style="color:var(--legend)">Legendary</span>.</p>
@@ -1013,8 +1165,8 @@
             <p><b>Landing on Capital City</b> awards you the entire contents of the Treasury!</p>
         </div>
 
-        <div style="text-align: center; margin-top: 20px; border-top: 1px solid #444; padding-top: 15px;">
-            <button class="primary" onclick="toggleHelpModal()">Start Adventure</button>
+        <div style="text-align: center; margin-top: auto; padding: 15px; border-top: 1px solid #444; background: #111;">
+            <button class="primary" onclick="toggleHelpModal()">Return to Game</button>
         </div>
     </div>
 </div>
@@ -2013,6 +2165,10 @@ function init() {
             setTimeout(() => window.scrollTo(0, 0), 100);
         }
     });
+	document.addEventListener('touchstart', function() {
+    const tt = document.getElementById('tooltip');
+    if (tt) tt.style.display = 'none';
+}, { passive: true });
 }
 
 function createTileTexture(name, cStr, cost) {
@@ -3192,15 +3348,20 @@ function resetGame() {
 
 // Add this to your script section
 function switchHelpTab(tabId) {
-    // Hide all sections
-    document.querySelectorAll('.help-section').forEach(s => s.classList.remove('active'));
-    // Show target section
-    document.getElementById(tabId).classList.add('active');
+    // 1. Hide all Content Sections
+    const sections = document.querySelectorAll('.help-section');
+    sections.forEach(s => s.classList.remove('active'));
     
-    // Update Button States
-    document.querySelectorAll('.help-tab').forEach(b => {
+    // 2. Show the Target Section
+    const target = document.getElementById(tabId);
+    if(target) target.classList.add('active');
+    
+    // 3. Update Tab Buttons (Visual State)
+    const buttons = document.querySelectorAll('.help-tab');
+    buttons.forEach(b => {
         b.classList.remove('active');
-        if(b.getAttribute('onclick').includes(tabId)) {
+        // Check data-tab attribute for robust matching
+        if(b.getAttribute('data-tab') === tabId) {
             b.classList.add('active');
         }
     });
@@ -3237,6 +3398,7 @@ function setupLongPressSell(element, identifier, source) {
                 if (navigator.vibrate) navigator.vibrate(50); // Little vibration for feedback
             }
         }, 600); // 600ms hold time
+		    hideTooltip(); 
     }, { passive: true });
 
     // Cancel timer if finger moves (scrolling) or lifts up
@@ -3281,7 +3443,12 @@ function updateHUD() {
             let d = document.createElement('div'); d.className = 'inv-slot'; d.dataset.idx = i; d.draggable = true; 
             d.ondragstart = (e) => { if(document.getElementById('context-menu').style.display === 'flex') { e.preventDefault(); return; } dragStart(e, i); }; 
             d.oncontextmenu = (e) => { e.preventDefault(); handleContextOpen(e, i, 'inv'); }; 
-            d.onclick = () => { if(document.getElementById('context-menu').style.display !== 'flex') equipItem(0, i); }; 
+            d.onclick = () => { 
+				if(document.getElementById('context-menu').style.display !== 'flex') {
+				hideTooltip(); // <--- ADD THIS LINE
+				equipItem(0, i); 
+			}
+};
             if(p.inventory[i]){ d.innerText = p.inventory[i].name; d.classList.add('rarity-' + p.inventory[i].rarity); d.onmouseenter = () => showTooltip(p.inventory[i]); d.onmouseleave = hideTooltip; setupLongPressSell(d, i, 'inv'); } 
             invDiv.appendChild(d); 
         } 
@@ -3528,7 +3695,16 @@ document.addEventListener('mousemove', (e) => {
 });
 document.addEventListener('click', (e) => { const menu = document.getElementById('context-menu'); if (menu && !e.target.classList.contains('inv-slot') && !e.target.classList.contains('ctx-item')) menu.style.display = 'none'; });
 let lastTouchTime = 0; let lastTouchSlot = "";
-function toggleHelpModal() { const m = document.getElementById('help-modal'); m.style.display = (m.style.display === 'flex') ? 'none' : 'flex'; }
+function toggleHelpModal() { 
+    const m = document.getElementById('help-modal'); 
+    if (m.style.display === 'flex') {
+        m.style.display = 'none';
+    } else {
+        m.style.display = 'flex';
+        // Reset to first tab when opening
+        switchHelpTab('tab-basics');
+    }
+}
 function toggleSettingsModal() { 
     const m = document.getElementById('settings-modal'); 
     // Toggle between Flex and None
@@ -3862,6 +4038,27 @@ function drawLine(ctx, p, key, maxVal, pad, gw, gh, maxTurns, color, dashed) {
     });
     ctx.stroke();
     ctx.setLineDash([]);
+}
+
+function togglePanelVisibility(id) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    
+    // Check if it is currently hidden
+    // We check for 'none' OR if the class 'active' is missing on mobile
+    const isHidden = (getComputedStyle(el).display === 'none');
+    
+    if (isHidden) {
+        // OPEN IT
+        el.style.display = 'flex'; // Force flex display
+        el.classList.add('active'); // For mobile popup styling
+        if(typeof AUDIO !== 'undefined') AUDIO.playSound('sfx_click');
+    } else {
+        // CLOSE IT
+        el.style.display = 'none'; // Force hide
+        el.classList.remove('active');
+        if(typeof AUDIO !== 'undefined') AUDIO.playSound('sfx_click');
+    }
 }
 
 // Start Engine
