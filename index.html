@@ -1018,12 +1018,12 @@
             <div class="stat-box"><div id="p1-dex" class="stat-val">0</div><div class="stat-lbl">DEX</div></div>
             <div class="stat-box"><div id="p1-int" class="stat-val">0</div><div class="stat-lbl">INT</div></div>
         </div>
-        <div class="paper-doll">
-            <div id="slot-head" class="equip-slot" onpointerup="handleEquipTouch('head')">Head</div>
-            <div id="slot-body" class="equip-slot" onpointerup="handleEquipTouch('body')">Body</div>
-            <div id="slot-main" class="equip-slot" onpointerup="handleEquipTouch('main')">Main</div>
-            <div id="slot-off" class="equip-slot" onpointerup="handleEquipTouch('off')">Off</div>
-        </div>
+<div class="paper-doll">
+    <div id="slot-head" class="equip-slot">Head</div>
+    <div id="slot-body" class="equip-slot">Body</div>
+    <div id="slot-main" class="equip-slot">Main</div>
+    <div id="slot-off" class="equip-slot">Off</div>
+</div>
         <div style="padding:0 10px; font-size:0.7rem; color:#888; margin-bottom:5px;">INVENTORY</div>
         <div id="p1-inv" class="inv-grid"></div>
         
@@ -4246,6 +4246,91 @@ function setupLongPressSell(element, identifier, source) {
     element.addEventListener('touchcancel', clearTimer);
 }
 
+function setupItemInteractions(element, index, source) {
+    const p = players[0];
+    const item = (source === 'inv') ? p.inventory[index] : p.equipment[index];
+    
+    // 1. Clear old handlers to prevent conflicts
+    element.onclick = null;
+    element.oncontextmenu = null;
+    element.ondblclick = null;
+    element.onmouseenter = null;
+    element.onmouseleave = null;
+    element.onpointerup = null; 
+    element.ontouchstart = null;
+    element.ontouchend = null;
+
+    // If slot is empty, we stop here (unless it's an equip slot we want to show empty tooltip for)
+    // But generally, interactions require an item.
+    
+    // --- DESKTOP EVENTS ---
+    
+    // Hover -> Tooltip
+    if (item) {
+        element.onmouseenter = () => showTooltip(item);
+        element.onmouseleave = hideTooltip;
+    }
+
+    // Right Click -> Context Menu
+    element.oncontextmenu = (e) => {
+        e.preventDefault();
+        if (item) handleContextOpen(e, index, source);
+    };
+
+    // Double Click -> Equip/Unequip
+    element.ondblclick = (e) => {
+        e.preventDefault();
+        hideTooltip();
+        if (source === 'inv' && item) equipItem(0, index);
+        else if (source === 'equip' && item) unequipItem(index);
+    };
+
+    // Single Click -> Tooltip (Backup for touch/hybrid)
+    element.onclick = (e) => {
+        if(item) showTooltip(item);
+    };
+
+
+    // --- MOBILE TOUCH LOGIC (Long Press & Double Tap) ---
+    let pressTimer;
+    let lastTap = 0;
+
+    element.ontouchstart = (e) => {
+        // Start Long Press Timer (600ms)
+        pressTimer = setTimeout(() => {
+            if (item) {
+                handleContextOpen(e, index, source);
+                if (navigator.vibrate) navigator.vibrate(50); // Haptic feedback
+            }
+        }, 600);
+    };
+
+    element.ontouchend = (e) => {
+        clearTimeout(pressTimer); // Cancel long press if finger lifts early
+        
+        const currentTime = new Date().getTime();
+        const tapLength = currentTime - lastTap;
+        
+        // Detect Double Tap (<300ms gap)
+        if (tapLength < 300 && tapLength > 0) {
+            e.preventDefault(); // Stop zoom
+            hideTooltip();
+            
+            if (source === 'inv' && item) equipItem(0, index);
+            else if (source === 'equip' && item) unequipItem(index);
+            
+            lastTap = 0; // Reset
+        } else {
+            // Single Tap detected
+            if (item) showTooltip(item);
+            lastTap = currentTime;
+        }
+    };
+
+    element.ontouchmove = () => clearTimeout(pressTimer); // Cancel if scrolling
+    element.ontouchcancel = () => clearTimeout(pressTimer);
+}
+
 function updateHUD() {
     if(players.length === 0) return;
     const p = players[0];
@@ -4268,7 +4353,7 @@ function updateHUD() {
     const cur = players[turnIndex]; 
     setT('turn-banner', cur.id === 0 ? "YOUR TURN" : `${cur.name}'S TURN`);
     
-    // ACTION BUTTON LOGIC
+    // Action Button
     const btnAction = document.getElementById('btn-action');
     if (btnAction) {
         btnAction.disabled = true;
@@ -4281,7 +4366,7 @@ function updateHUD() {
         } else { btnAction.innerText = "AI"; }
     }
     
-    // INVENTORY GRID
+    // --- INVENTORY GRID (UPDATED) ---
     const invDiv = document.getElementById('p1-inv'); 
     if(invDiv){ 
         invDiv.innerHTML = ''; 
@@ -4290,51 +4375,46 @@ function updateHUD() {
             d.className = 'inv-slot'; 
             d.dataset.idx = i; 
             d.draggable = true; 
-            d.ondragstart = (e) => { if(document.getElementById('context-menu').style.display === 'flex') { e.preventDefault(); return; } dragStart(e, i); }; 
-            d.oncontextmenu = (e) => { e.preventDefault(); handleContextOpen(e, i, 'inv'); }; 
-            d.onclick = () => { 
-                if(document.getElementById('context-menu').style.display !== 'flex') {
-                    hideTooltip(); 
-                    equipItem(0, i); 
-                }
-            };
+            
+            // Drag Logic
+            d.ondragstart = (e) => { 
+                if(document.getElementById('context-menu').style.display === 'flex') { e.preventDefault(); return; } 
+                dragStart(e, i); 
+            }; 
+            
+            // Visuals
             if(p.inventory[i]){ 
                 d.innerText = p.inventory[i].name; 
                 d.classList.add('rarity-' + p.inventory[i].rarity); 
-                d.onmouseenter = () => showTooltip(p.inventory[i]); 
-                d.onmouseleave = hideTooltip; 
-                setupLongPressSell(d, i, 'inv'); 
             } 
+
+            // NEW: Unified Interactions
+            setupItemInteractions(d, i, 'inv');
+            
             invDiv.appendChild(d); 
         } 
     }
     
-    // LEADERBOARD RENDER
+    // Leaderboard
     const lb = document.getElementById('leader-list'); 
     if(lb){ 
         lb.innerHTML = ''; 
         players.forEach(pl => { 
             let d = document.createElement('div'); 
-            
-            // Add 'boss' or 'merchant' class if applicable
             let extraClass = '';
             if (pl.isBoss) extraClass = (pl.bossType === 'boss') ? ' boss' : ' merchant';
             else if (pl.isDead) extraClass = ' dead';
-            
             d.className = 'leader-row' + extraClass; 
             
-            // Icon
             let icon = '';
             if (pl.isBoss) icon = (pl.bossType === 'boss') ? '<span class="boss-icon">👹</span>' : '<span class="boss-icon">🎒</span>';
 
-            // Name
             let nameSpan = document.createElement('span'); 
             nameSpan.className = "leader-name"; 
             nameSpan.style.color = pl.color; 
             nameSpan.innerHTML = icon + pl.name; 
             if(!pl.isDead && !pl.isBoss) { nameSpan.addEventListener('click', function() { openCharDetail(pl.id); }); } 
             
-            // Info
             let infoSpan = document.createElement('div');
             infoSpan.style.display = 'flex'; infoSpan.style.alignItems = 'center'; infoSpan.style.gap = '8px';
             
@@ -4345,14 +4425,13 @@ function updateHUD() {
                 const taverns = tiles.filter(t => t.userData.owner === pl.id && t.userData.buildingLevel === 2).length;
                 infoSpan.innerHTML = `<span style="font-size:0.9rem">⛺${camps} 🍺${taverns}</span><span style="font-weight:bold">${pl.isDead ? "DEAD" : pl.gold + "G"}</span>`;
             }
-
             d.appendChild(nameSpan); 
             d.appendChild(infoSpan); 
             lb.appendChild(d); 
         });
-    } // <--- THIS WAS MISSING
+    }
     
-    // UPDATE SKILL 0 (Class)
+    // Class Skill
     const s0 = document.getElementById('skill-0'); 
     const txt0 = document.getElementById('txt-skill-0'); 
     const actSkill = ABILITY_LIBRARY[p.activeSkillId]; 
@@ -4364,7 +4443,7 @@ function updateHUD() {
         s0.onmouseleave = hideTooltip; 
     }
 
-    // UPDATE EQUIPPED (Slots 1-4)
+    // --- EQUIPMENT SLOTS (UPDATED) ---
     EQUIP_ORDER.forEach((slotName, i) => { 
         const idx = i + 1; 
         const el = document.getElementById(`skill-${idx}`); 
@@ -4375,16 +4454,12 @@ function updateHUD() {
         if(dollEl) { 
             dollEl.innerHTML = item ? item.name : slotName.toUpperCase(); 
             dollEl.className = 'equip-slot' + (item ? ' filled' : ''); 
-            dollEl.oncontextmenu = (e) => { e.preventDefault(); handleContextOpen(e, slotName, 'equip'); }; 
-            if(item) { 
-                dollEl.onmouseenter = () => showTooltip(item); 
-                dollEl.onmouseleave = hideTooltip; 
-                setupLongPressSell(dollEl, slotName, 'equip'); 
-            } else { 
-                dollEl.onmouseenter = null; 
-                dollEl.onmouseleave = null; 
-            } 
+            
+            // NEW: Unified Interactions
+            setupItemInteractions(dollEl, slotName, 'equip');
         } 
+        
+        // Skill Bar Visuals
         if(el && txt) { 
             el.style.backgroundImage = 'none'; 
             if (item) {
@@ -4408,26 +4483,29 @@ function updateHUD() {
         } 
     });
     
-    // UPDATE SINGLE DRAG SLOT (Slot 5)
-    const item = p.quickSlots[0]; 
-    const el = document.getElementById('skill-5'); 
-    const txt = document.getElementById('txt-skill-5'); 
-    if(el && txt) { 
-        el.style.backgroundImage = 'none'; 
-        if (item && p.inventory.includes(item)) { 
-            el.className = "skill-slot consumable"; txt.innerText = item.name; 
-            const libSkill = Object.values(ABILITY_LIBRARY).find(s => s.name === item.name);
-            if(libSkill && libSkill.img) el.style.backgroundImage = `url('${libSkill.img}')`;
-            el.onmouseenter = () => showTooltip(item); 
-            el.onmouseleave = hideTooltip; 
-        } else { 
-            p.quickSlots[0] = null; el.className = "skill-slot"; txt.innerText = "Drag Item"; 
-            el.onmouseenter = null; 
-            el.onmouseleave = null; 
+    // Quick Slots
+    p.quickSlots.forEach((item, i) => { 
+        const idx = i + 5; 
+        const el = document.getElementById(`skill-${idx}`); 
+        const txt = document.getElementById(`txt-skill-${idx}`); 
+        if(el && txt) { 
+            el.style.backgroundImage = 'none'; 
+            if (item && p.inventory.includes(item)) { 
+                el.className = "skill-slot consumable"; txt.innerText = item.name; 
+                const libSkill = Object.values(ABILITY_LIBRARY).find(s => s.name === item.name);
+                if(libSkill && libSkill.img) el.style.backgroundImage = `url('${libSkill.img}')`;
+                el.onmouseenter = () => showTooltip(item); 
+                el.onmouseleave = hideTooltip; 
+            } else { 
+                p.quickSlots[i] = null; 
+                el.className = "skill-slot"; txt.innerText = "Drag Item"; 
+                el.onmouseenter = null; 
+                el.onmouseleave = null; 
+            } 
         } 
-    } 
+    });
     
-    // --- UPDATE MY STATS WIDGET ---
+    // My Stats Widget
     const myTiles = tiles.filter(t => t.userData.owner === 0);
     const myCamps = myTiles.filter(t => t.userData.buildingLevel === 1).length;
     const myTaverns = myTiles.filter(t => t.userData.buildingLevel === 2).length;
