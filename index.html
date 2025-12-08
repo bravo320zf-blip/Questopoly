@@ -2234,39 +2234,40 @@ function spawnBossAsPlayer(data) {
     // 1. Create Model
     const mesh = createDetailedBossMesh(data.modelType);
     
-    // 2. Generate unique ID (negative to avoid collision with real players)
+    // 2. Generate unique ID
     const bossId = -1 * (Math.floor(Math.random() * 1000) + 10);
     
     // 3. Create Player Object
     const bossPlayer = {
         id: bossId,
         name: data.name,
-        isBoss: true,
-        bossType: data.type, // 'boss' or 'merchant'
-        abilityReady: true, // For Dragon Fly
+        
+        isBoss: true,     // It's a boss
+        isAi: true,       // CRITICAL FIX: It acts like an AI (automated)
+        
+        bossType: data.type, 
+        abilityReady: true, 
         color: (data.type === 'boss') ? '#ef4444' : '#a855f7',
-        gold: 9999, // Infinite gold for merchants/bosses usually
+        gold: 9999, 
         pos: 0,
         mesh: mesh,
-        stats: { str: 10, dex: 10, int: 10 }, // Strong
+        stats: { str: 10, dex: 10, int: 10 }, 
         inventory: [],
         equipment: {},
         activeSkillId: null,
         passiveSkillId: null,
-        portrait: "", // Can add icon URL if desired
-        // Data from Event
+        portrait: "", 
         onLand: data.onLand,
         onTurn: data.onTurn,
         history: []
     };
 
-    // 4. Inject into Turn Order (Randomly, but not index 0)
-    // Random index between 1 and players.length
+    // 4. Inject into Turn Order
     const insertIdx = Math.floor(Math.random() * (players.length - 1)) + 1;
     players.splice(insertIdx, 0, bossPlayer);
     
     addLog(`${data.name} has entered the realm!`, "log-epic");
-    updateHUD(); // Refreshes Leaderboard
+    updateHUD(); 
     
     return bossPlayer;
 }
@@ -3310,38 +3311,38 @@ function endTurn(){
     }, 1000); // 1000ms = 1 second break
 }
 function resolveLanding(p) {
-
-    // --- CHECK BOSS/MERCHANT COLLISION ---
-    if (activeEvent && (activeEvent.data.type === 'boss' || activeEvent.data.type === 'merchant')) {
-        if (p.pos === activeEvent.pos) {
-            // Trigger the interaction defined in the event object
-            activeEvent.data.onLand(p, activeEvent);
-            // If it's a boss fight, we usually stop standard tile processing
+    // --- 1. CHECK BOSS/MERCHANT COLLISION ---
+    if (activeEvent && activeEvent.playerRef && (activeEvent.data.type === 'boss' || activeEvent.data.type === 'merchant')) {
+        // Check if player matches boss position AND is not the boss itself
+        if (p.pos === activeEvent.playerRef.pos && p.id !== activeEvent.playerRef.id) {
+            
+            // Trigger the interaction (e.g. Fight or Shop)
+            activeEvent.data.onLand(p, activeEvent.playerRef);
+            
+            // If it's a boss fight, stop processing the tile underneath
             if(activeEvent.data.type === 'boss') return; 
         }
     }
-    // 1. SELF PASSIVE TRIGGER (Class)
+
+    // --- 2. SKILL TRIGGERS ---
     const passive = ABILITY_LIBRARY[p.passiveSkillId];
     if (passive && passive.onLanding) passive.onLanding(p);
 
-    // 2. SELF ACTIVE TRIGGER (Class)
     const active = ABILITY_LIBRARY[p.activeSkillId];
     if (active && active.onLanding) active.onLanding(p);
 
-    // --- FIX: CHECK EQUIPMENT TRIGGERS (Gold Rush, etc) ---
+    // Equipment Triggers
     ['head', 'body', 'main', 'off'].forEach(slot => {
         const item = p.equipment[slot];
         if (item && item.ability) {
-            // We must look up the original library entry because item.ability only contains the name/desc/fn copies
             const libAbil = Object.values(ABILITY_LIBRARY).find(a => a.name === item.ability.name);
             if (libAbil && libAbil.onLanding) {
                 libAbil.onLanding(p);
             }
         }
     });
-    // ------------------------------------------------------
 
-    // 3. TRAP TRIGGER (Skeleton Key)
+    // Trap Trigger (Skeleton Key)
     players.forEach(other => {
         if (other.id !== p.id && !other.isDead && other.pos === p.pos) {
             const trapPassive = ABILITY_LIBRARY[other.passiveSkillId];
@@ -3351,18 +3352,28 @@ function resolveLanding(p) {
         }
     });
 
-    const t = tiles[p.pos]; const i = t.userData.info;
-    if(p.isAi) { processAiTurn(p, t, i); return; }
+    // --- 3. HANDLE AI vs HUMAN FLOW ---
+    const t = tiles[p.pos]; 
+    const i = t.userData.info;
     
+    if(p.isAi) { 
+        processAiTurn(p, t, i); 
+        return; 
+    }
+    
+    // --- 4. HUMAN UI POPUP ---
     const m = document.getElementById('arrival-modal');
     if(m) {
         const imgEl = document.getElementById('arrival-image');
-        if(imgEl) { if(i.cardImg) { imgEl.src = i.cardImg; imgEl.style.display = 'block'; } else { imgEl.style.display = 'none'; } }
+        if(imgEl) { 
+            if(i.cardImg) { imgEl.src = i.cardImg; imgEl.style.display = 'block'; } 
+            else { imgEl.style.display = 'none'; } 
+        }
         const flavorEl = document.getElementById('arrival-flavor');
         if(flavorEl) flavorEl.innerText = i.flavor || "You arrive at " + i.name + ".";
         m.classList.add('active');
     }
-	AUDIO.playSound('sfx_gold');
+    AUDIO.playSound('sfx_gold');
 }
 
 function continueFromArrival() {
@@ -3426,6 +3437,18 @@ function continueFromArrival() {
 
 function processAiTurn(p, t, i) {
     try {
+        // --- FIX: BOSS IGNORES TILE LOGIC ---
+        // Bosses don't pay rent, buy land, or get jailed. They just move.
+        if (p.isBoss) {
+            // Apply Tile Effect if defined (e.g. Dragon burns building)
+            if (activeEvent && activeEvent.data.onTileEffect) {
+                activeEvent.data.onTileEffect(t);
+            }
+            endStep();
+            return;
+        }
+        // ------------------------------------
+
         // 1. Handle Instant Events
         if(i.type === 'tax') { processTax(p, 50); endStep(); return; } 
         if(i.type === 'park') { 
@@ -3458,13 +3481,11 @@ function processAiTurn(p, t, i) {
             if (card.choices) {
                 let best = card.choices[0];
                 
-                // --- FOG CHECK ---
+                // Fog Logic
                 if (activeEvent && activeEvent.data.id === 'event_fog') {
-                    // AI guesses randomly in fog
                     best = card.choices[Math.floor(Math.random() * card.choices.length)];
                 } 
                 else if (card.choices[1]) {
-                    // AI calculates best option normally
                     const stat1 = p.stats[best.stat] || 0;
                     const stat2 = p.stats[card.choices[1].stat] || 0;
                     if (stat2 > stat1) best = card.choices[1];
@@ -3522,8 +3543,6 @@ function processAiTurn(p, t, i) {
                 addLog(`${p.name} attempts to upgrade...`); 
                 const card = DECK_SKIRMISH[Math.floor(Math.random() * DECK_SKIRMISH.length)]; 
                 
-                // For upgrades, assume choices[0] and choices[1] exist.
-                // Pick best, or random if fog.
                 let bestChoice = card.choices[0];
                 if (card.choices[1]) {
                     if (activeEvent && activeEvent.data.id === 'event_fog') {
