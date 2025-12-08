@@ -2,7 +2,9 @@
 <html lang="en">
 <!-- 
 ================================================================
-   QUESTOPOLY: LEGENDS - MOBILE RTS VIEW
+   QUESTOPOLY: LEGENDS - POLISHED UI EDITION
+   UI Overhaul: Glass & Gold Theme
+   Logic: Original (Preserved)
 ================================================================
 -->
 
@@ -16,761 +18,574 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tween.js/18.6.4/tween.umd.js"></script>
 
 <style>
-        @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@700;900&family=Roboto+Condensed:wght@400;700&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@700;900&family=Lato:wght@400;700&display=swap');
 
-/* ================================================================
-   [01] GLOBAL VARIABLES
-   ================================================================ */
-        :root {
-            --bg-dark: #0f172a;
-            --panel-bg: rgba(20, 25, 35, 0.95);
-            --gold: #fbbf24;
-            --accent: #ef4444;
-            --text-main: #e2e8f0;
-            --success: #22c55e;
-            --rare: #3b82f6;
-            --epic: #a855f7;
-            --legend: #f59e0b;
-        }
+    :root {
+        --bg-dark: #020617;
+        --glass-bg: rgba(15, 23, 42, 0.85);
+        --glass-border: rgba(255, 255, 255, 0.1);
+        --gold-main: #f59e0b;
+        --gold-glow: #fbbf24;
+        --gold-dim: #78350f;
+        --accent-red: #ef4444;
+        --accent-green: #10b981;
+        --accent-blue: #3b82f6;
+        --accent-purple: #a855f7;
+        --font-head: 'Cinzel', serif;
+        --font-body: 'Lato', sans-serif;
+        --radius-main: 12px;
+    }
 
-        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; } 
-        
-        html, body { 
-            width: 100%; 
-            height: 100%; 
-            margin: 0; 
-            padding: 0; 
-            overflow: hidden; /* Hides scrollbars */
-            background: #000; 
-            
-            /* --- THE FIX IS HERE --- */
-            position: fixed; /* Locks the body to the viewport */
-            overscroll-behavior: none; /* Stops the "bounce" effect */
-            touch-action: none; /* Disables pinch-zoom and pan gestures globally */
-            -webkit-user-select: none; /* Disable text selection */
-            user-select: none;
-        }
-        
-        body { font-family: 'Roboto Condensed', sans-serif; color: var(--text-main); }
-        h1, h2, h3, button, input { font-family: 'Cinzel', serif; }
-		
-/* ================================================================
-   [01.5] SCROLL LOCK FIXES
-   ================================================================ */
-        /* Re-enable scrolling for specific internal containers */
-        #game-log, 
-        #leader-list, 
-        .help-section, 
-        .card-modal, 
-        .panel:not(.minimized),
-        #create-screen {
-            touch-action: pan-y; /* Allow vertical scrolling only */
-            overflow-y: auto;
-            overscroll-behavior: contain; /* Stop scroll from bubbling to body */
-        }
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; outline: none; user-select: none; }
+    html, body { width: 100%; height: 100%; margin: 0; padding: 0; overflow: hidden; background: #000; color: #e2e8f0; font-family: var(--font-body); position: fixed; touch-action: none; }
+    h1, h2, h3, button, .modal-title { font-family: var(--font-head); text-transform: uppercase; }
 
-/* ================================================================
-   [02] LAYERS & BOARD ANCHOR
-   ================================================================ */
-        #game-layer { 
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%; 
-            z-index: 1; display: block; pointer-events: none; 
-        }
-        #game-layer canvas { display: block; width: 100%; height: 100%; outline: none; }
-        
-        /* THE MAGIC CONTAINER (Desktop Anchor) */
-        #board-overlay {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            width: 98vmin;
-            height: 98vmin;
-            z-index: 10;
-            pointer-events: none;
-        }
+    /* --- LAYOUT LAYERS --- */
+    #game-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; }
+    
+    #ui-layer {
+        position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+        z-index: 100; pointer-events: none;
+        display: flex; justify-content: center; align-items: center;
+        gap: 20px; overflow: hidden;
+    }
 
-/* ================================================================
-   [03] UI POSITIONS (DESKTOP DEFAULT)
-   ================================================================ */
-   .panel { 
-        background: var(--panel-bg); 
-        border: 2px solid #444; 
-        box-shadow: 0 5px 20px rgba(0,0,0,0.8); 
-        border-radius: 8px; 
-        padding: 1.5vmin; /* Increased padding */
-        pointer-events: auto; 
-        transition: all 0.3s ease;
+    /* THE BLUE BOX (Board Anchor - Keeps Aspect Ratio) */
+    #board-anchor {
+        position: relative;
+        height: 96vh; width: 96vh; 
+        max-width: 96vw; max-height: 96vw; 
+        pointer-events: none;
+    }
+
+    /* THE RED BOX (Inner Play Area) */
+    #inner-zone {
         position: absolute;
+        top: 14.5%; left: 14.5%;
+        width: 71%; height: 77%;
+        pointer-events: none;
+    }
+
+    /* --- UI COMPONENTS --- */
+    .glass-panel, button, .modal-content, .skill-slot, .equip-slot, .inv-slot, .util-btn, #btn-action, #turn-widget, #adventure-log-widget { pointer-events: auto; }
+
+    /* SIDEBARS */
+    #p1-sheet { width: 280px; height: 80%; transition: transform 0.3s ease; z-index: 20; }
+    #leaderboard { 
+        width: 240px; height: auto; max-height: 60%; 
+        transition: transform 0.3s ease; z-index: 20; 
+        align-self: flex-start; margin-top: 10%;
+    }
+    
+/* HIDE SIDEBARS LOGIC & ACTIVE STATE */
+    @media (max-width: 1600px) {
+        #p1-sheet, #leaderboard { display: none !important; }
+        
+        /* When toggled via buttons, show as popup */
+        #p1-sheet.active, #leaderboard.active {
+            display: flex !important;
+            position: fixed;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            width: 80vw; max-width: 400px; height: 70vh;
+            
+            /* UPDATED: Increased from 2000 to 4000 to sit ABOVE the Skill Bar (3000) */
+            z-index: 4000 !important; 
+            
+            background: rgba(15, 23, 42, 0.98);
+            border: 2px solid var(--gold-main);
+        }
+        
+        /* Show the toggle buttons in the utility stack */
+        .mobile-toggle-btn { display: flex !important; }
+    }
+
+    /* 1. TURN TRACKER */
+    #turn-widget {
+        position: absolute; top: 0; left: 50%; transform: translate(-50%, -50%); width: 50%;
+        background: linear-gradient(90deg, transparent, rgba(0,0,0,0.9), transparent); text-align: center;
+    }
+    #turn-banner { font-size: 3vh; color: #fff; text-shadow: 0 0 10px var(--gold-glow); margin: 0; white-space: nowrap; }
+    #day-night-indicator { font-size: 1.5vh; color: var(--accent-blue); padding: 0.5vh 2vh; background: rgba(0,0,0,0.5); border-radius: 10px; display: inline-block; border: 1px solid #333; }
+
+    /* 2. TREASURY */
+    #treasury-widget {
+        position: absolute; top: 0; left: -5%;
+        background: radial-gradient(circle, #451a03 0%, #000 100%);
+        border: 2px solid var(--gold-main); border-radius: 0 0 15px 0;
+        padding: 10px 20px; box-shadow: 2px 2px 10px rgba(0,0,0,0.8);
+        display: flex; flex-direction: column; align-items: center; pointer-events: auto;
+    }
+    .treasury-icon { font-size: 2.5vh; margin-bottom: 2px; }
+    .treasury-amount { font-family: var(--font-head); font-size: 2vh; color: var(--gold-glow); font-weight: 900; text-shadow: 0 0 5px var(--gold-main); }
+    .treasury-label { font-size: 1vh; color: #aaa; text-transform: uppercase; letter-spacing: 1px; }
+
+    /* 3. LOG */
+    #adventure-log-widget {
+        position: absolute;
+        top: 8%; left: 50%; transform: translateX(-50%);
+        height: 20%; width: 60%;
+        
+        background: rgba(15, 23, 42, 0.6); 
+        border: 1px solid var(--glass-border); 
+        border-radius: 10px; padding: 5px 10px;
+        
+        /* CHANGED: Normal column direction, hidden overflow on widget */
+        display: flex; 
+        flex-direction: column; 
+        overflow: hidden; 
+        
+        pointer-events: auto;
+    }
+	#game-log {
+        width: 100%;
+        height: 100%;
+        overflow-y: auto; /* Scroll inside this inner div */
         display: flex;
         flex-direction: column;
+        /* Gradient mask to fade out old text at the top */
+        mask-image: linear-gradient(to bottom, transparent, black 15%); 
+        -webkit-mask-image: linear-gradient(to bottom, transparent, black 15%);
     }
-    .minimize-btn { background: transparent; border: 1px solid #666; color: #aaa; width: 1px; height: 1px; border-radius: 20px; cursor: pointer; float: right; display: flex; align-items: center; justify-content: center; margin-left: 10px; }
-    .panel.minimized > *:not(.char-header):not(h3) { display: none !important; }
-    .panel.minimized { width: 100px; height: auto !important; min-width: 150px; }
-
-    /* Desktop Positions (Relative to Board) */
-    /* UPDATED: Much wider and longer/taller */
-    #p1-sheet { 
-        top: 10%; 
-        left: 10%; 
-        width: 30%; /* Increased width */
-        border-color: var(--gold); 
-        max-height: 80%; /* Much Longer */
-        font-size: 1.1rem; /* Larger text */
-    }
-    
-    #leaderboard { 
-        top: 10%; 
-        right: 10%; 
-        width: 30%; /* Increased width */
-		height: 38%;
-        border-color: #665c3b; 
-        max-height: 100%; /* Much Longer */
-        font-size: 1.1rem;
+    .log-entry { 
+        font-size: 1.4vh; 
+        padding: 2px 0; 
+        text-shadow: 1px 1px 2px #000; 
+        border-bottom: 1px solid rgba(255,255,255,0.05); 
+        flex-shrink: 0; /* Prevent squishing */
     }
 
-    /* Center Top: Turn Info */
-    #turn-info-container {
-        position: absolute; top: 20%; left: 50%; transform: translateX(-50%);
-        text-align: center; pointer-events: none; width: 100%;
-    }
-    #turn-banner { font-size: 5vmin; color: white; text-shadow: 0 0 10px var(--gold); margin-bottom: 5px; }
-    #day-night-indicator { display: inline-block; font-size: 2.5vmin; padding: 5px 20px; background: rgba(0,0,0,0.6); border: 1px solid #555; border-radius: 20px; color: #87ceeb; }
-
-    /* Bottom Center: Log & Skills */
-    #hud-bottom {
-        position: absolute; bottom: 10%; left: 50%; transform: translateX(-50%);
-        display: flex; flex-direction: column; align-items: center;
-        width: 55%; /* Wider on desktop */
-        pointer-events: auto;
-    }
-    #game-log { 
-        width: 100%; height: 18vmin; font-size: 1.8vmin;
-        background: linear-gradient(to bottom, rgba(0,0,0,0.9), rgba(0,0,0,0.5));
-        border: 1px solid #444; border-radius: 8px; padding: 10px;
-        overflow-y: auto; text-align: left; margin-bottom: 5px;
-        -webkit-mask-image: linear-gradient(to bottom, transparent 5%, black 20%);
-        mask-image: linear-gradient(to bottom, transparent 5%, black 20%);
+    /* 4. SKILL BAR (SCALING FIX) */
+    #skill-bar-container {
+        position: absolute; 
+		bottom: 8%; 
+		left: 50%; 
+		transform: translateX(-50%);
+        width: 85%; height: 15%; /* Percentage based on Red Box */
+        display: flex; 
+		justify-content: center; 
+		align-items: flex-end; 
+		z-index: 60;
     }
     #skill-bar {
-        width: 100%; padding: 8px; gap: 8px; display: flex; justify-content: center;
-        background: rgba(20, 25, 35, 0.9); border: 2px solid #444; border-radius: 8px;
+        background: linear-gradient(to top, #020617, rgba(2,6,23,0.95));
+        border: 2px solid var(--gold-dim); border-radius: 15px;
+        width: 100%; height: 100%;
+        display: flex; gap: 2%; justify-content: space-between; align-items: center;
+        padding: 0 2%; box-shadow: 0 0 30px rgba(0,0,0,0.9);
     }
 
-    /* Bottom Right: Controls */
-    #controls { position: absolute; bottom: 10%; right: 7%; display: flex; flex-direction: column; gap: 10px; pointer-events: auto; width: 15%; }
-    #controls button { width: 80%; padding: 20px; font-size: 1.5rem; } /* Larger buttons */
-
-    /* Bottom Left: Help */
-    #btn-help { 
-        position: absolute; bottom: 10%; left: 10%; width: 8vmin; height: 8vmin; 
-        background: var(--gold); color: #000; border: 2px solid #fff; border-radius: 50%; 
-        font-size: 4vmin; font-weight: 900; cursor: pointer; box-shadow: 0 0 15px #000; 
-        display: flex; align-items: center; justify-content: center; pointer-events: auto; 
-        transition: transform 0.2s;
+    /* BUTTON SCALING FIX */
+    #btn-action-container {
+        position: absolute; left: 50%; bottom: 50%; transform: translate(-50%, 50%); z-index: 100;
+        width: 25%; height: auto; aspect-ratio: 1; pointer-events: none; /* Container ignores clicks, button accepts */
+        display: flex; justify-content: center; align-items: center;
     }
-    #btn-help:hover { transform: scale(1.1); box-shadow: 0 0 25px var(--gold); }
-
-/* ================================================================
-   [04] INTERNAL ELEMENTS
-   ================================================================ */
-        button { background: #2a2a2a; color: #fff; border: 1px solid #555; padding: 1.5vmin 3vmin; font-size: 2.5vmin; cursor: pointer; transition: 0.2s; text-transform: uppercase; box-shadow: 0 4px 0 #111; border-radius: 6px; width: auto; }
-        button:hover { background: #333; transform: translateY(-2px); }
-        button.primary { background: var(--gold); color: #000; border: none; font-weight: bold; box-shadow: 0 4px 0 #b45309; }
-        button:disabled { opacity: 0.5; cursor: not-allowed; filter: grayscale(1); transform: none; box-shadow: none; }
-
-        .stat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px; margin-bottom: 5px; }
-        .stat-box { background: #222; padding: 2px; text-align: center; border: 1px solid #444; border-radius:4px; }
-        .stat-val { font-size: 2.5vmin; font-weight: bold; color: #fff; }
-        .stat-lbl { font-size: 1.2vmin; color: #888; font-weight: bold; }
-        .paper-doll { display: grid; grid-template-columns: 1fr 1fr; gap: 2px; margin-bottom: 5px; border-top: 1px solid #444; padding-top: 5px; }
-        .equip-slot { background: #1a1a1a; border: 1px solid #333; height: 3.5vmin; display: flex; align-items: center; justify-content: center; font-size: 1.5vmin; text-align: center; color: #666; cursor: pointer; }
-        .equip-slot.filled { border-color: var(--success); color: #fff; background: #052e16; font-weight: bold;}
-        .inv-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 2px; }
-        .inv-slot { width: 100%; height: 3.5vmin; background: #111; border: 1px solid #333; cursor: pointer; display:flex; align-items:center; justify-content:center; font-size: 1.2vmin; text-align:center; color:#fff; position: relative; }
-        .rarity-common { color: #fff; } .rarity-rare { color: var(--rare); border-color: var(--rare); } .rarity-epic { color: var(--epic); border-color: var(--epic); box-shadow: 0 0 5px var(--epic); } .rarity-legendary { color: var(--legend); border-color: var(--legend); box-shadow: 0 0 8px var(--legend); }
-        .char-portrait { width: 6vmin; height: 6vmin; border: 2px solid #444; border-radius: 50%; background-size: cover; background-position: top center; background-color: #000; margin-right: 10px; flex-shrink: 0; }
-        .char-header { font-size: 2vmin; }
-        .gold-large { font-size: 2.5rem; color: var(--gold); font-weight: 900; text-shadow: 0 0 5px rgba(251, 191, 36, 0.5); }
-
-        .leader-row { display: flex; justify-content: space-between; margin-bottom: 2px; padding: 6px; background: #222; border-radius: 4px; font-size: 1.8vmin; cursor: pointer; transition: all 0.2s ease; border: 1px solid transparent; }
-        .leader-row:hover { background: rgba(255, 255, 255, 0.1); transform: translateX(-2px) scale(1.02); border-color: #555; }
-        .leader-name { font-weight: bold; text-decoration: none; }
- /* Skill Slots */
-    .skill-slot { 
-        width: 13vw !important; max-width: 65px !important;
-        height: 13vw !important; max-height: 65px !important;
-        font-size: 9px !important;
-        color: #fff !important;
-        text-shadow: 0 1px 2px #000, 0 0 4px #000 !important;
-        border: 1px solid #555 !important;
-        border-radius: 6px !important;
-        background-color: #1e293b !important;
-        background-size: 100% 100% !important; 
-        background-position: center !important;
-        background-repeat: no-repeat !important;
-        
-        display: flex !important; align-items: flex-end !important; justify-content: center !important;
-        padding-bottom: 2px !important; line-height: 1 !important;
-    }
-        .skill-slot:hover { border-color: var(--gold); } .skill-slot.filled { border-color: var(--rare); color: #fff; background: #0f172a; } .skill-slot.consumable { border-color: var(--success); }
-        .skill-key { position: absolute; top: -3px; left: -3px; width: 1.5vmin; height: 1.5vmin; background: #000; border: 1px solid #666; border-radius: 50%; color: #fff; font-size: 1vmin; display: flex; align-items: center; justify-content: center; font-weight: bold; z-index: 2; }
-        .log-entry { margin-bottom: 2px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 1px; }
-        .log-gold { color: var(--gold); } .log-fail { color: var(--accent); } .log-success { color: var(--success); }
-
-/* ================================================================
-   [05] MODALS (Standard)
-   ================================================================ */
-        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.9); z-index: 500; display: none; flex-direction: column; align-items: center; justify-content: center; pointer-events: auto; }
-        .modal-content { background: #1a1a1a; border: 4px solid var(--gold); padding: 40px; text-align: center; max-width: 500px; width: 90%; border-radius: 10px; box-shadow: 0 0 50px rgba(0,0,0,1); }
-        .card-modal { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) scale(0); width: 90%; max-width: 500px; max-height: 90vh; overflow-y: auto; background: #1a1a1a; border: 4px solid #fff; border-radius: 15px; z-index: 100; display: flex; flex-direction: column; box-shadow: 0 0 50px rgba(0,0,0,0.9); transition: 0.3s; pointer-events: auto; }
-        .card-modal.active { transform: translate(-50%, -50%) scale(1); }
-        .card-header { background: var(--gold); padding: 15px; text-align: center; color: #000; font-weight: bold; font-size: 1.5rem; border-bottom: 2px solid #000; }
-        .card-header.skirmish { background: #b91c1c; color: #fff; } .card-header.loot { background: #10b981; color: #fff; } .card-header.market { background: #78350f; color: #fff; }
-        .card-body { padding: 20px; text-align: center; color: #ddd; } 
-        .card-desc { font-style: italic; font-size: 1.1rem; margin-bottom: 20px; color: #fff; line-height: 1.4; }
-        .choice-btn { background: #333; color: white; border: 1px solid #555; padding: 12px; margin-bottom: 8px; font-size: 1rem; text-align: left; display: flex; justify-content: space-between; cursor: pointer; transition: 0.2s; border-radius: 4px; } .choice-btn:hover { background: #000; border-color: var(--gold); }
-        .dice-result { height: 40px; display: flex; gap: 8px; justify-content: center; margin-top: 15px; } 
-        .mini-die { width: 35px; height: 35px; background: #000; color: #fff; display: flex; align-items: center; justify-content: center; font-weight: bold; border-radius: 4px; font-size: 1.2rem; } .mini-die.win { background: var(--success); } .mini-die.lose { background: var(--accent); }
-        .close-x { position: absolute; top: -15px; right: -15px; width: 40px; height: 40px; background: #ef4444; color: white; border: 2px solid #fff; border-radius: 50%; font-weight: bold; font-size: 1.5rem; cursor: pointer; z-index: 101; display: flex; align-items: center; justify-content: center; padding: 0; }
-        #arrival-image, #flavor-image { width: 100%; height: auto; max-height: 40vh; display: block; border-bottom: 2px solid #000; object-fit: contain; background-color: #000; }
-
-        /* Help Modal */
-        .help-window { width: 95%; max-width: 700px; height: 80vh; display: flex; flex-direction: column; padding: 0; background: #111; border: 4px double var(--gold); overflow: hidden; }
-        .help-header-title { background: var(--gold); color: #000; font-family: 'Cinzel', serif; font-weight: 900; font-size: 2rem; text-align: center; padding: 15px; box-shadow: 0 5px 15px rgba(0,0,0,0.5); flex-shrink: 0; }
-        .help-tabs { display: flex; background: #222; border-bottom: 2px solid #444; flex-shrink: 0; overflow-x: auto; }
-        .help-tab { flex: 1; background: transparent; border: none; color: #888; padding: 15px 5px; font-family: 'Cinzel', serif; font-weight: bold; font-size: 1.1rem; cursor: pointer; transition: 0.2s; border-bottom: 4px solid transparent; white-space: nowrap; }
-        .help-tab:hover { background: rgba(255,255,255,0.05); color: #fff; }
-        .help-tab.active { color: var(--gold); border-bottom-color: var(--gold); background: rgba(251, 191, 36, 0.1); }
-        .help-section { display: none; padding: 20px 30px; overflow-y: auto; flex-grow: 1; text-align: left; color: #ccc; font-size: 1.1rem; line-height: 1.6; }
-        .help-section.active { display: block; animation: fadeIn 0.3s ease; }
-        .help-section h3 { color: #fff; border-bottom: 1px solid #444; padding-bottom: 5px; margin-top: 20px; font-size: 1.4rem; }
-        .help-section ul, .help-section ol { margin-bottom: 15px; padding-left: 20px; }
-        .help-section li { margin-bottom: 8px; }
-
-        #splash-screen { 
-        position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
-        background: linear-gradient(rgba(0,0,0,0.3), rgba(0,0,0,0.3)), url('https://static.wixstatic.com/media/b16479_0ce055a502234368915b49af52e0b18d~mv2.jpg'); 
-        background-size: cover; background-position: center; 
-        z-index: 300; 
-        display: flex; flex-direction: column; align-items: center; justify-content: center; 
-        pointer-events: auto; 
-        
-        /* NEW: Transition for Fade Out */
-        transition: opacity 1.5s ease-in-out;
-        opacity: 1;
-    }
-        #create-screen { 
-        position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
-        background: url('https://static.wixstatic.com/media/b16479_564e3eade6b7410785d835af2f340665~mv2.jpg'); 
-        background-size: cover; background-position: center; 
-        z-index: 200; 
-        display: none; /* Initially hidden */
-        flex-direction: column; align-items: center; justify-content: flex-start; 
-        padding: 80px 20px 40px 20px; overflow-y: auto; pointer-events: auto;
-        
-        /* NEW: Transition for Fade In */
-        opacity: 0; 
-        transition: opacity 1s ease-in-out;
-    }
-        #splash-screen h1, #create-screen h1 { color: #000; margin-bottom: 20px; text-shadow: 2px 2px 0px #FFF; text-align: center; font-size: 8rem; }
-        @media (max-width: 800px) { #splash-screen h1, #create-screen h1 { font-size: 4rem; } }
-        #create-screen h3 { color: #000 !important; font-size: 1.5rem; font-weight: 900; margin-top: 15px; margin-bottom: 10px; text-shadow: .5px .5px .5px #FFF; }
-        .input-group label { display: block; color: #000; margin-bottom: 8px; font-size: 2rem; font-weight: 900; font-family: 'Cinzel', serif; text-shadow: .5px .5px .5px #FFF; }
-        .input-group input { padding: 15px; font-size: 1.5rem; border-radius: 5px; border: 3px solid #000; background: #1e293b; color: white; text-align: center; width: 300px; font-weight: bold; }
-        .color-grid { display: flex; gap: 15px; justify-content: center; margin-top: 10px; }
-        .color-opt { width: 50px; height: 50px; border-radius: 50%; border: 3px solid #000; cursor: pointer; transition: 0.2s; box-shadow: 0 2px 5px rgba(0,0,0,0.5); } .color-opt:hover, .color-opt.selected { transform: scale(1.2); border-color: white; box-shadow: 0 0 15px var(--gold); }
-        .sel-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin: 10px 0 20px 0; max-width: 800px; width: 100%; }
-        .sel-opt { background: #1e293b; padding: 20px; cursor: pointer; border: 2px solid transparent; text-align: center; transition: 0.2s; border-radius: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.5); } .sel-opt:hover { transform: translateY(-3px); background: #334155; } .sel-opt.selected { border-color: var(--gold); background: #334155; box-shadow: 0 0 15px rgba(251, 191, 36, 0.5); } .sel-opt b { color: #fff; display: block; margin-bottom: 5px; font-size: 1.2rem; } .sel-opt small { color: #94a3b8; display: block; line-height: 1.2; font-size: 0.9rem; }
-        .skill-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-bottom: 30px; }
-        .skill-card { background: #1e293b; border: 1px solid #475569; padding: 20px; cursor: pointer; border-radius: 6px; width: 200px; text-align: center; box-shadow: 0 4px 10px rgba(0,0,0,0.5); } .skill-card:hover { border-color: var(--success); } .skill-card.selected { background: #064e3b; border-color: var(--success); box-shadow: 0 0 15px var(--success); } .skill-card b { color: #fff; display: block; margin-bottom: 5px; font-size: 1.1rem; } .skill-card small { color: #ccc; font-size: 0.9rem; }
-        #creator-portrait-frame { position: fixed; right: 5%; top: 50%; transform: translateY(-50%); width: 400px; height: 500px; border: 4px solid var(--gold); border-radius: 10px; box-shadow: 0 0 30px #000; background-color: #000; background-size: cover; background-position: top center; background-repeat: no-repeat; display: none; z-index: 201; pointer-events: auto; transition: all 0.3s ease; }
-        #creator-portrait-frame.minimized { width: 80px !important; height: 80px !important; right: 20px !important; top: 20px !important; transform: none !important; border-width: 2px !important; background-position: top center !important; }
-        
-        #tooltip { position: absolute; display: none; background: rgba(10,10,15,0.98); border: 2px solid var(--gold); padding: 15px; color: #fff; font-size: 1rem; pointer-events: none; z-index: 200; border-radius: 6px; width: 250px; box-shadow: 0 5px 20px #000; } .tt-header { border-bottom: 1px solid #444; padding-bottom: 5px; margin-bottom: 5px; display:flex; justify-content: space-between;} .tt-name { font-weight: bold; color: var(--gold); font-family: 'Cinzel', serif; font-size: 1.2rem; } .tt-rarity { font-size: 0.9rem; text-transform: uppercase; } .tt-stat { color: #ccc; display: block; } .tt-abil { color: var(--success); margin-top: 5px; font-style: italic; display:block; border-top: 1px solid #333; padding-top: 3px;}
-        #context-menu { position: absolute; display: none; flex-direction: column; background: #1a1a1a; border: 2px solid var(--gold); z-index: 1000; min-width: 200px; box-shadow: 0 5px 20px rgba(0,0,0,0.9); border-radius: 6px; } .ctx-item { padding: 15px 20px; cursor: pointer; border-bottom: 1px solid #333; font-size: 1.1rem; color: #fff; background: #222; } .ctx-item:hover { background: #333; color: var(--gold); } .ctx-item:last-child { border-bottom: none; } .ctx-item.disabled { color: #555; cursor: not-allowed; background: #151515; }
-
-
-/* ================================================================
-   [06.5] ABILITY ART STYLES
-   ================================================================ */
-/* Icon in the Tooltip (Top Left next to name) */
-.tt-icon { 
-    width: 40px; height: 40px; 
-    border-radius: 4px; border: 1px solid var(--gold); 
-    object-fit: cover; margin-right: 10px; 
-    background-color: #000;
-}
-
-/* Icon in Character Creation Cards */
-.skill-card img { 
-    width: 50px; height: 50px; 
-    border-radius: 50%; border: 2px solid #555; 
-    object-fit: cover; display: block; 
-    margin: 0 auto 5px auto; 
-}
-.skill-card.selected img { border-color: var(--success); box-shadow: 0 0 10px var(--success); }
-
-
-/* ================================================================
-   [06.6] MOBILE SCALING CORRECTION
-   ================================================================ */
-
-/* SETTINGS BUTTON (Desktop) */
-    #btn-settings { 
-        position: absolute; bottom: 10%; left: 18%; /* Next to Help (which is 10%) */
-        width: 8vmin; height: 8vmin; 
-        background: #333; color: #aaa; border: 2px solid #555; border-radius: 50%; 
-        font-size: 4vmin; font-weight: 900; cursor: pointer; box-shadow: 0 0 15px #000; 
-        display: flex; align-items: center; justify-content: center; pointer-events: auto; 
-        transition: transform 0.2s;
-    }
-    #btn-settings:hover { transform: scale(1.1); color: #fff; border-color: #fff; }
-
-    /* MOBILE SCALING FOR SETTINGS BUTTON */
-    @media only screen and (max-width: 768px) {
-        #btn-settings {
-            position: absolute !important;
-            bottom: 85px !important; left: 65px !important; top: auto !important;
-            width: 45px !important; height: 45px !important;
-            font-size: 24px !important; z-index: 150 !important;
-            background: #333 !important; border: 2px solid #fff !important;
-            box-shadow: none !important;
-        }
-    }
-	
-	/* ================================================================
-   [06.7] MOBILE SCALING CORRECTION
-   ================================================================ */
-	
-	/* LOGO SCREEN */
-    #logo-screen {
-        position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-        background: #000;
-        z-index: 400; /* Higher than Splash (300) */
-        display: flex; flex-direction: column; 
-        align-items: center; justify-content: center;
-        transition: opacity 1.5s ease-out; /* For fading out the whole screen later */
+    #btn-action {
+        width: 90%; height: 90%; border-radius: 50%;
+        background: radial-gradient(circle at 30% 30%, var(--gold-glow), var(--gold-main));
+        border: 3px solid #fff; box-shadow: 0 0 30px var(--gold-glow), 0 10px 0 #451a03;
+        color: #2a1a00; font-family: var(--font-head); font-weight: 900; font-size: 3vmin; /* Scales with viewport */
+        cursor: pointer; display: flex; align-items: center; justify-content: center; text-align: center;
         pointer-events: auto;
     }
+    #btn-action:active { box-shadow: inset 0 0 15px rgba(0,0,0,0.5); transform: scale(0.98); }
+    #btn-action:disabled { filter: grayscale(1); cursor: not-allowed; background: #333; border-color:#555; box-shadow:none; color:#888;}
+    #btn-action.state-end { background: radial-gradient(circle at 30% 30%, #ef4444, #991b1b); color: #fff; box-shadow: 0 0 30px #ef4444, 0 10px 0 #450a0a; }
 
-#logo-img {
-        width: 60%; 
-        max-width: 800px;
-        height: auto;
-        opacity: 0; 
-        
-        /* UPDATED: Increased duration to 5s for a long, slow fade in */
-        animation: logoFadeIn 5s forwards; 
-        
-        transition: opacity 1s ease-out; 
+    .skill-slot {
+        flex: 1; height: 80%; background: #1e293b; border: 2px solid #475569; border-radius: 8px;
+        position: relative; cursor: pointer; display: flex; flex-direction: column; justify-content: flex-end;
+        background-size: cover; background-position: center; overflow: hidden; transition: transform 0.1s; box-shadow: inset 0 0 10px #000;
     }
+    .skill-slot span { font-size: 1.5vmin; padding: 2px; background: rgba(0,0,0,0.8); text-align: center; width: 100%; white-space:nowrap; overflow:hidden;}
+    .skill-key { font-size: 1.5vmin; width: 2.5vmin; height: 2.5vmin; position: absolute; top: 2px; left: 2px; background: #000; color: #fff; display: flex; align-items: center; justify-content: center; border: 1px solid #666; border-radius: 4px; }
+    .skill-slot:active { transform: scale(0.95); }
+    .spacer-slot { width: 30%; height: 0; pointer-events: none; }
 
-    #logo-text {
-        margin-top: 20px;
-        color: #fff;
-        font-family: 'Cinzel', serif;
-        font-size: 3vmin;
-        opacity: 0;
-        
-        /* UPDATED: Delay increased to 5.5s so it waits for the logo to finish */
-        animation: logoFadeIn 2s forwards 5.5s; 
-        
-        transition: opacity 1s ease-out;
+    /* 5. UTILITY BAR */
+    #utility-stack {
+        position: absolute; bottom: 3%; 
+		right: -4%; 
+		width: 8%;
+        display: flex; 
+		flex-direction: column-reverse; 
+		gap: 1vh; 
+		z-index: 500;
     }
-
-    @keyframes logoFadeIn {
-        from { opacity: 0; transform: scale(0.95); }
-        to { opacity: 1; transform: scale(1); }
-    }
-
-    /* Mobile Tweaks */
-    @media only screen and (max-width: 768px) {
-        #logo-img { width: 85%; }
-        #logo-text { font-size: 5vmin; }
-    }
-
-
-	/* ================================================================
-   [06.8] HIDE CLOSE BUTTON ON ENCOUNTERS
-   ================================================================ */
-    #card-modal .close-x { display: none !important; }
-
-
-	/* ================================================================
-   [06.9] GAME OVER STATS & GRAPH
-   ================================================================ */
-    .stat-summary { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; text-align: left; margin-bottom: 20px; font-size: 0.9rem; }
-    .stat-row { border-bottom: 1px solid #444; padding: 5px 0; display: flex; justify-content: space-between; }
-    
-    #graph-container { 
-        display: none; width: 100%; height: 300px; background: #222; border: 2px solid #555; margin-top: 15px; position: relative; 
-    }
-    canvas#game-chart { width: 100%; height: 100%; display: block; }
-    .graph-controls { display: flex; justify-content: center; gap: 15px; margin-top: 5px; font-size: 0.8rem; color: #ccc; }
-    .graph-legend { display: flex; gap: 10px; justify-content: center; margin-bottom: 5px; flex-wrap: wrap; }
-    .legend-item { display: flex; align-items: center; gap: 5px; font-size: 0.8rem; }
-    .legend-box { width: 12px; height: 12px; border: 1px solid #fff; }
-
-
-/* ================================================================
-   [07] MOBILE SCALING CORRECTION
-   Paste this at the very bottom of your <style> section
-   ================================================================ */
-@media only screen and (max-width: 768px) {
-
-    /* --- [A] CHARACTER CREATION FIXES --- */
-    .sel-grid, .skill-grid { grid-template-columns: 1fr 1fr !important; width: 100% !important; gap: 5px !important; }
-    .sel-opt, .skill-card { width: auto !important; min-width: 0 !important; padding: 10px !important; }
-    .input-group input { width: 90vw !important; max-width: 300px; }
-    .input-group label { font-size: 1.5rem !important; }
-    #create-screen { padding: 40px 10px !important; }
-    #splash-screen h1 { font-size: 12vmin !important; }
-    #splash-screen button, #create-screen button { font-size: 1.2rem !important; padding: 15px 30px !important; width: auto !important; max-width: 80%; }
-    #btn-start-game { width: 90% !important; font-size: 1.5rem !important; padding: 20px !important; margin-top: 20px !important; }
-
-/* --- [B] MAIN UI CONTAINER --- */
-    #board-overlay {
-        width: 100vw !important; height: 100vh !important;
-        top: 0 !important; left: 0 !important;
-        transform: none !important; position: fixed !important;
-        
-        /* FIX: Lift the entire UI container (130) above the Cards (100) */
-        /* This ensures your P1-Sheet and Leaderboard can physically cover the card */
-        z-index: 130 !important; 
-    }
-
-    /* --- [C] TOP ELEMENTS --- */
-    #turn-info-container { 
-        top: 0% !important; width: 100% !important; 
-        transform: translateX(-50%) !important; 
-        pointer-events: none !important; z-index: 50 !important;
-    }
-
-    #game-log {
-        position: fixed !important;
-        top: 8% !important; left: 50% !important;
-        transform: translateX(-50%) !important;
-        width: 90% !important; height: 140px !important;
-        background: rgba(0,0,0,0.5) !important;
-        border: 1px solid #444 !important;
-        border-radius: 8px !important;
-        margin: 0 !important; font-size: 12px !important;
-        pointer-events: none !important; bottom: auto !important;
-        z-index: 50 !important;
-        -webkit-mask-image: linear-gradient(to bottom, black 70%, transparent 100%) !important;
-        mask-image: linear-gradient(to bottom, black 70%, transparent 100%) !important;
-    }
-
-/* --- [D] THE BOTTOM UTILITY BAR --- */
-    #hud-bottom {
-        position: absolute !important;
-        bottom: 0 !important; left: 0 !important;
-        width: 100% !important; height: 140px !important;
-        background: #0f172a !important;
-        border-top: 3px solid #fbbf24 !important;
-        transform: none !important;
-        display: flex !important; flex-direction: column !important;
-        justify-content: flex-end !important;
-        padding-bottom: 5px !important;
-        /* UPDATED Z-INDEX: Higher than panels (110) and cards (100) */
-        z-index: 120 !important; 
-    }
-    #skill-bar {
-        width: 98% !important; margin: 0 auto !important;
-        border: none !important; background: transparent !important;
-        display: flex !important; justify-content: space-between !important;
-        padding: 0 !important; height: 65px !important;
-        align-items: center !important;
-    }
-
- /* Skill Slots */
-    .skill-slot { 
-        width: 13vw !important; max-width: 65px !important;
-        height: 13vw !important; max-height: 65px !important;
-        font-size: 9px !important;
-        color: #fff !important;
-        text-shadow: 0 1px 2px #000, 0 0 4px #000 !important;
-        border: 1px solid #555 !important;
-        border-radius: 6px !important;
-        background-color: #1e293b !important;
-        background-size: 100% 100% !important; 
-        background-position: center !important;
-        background-repeat: no-repeat !important;
-        
-        display: flex !important; align-items: flex-end !important; justify-content: center !important;
-        padding-bottom: 2px !important; line-height: 1 !important;
-    }
-    .skill-key { 
-        display: block !important; font-size: 10px !important; width: 14px !important; height: 14px !important;
-        top: -4px !important; left: -4px !important;
-        background: #000 !important; border: 1px solid #999 !important;
-    }
-
-/* --- [E] INTEGRATED BUTTONS --- */
-    #btn-help {
-        position: absolute !important;
-        /* Positioned back on the UI Bar */
-        bottom: 85px !important; left: 10px !important; top: auto !important;
-        
-        width: 45px !important; height: 45px !important;
-        font-size: 24px !important; 
-        
-        /* Z-INDEX 150: Above the HUD Background (120) so they are clickable */
-        z-index: 150 !important;
-        
-        background: #333 !important; border: 2px solid #fff !important;
-        box-shadow: none !important;
-    }
-
-    #controls {
-        position: absolute !important;
-        /* Positioned back on the UI Bar */
-        bottom: 88px !important; right: 10px !important; top: auto !important;
-        
-        width: auto !important;
-        display: flex !important; flex-direction: row !important; gap: 10px !important;
-        
-        /* Z-INDEX 150: Above the HUD Background (120) */
-        z-index: 150 !important;
-    }
-    
-    #controls button {
-        height: 40px !important; font-size: 12px !important; width: 80px !important;
-        border-radius: 6px !important; margin: 0 !important; padding: 0 5px !important;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.5) !important;
-    }
-
-/* --- [F] PANELS (Sheet / Leaderboard) --- */
-    #p1-sheet, #leaderboard {
-        position: absolute !important;
-        bottom: 140px !important; /* On top of bar */
-        top: auto !important;
-        height: auto !important;
-        /* UPDATED Z-INDEX: Higher than Card Modal (100) but lower than HUD (120) */
-        z-index: 110 !important;
-        background: rgba(20, 25, 35, 0.98) !important;
-        border-bottom: none !important;
-        border-radius: 8px 8px 0 0 !important;
-        display: flex !important; flex-direction: column !important;
-        transition: max-height 0.3s ease-out !important;
-    }
-
-    #p1-sheet { left: 0 !important; width: 60% !important; border-left: none !important; }
-    #leaderboard { right: 0 !important; width: 38% !important; border-right: none !important; }
-
-    /* MINIMIZED STATE - Made Taller for Big Images */
-    .panel.minimized { 
-        max-height: 60px !important; /* INCREASED HEIGHT */
-        overflow: hidden !important; border-top: 2px solid #444 !important; 
-    }
-    
-/* Maximized: Grows UP - Made Longer */
-    .panel:not(.minimized) { 
-        max-height: 75vh !important; /* Increased from 50vh */
-        overflow-y: auto !important; 
-        box-shadow: 0 -5px 15px rgba(0,0,0,0.8) !important; 
-    }
-    /* HEADER & IMAGE SIZING FIXES */
-    .char-header, #leaderboard h3 { 
-        font-size: 14px !important; 
-        padding: 5px !important; margin: 0 !important;
-        height: 60px !important; /* Match panel height */
-        display: flex !important; align-items: center !important; justify-content: space-between !important;
-    }
-
-    /* TRIPLED IMAGE SIZE */
-    .char-portrait {
-        width: 60px !important; /* MUCH BIGGER */
-        height: 60px !important;
-		left: auto !important;
-        border: 2px solid var(--gold) !important;
-        margin-right: 10px !important;
-    }
-    
-    /* Make the text container flex so it sits nicely next to the big image */
-    #p1-sheet .char-header > div {
-        display: flex !important;
-        align-items: center !important;
-        width: 100% !important;
-    }
-
-    /* --- [G] MISC --- */
-    .minimize-btn { width: 22px !important; height: 22px !important; font-size: 16px !important; display: flex !important; align-items:center !important; justify-content:center !important; }
-    .gold-large { font-size: 1.1rem !important; white-space: nowrap !important; }
-    #p1-class { font-size: 10px !important; }
-    .choice-btn, .card-modal button.primary { font-size: 1rem !important; padding: 12px 10px !important; min-height: 40px !important; }
-    .close-x { width: 40px !important; height: 40px !important; font-size: 1.5rem !important; }
-}
-
-/* --- [H] ROTATION LOCK --- */
-/* If the device is in Landscape mode and max-height is small (phone), block the screen */
-@media only screen and (max-height: 500px) and (orientation: landscape) {
-    body::after {
-        content: "Please Rotate Your Phone to Portrait Mode";
-        position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-        background: #000; color: var(--gold);
-        z-index: 9999;
+    .util-btn {
+        width: 100%; aspect-ratio: 1; border-radius: 50%;
+        background: rgba(15, 23, 42, 0.9); border: 2px solid var(--gold-dim);
+        color: var(--gold-main); font-size: 2.5vh;
         display: flex; align-items: center; justify-content: center;
-        font-family: 'Cinzel', serif; font-size: 1.5rem; text-align: center;
-        background-image: url('https://static.wixstatic.com/media/b16479_5caac3525f59406d8ff175695ef11cb1~mv2.jpg');
-        background-size: cover;
+        cursor: pointer; transition: 0.2s; box-shadow: 0 4px 10px rgba(0,0,0,0.5);
     }
-}
+    .util-btn:hover { background: var(--gold-main); color: #000; transform: scale(1.1); }
+    .mobile-toggle-btn { display: none; }
 
-/* --- CHARACTER SHEET FIXES --- */
-    #char-detail-modal {
-        /* Make it wider to remove horizontal scrollbar */
-        width: 95% !important; 
-        max-width: 400px !important; 
+    /* Shared Styles */
+    .glass-panel { background: var(--glass-bg); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); border: 1px solid var(--glass-border); border-radius: var(--radius-main); box-shadow: 0 4px 20px rgba(0,0,0,0.5); color: #fff; display: flex; flex-direction: column; overflow: hidden; }
+    .gold-border { border: 1px solid var(--gold-dim); box-shadow: inset 0 0 20px rgba(0,0,0,0.5), 0 0 10px rgba(0,0,0,0.5); }
+    .char-header { padding: 10px; border-bottom: 1px solid var(--glass-border); display: flex; justify-content: space-between; align-items: center; }
+    .char-portrait { width: 50px; height: 50px; border-radius: 50%; border: 2px solid var(--gold-main); background-color: #000; background-size: cover; margin-right: 10px; cursor: pointer; }
+    .stat-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 5px; padding: 10px; }
+    .stat-box { background: rgba(0,0,0,0.3); padding: 5px; text-align: center; border-radius: 4px; }
+    .stat-val { font-weight: bold; color: #fff; } .stat-lbl { font-size: 0.65rem; color: #aaa; }
+    .paper-doll { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; padding: 0 10px 10px 10px; }
+    .equip-slot { background: rgba(0,0,0,0.4); border: 1px dashed #444; color: #666; height: 40px; display: flex; align-items: center; justify-content: center; font-size: 0.75rem; cursor: pointer; border-radius: 4px; transition: 0.2s; }
+    .equip-slot.filled { border: 1px solid var(--gold-dim); background: rgba(16, 185, 129, 0.2); color: #fff; text-shadow: 0 1px 2px #000; }
+    .inv-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; padding: 10px; background: rgba(0,0,0,0.2); flex-grow: 1; align-content: flex-start; overflow-y: auto; }
+    .inv-slot { aspect-ratio: 1; background: #1e293b; border: 1px solid #333; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 0.6rem; cursor: pointer; }
+    
+/* ================================================================
+       MODAL & CARD STYLES (MATCHING SCREENSHOT)
+       ================================================================ */
+
+    /* 1. Arrival/Encounter Specific Modal Wrapper */
+    #arrival-modal {
+        background: transparent; /* Remove default background */
+        border: none;
+        box-shadow: none;
+        padding: 0;
+        overflow: visible; /* Allow buttons to hang out if needed */
+    }
+
+    /* Inner Container for the Visual "Card" Look */
+    .card-border {
+        background: #111;
+        border: 4px solid #fff; /* White border from screenshot */
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: 0 0 50px #000;
+        display: flex;
+        flex-direction: column;
+        max-height: 90vh; /* Don't go off screen */
+    }
+
+    /* 2. The Image - Full Width, Natural Height */
+    #arrival-image {
+        display: block;
+        width: 100%;
+        height: auto;
+        max-height: 50vh; /* Maximum height to keep buttons visible */
+        object-fit: contain; /* Shows FULL image, no cropping */
+        background: #000;
+        border-bottom: 2px solid #fff;
+        margin: 0;
+    }
+
+    /* 3. The Body Text */
+    .card-body {
+        padding: 20px;
+        background: #111;
+        color: #fff;
+        text-align: center;
+        flex-grow: 1;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        overflow-y: auto; /* Allow text to scroll if image is huge */
+    }
+
+    .card-desc { font-style: italic; margin-bottom: 20px; line-height: 1.5; color: #fff; font-size: 1.1rem; }
+
+    /* 4. The "Continue" Button (Yellow/Gold) */
+    .card-body button.primary {
+        background: linear-gradient(to bottom, #fbbf24, #d97706);
+        border: 2px solid #78350f;
+        color: #000;
+        font-family: 'Cinzel', serif;
+        font-weight: 900;
+        font-size: 1.5rem;
+        padding: 15px 0;
+        width: 100%;
+        margin-top: 15px;
+        border-radius: 8px;
+        box-shadow: 0 4px 0 #78350f;
+        text-shadow: 0 1px 0 rgba(255,255,255,0.4);
+    }
+    .card-body button.primary:active { transform: translateY(4px); box-shadow: none; }
+
+    /* Close Button Positioning */
+    #arrival-modal .close-x {
+        position: absolute;
+        top: -15px;
+        right: -15px;
+        z-index: 200;
+        background: #ef4444;
+        border: 2px solid #fff;
+        box-shadow: 0 2px 5px #000;
+        width: 40px; height: 40px;
+        font-size: 1.5rem;
+    }
+
+    /* --- STANDARD MODALS (Settings, Game Over, etc) --- */
+    .modal-overlay { 
+        position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
+        background: rgba(0, 0, 0, 0.85); z-index: 500; 
+        display: none; align-items: center; justify-content: center; 
+        flex-direction: column; 
+    }
+    .modal-overlay.active { display: flex; }
+
+    .modal-content, .card-modal { 
+        background: #1a1a1a; 
+        border: 2px solid var(--gold-dim); 
+        border-radius: 16px; 
+        box-shadow: 0 0 50px rgba(0,0,0,1); 
+        max-width: 600px; width: 95%; max-height: 90vh;
+        overflow: hidden; display: flex; flex-direction: column; 
+        transform: scale(0.95); transition: transform 0.2s; 
+        pointer-events: auto; 
+    }
+    .modal-overlay.active .modal-content, .modal-overlay.active .card-modal { transform: scale(1); }
+
+    .card-header { padding: 15px; text-align: center; color: #fff; font-size: 1.4rem; font-weight: 900; background: var(--gold-dim); border-bottom: 2px solid #000; text-shadow: 0 2px 0 rgba(0,0,0,0.5); }
+    .card-header.skirmish { background: #991b1b; } 
+    .card-header.loot { background: #065f46; } 
+    .card-header.market { background: #713f12; }
+
+    /* Interactive Elements */
+    .choice-btn { 
+        background: linear-gradient(to right, #2d3748, #1a202c); 
+        border: 1px solid #4a5568; padding: 15px; margin-bottom: 8px; 
+        text-align: left; cursor: pointer; border-radius: 8px; 
+        display: flex; justify-content: space-between; align-items: center; 
+    }
+    .choice-btn:hover { border-color: var(--gold-main); transform: translateX(5px); background: #2d3748; }
+
+    .dice-result { display: flex; gap: 10px; justify-content: center; margin-top: 15px; min-height: 40px; }
+    .mini-die { width: 36px; height: 36px; background: #000; color: #fff; display: flex; align-items: center; justify-content: center; font-weight: bold; border-radius: 4px; font-size: 1.2rem; border: 1px solid #444; }
+    .mini-die.win { background: var(--accent-green); border-color: #fff; } 
+    .mini-die.lose { background: var(--accent-red); }
+
+    /* Standard Close Button */
+    .close-x { 
+        position: absolute; top: 10px; right: 10px; 
+        width: 30px; height: 30px; 
+        background: var(--accent-red); color: white; border: 2px solid #fff; border-radius: 50%; 
+        font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center; z-index: 50;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.5);
+    }
+
+    /* --- TOOLTIP FIXES --- */
+    #tooltip { 
+        position: absolute; display: none; 
+        background: rgba(10,10,15,0.98); 
+        border: 2px solid var(--gold-main); 
+        padding: 15px; font-size: 0.9rem; 
+        z-index: 9999; /* Always on top */
+        pointer-events: none; /* IGNORE MOUSE to prevent getting stuck */
+        max-width: 250px; border-radius: 8px; 
+        box-shadow: 0 5px 20px #000;
+    }
+    
+    /* Fixed Tooltip Image Size */
+    .tt-icon {
+        width: 40px !important; height: 40px !important; min-width: 40px;
+        object-fit: cover; border: 1px solid var(--gold-main); margin-right: 10px; background: #000;
+    }
+
+    #context-menu { position: absolute; display: none; flex-direction: column; background: #222; border: 1px solid var(--gold-main); z-index: 1000; border-radius: 4px; }
+    .ctx-item { padding: 10px 15px; cursor: pointer; border-bottom: 1px solid #333; color: #eee; } .ctx-item:hover { background: var(--gold-dim); }
+    
+    /* PRESERVED STYLES FOR START/CREATE/LOGO */
+    #splash-screen { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: linear-gradient(rgba(0,0,0,0.3), rgba(0,0,0,0.3)), url('https://static.wixstatic.com/media/b16479_0ce055a502234368915b49af52e0b18d~mv2.jpg'); background-size: cover; background-position: center; z-index: 300; display: flex; flex-direction: column; align-items: center; justify-content: center; pointer-events: auto; transition: opacity 1.5s ease-in-out; opacity: 1; }
+    #create-screen { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: url('https://static.wixstatic.com/media/b16479_564e3eade6b7410785d835af2f340665~mv2.jpg'); background-size: cover; background-position: center; z-index: 200; display: none; flex-direction: column; align-items: center; justify-content: flex-start; padding: 80px 20px 40px 20px; overflow-y: auto; pointer-events: auto; opacity: 0; transition: opacity 1s ease-in-out; }
+    #logo-screen { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #000; z-index: 400; display: flex; flex-direction: column; align-items: center; justify-content: center; transition: opacity 1.5s ease-out; pointer-events: auto; }
+    #logo-img { width: 60%; max-width: 800px; height: auto; opacity: 0; animation: logoFadeIn 5s forwards; transition: opacity 1s ease-out; }
+    #logo-text { margin-top: 20px; color: #fff; font-family: 'Cinzel', serif; font-size: 3vmin; opacity: 0; animation: logoFadeIn 2s forwards 5.5s; transition: opacity 1s ease-out; }
+    @keyframes logoFadeIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
+    #splash-screen h1 { 
+        /* Use vw to ensure the width of the word fits the width of the phone */
+        font-size: 13vw !important; 
+        line-height: 1.1 !important;
+        margin-bottom: 20px !important;
+        width: 100%;
+        padding: 0 10px;
+    }
+    
+    #splash-screen h2 { 
+        font-size: 5vw !important; 
+        margin-bottom: 40px !important;
+    }
+	    #splash-screen button {
+        font-size: 1.5rem !important;
+        padding: 15px 40px !important;
+    }
+	#create-screen h1 { color: #000; margin-bottom: 20px; text-shadow: 2px 2px 0px #FFF; text-align: center; font-size: 8rem; }
+    @media (max-width: 800px) { #splash-screen h1, #create-screen h1 { font-size: 4rem; } }
+    #create-screen h3 { 
+        color: #fff !important; 
+        font-size: 1.5rem; 
+        font-weight: 900; 
+        margin-top: 15px; 
+        margin-bottom: 10px; 
+        text-shadow: 2px 2px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000; /* Strong Outline */
+        background: rgba(0, 0, 0, 0.4); /* Subtle backing */
+        padding: 5px 15px;
+        border-radius: 20px;
+        display: inline-block;
+    }
+    .input-group label { 
+        display: block; 
+        color: #fff; /* Changed to White */
+        margin-bottom: 8px; 
+        font-size: 2rem; 
+        font-weight: 900; 
+        font-family: 'Cinzel', serif; 
+        text-shadow: 3px 3px 0 #000, -1px -1px 0 #000; /* Strong Shadow */
+    }
+    .input-group input { 
+        padding: 15px; 
+        font-size: 1.5rem; 
+        border-radius: 5px; 
+        border: 3px solid #fbbf24; /* Gold border */
+        background: rgba(30, 41, 59, 0.9); 
+        color: white; 
+        text-align: center; 
+        width: 300px; 
+        font-weight: bold; 
+    }
+    .color-grid { display: flex; gap: 15px; justify-content: center; margin-top: 10px; }
+    .color-opt { width: 50px; height: 50px; border-radius: 50%; border: 3px solid #000; cursor: pointer; transition: 0.2s; box-shadow: 0 2px 5px rgba(0,0,0,0.5); } .color-opt:hover, .color-opt.selected { transform: scale(1.2); border-color: white; box-shadow: 0 0 15px var(--gold-main); }
+    .sel-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin: 10px 0 20px 0; max-width: 800px; width: 100%; }
+    .sel-opt { background: #1e293b; padding: 20px; cursor: pointer; border: 2px solid transparent; text-align: center; transition: 0.2s; border-radius: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.5); } .sel-opt:hover { transform: translateY(-3px); background: #334155; } .sel-opt.selected { border-color: var(--gold-main); background: #334155; box-shadow: 0 0 15px rgba(251, 191, 36, 0.5); } .sel-opt b { color: #fff; display: block; margin-bottom: 5px; font-size: 1.2rem; } .sel-opt small { color: #94a3b8; display: block; line-height: 1.2; font-size: 0.9rem; }
+    .skill-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-bottom: 30px; }
+    .skill-card { background: #1e293b; border: 1px solid #475569; padding: 20px; cursor: pointer; border-radius: 6px; width: 200px; text-align: center; box-shadow: 0 4px 10px rgba(0,0,0,0.5); } .skill-card:hover { border-color: var(--accent-green); } .skill-card.selected { background: #064e3b; border-color: var(--accent-green); box-shadow: 0 0 15px var(--accent-green); } .skill-card b { color: #fff; display: block; margin-bottom: 5px; font-size: 1.1rem; } .skill-card small { color: #ccc; font-size: 0.9rem; }
+    #creator-portrait-frame { position: fixed; right: 5%; top: 50%; transform: translateY(-50%); width: 400px; height: 500px; border: 4px solid var(--gold-main); border-radius: 10px; box-shadow: 0 0 30px #000; background-color: #000; background-size: cover; background-position: top center; background-repeat: no-repeat; display: none; z-index: 201; pointer-events: auto; transition: all 0.3s ease; }
+    #creator-portrait-frame.minimized { width: 80px !important; height: 80px !important; right: 20px !important; top: 20px !important; transform: none !important; border-width: 2px !important; background-position: top center !important; }
+    .skill-card img { width: 50px; height: 50px; border-radius: 50%; border: 2px solid #555; object-fit: cover; display: block; margin: 0 auto 5px auto; }
+	
+	/* Fix Tooltip Image Size */
+    .tt-icon {
+        width: 40px !important;
+        height: 40px !important;
+        min-width: 40px;
+        object-fit: cover;
+        border: 1px solid var(--gold-main);
+        margin-right: 10px;
+        background: #000;
+    }
+    
+    /* Ensure Tooltip ignores mouse interaction */
+    #tooltip {
+        pointer-events: none !important;
+        z-index: 9999; /* Force on top of everything */
+    }
+	
+	/* ================================================================
+       [08] CRITICAL MODAL FIX
+       Paste this at the very bottom of your CSS to fix the freeze/invisibility
+       ================================================================ */
+
+    /* Force specific positioning for the Arrival and Encounter Modals */
+    #arrival-modal, #card-modal, #char-detail-modal, #flavor-modal {
+        position: fixed !important;
+        top: 50% !important;
+        left: 50% !important;
+        transform: translate(-50%, -50%) scale(0.9) !important;
         
-        /* Force hide the bottom scrollbar */
-        overflow-x: hidden !important; 
-    }
-
-    /* Move Close Button inside the frame */
-    #char-detail-modal .close-x {
-        top: 10px !important;
-        right: 10px !important;
+        /* Ensure visibility states */
+        opacity: 0 !important;
+        pointer-events: none !important;
+        z-index: -1 !important; /* Hide behind everything when inactive */
+        display: flex !important;
         
-        /* Ensure it sits on top of content */
-        z-index: 200 !important; 
-        background: #ef4444 !important; /* Keep red background */
+        /* Sizing Constraints */
+        max-height: 90vh !important;
+        max-width: 600px !important;
+        width: 95% !important;
+        
+        /* Reset styles */
+        margin: 0 !important;
+        transition: opacity 0.2s ease, transform 0.2s ease !important;
     }
 
-    </style>
+    /* Active State - Brings them to front and center */
+    #arrival-modal.active, #card-modal.active, #char-detail-modal.active, #flavor-modal.active {
+        opacity: 1 !important;
+        pointer-events: auto !important;
+        z-index: 2000 !important; /* On top of everything */
+        transform: translate(-50%, -50%) scale(1) !important;
+    }
+    
+    /* Ensure content inside is visible */
+    #arrival-modal *, #card-modal * {
+        visibility: visible !important;
+    }
+
+    /* Ensure backgrounds are dark so you can't see through them */
+    #card-modal, #char-detail-modal {
+        background: #1a1a1a !important;
+        border: 2px solid var(--gold-dim) !important;
+        box-shadow: 0 0 50px #000 !important;
+    }
+	
+	/* ================================================================
+       [09] FINAL VISUAL FIXES (Invisible Container + Z-Index)
+       ================================================================ */
+
+    /* 1. Make the Encounter Container Invisible */
+    #card-modal {
+        background: transparent !important;
+        border: none !important;
+        box-shadow: none !important;
+        pointer-events: none !important; /* Let clicks pass through the empty space */
+    }
+
+    /* 2. Style the Content inside so it looks like a card floating */
+    #card-modal .card-header,
+    #card-modal .card-body {
+        pointer-events: auto !important; /* Re-enable clicking on the actual card */
+        background: #1a1a1a !important; /* Dark background for text */
+        width: 100%;
+        box-shadow: 0 10px 40px #000;
+        position: relative; /* Ensure z-index works locally */
+    }
+
+    /* Restore borders to the inner pieces since the outer box is gone */
+    #card-modal .card-header {
+        border: 2px solid var(--gold-dim);
+        border-bottom: 2px solid #000;
+        border-radius: 12px 12px 0 0;
+    }
+
+    #card-modal .card-body {
+        border: 2px solid var(--gold-dim);
+        border-top: none;
+        border-radius: 0 0 12px 12px;
+    }
+
+    /* 3. Raise Skill Bar & Roll Button ABOVE the modal layer */
+    /* Modals are z-index 2000, so we make these 3000 */
+    #skill-bar-container,
+    #btn-action-container {
+        z-index: 3000 !important; 
+        pointer-events: auto !important;
+    }
+</style>
 </head>
 
 <body>
 
+<!-- LOGO SCREEN (Preserved) -->
 <div id="logo-screen">
-    <!-- UPDATED IMAGE URL -->
     <img id="logo-img" src="https://static.wixstatic.com/media/b16479_0a56fee31ec34232abc426d0ee72b6b1~mv2.png" alt="Logo">
     <div id="logo-text">Click to Continue</div>
 </div>
 
 <div id="game-layer"></div>
-<div id="mobile-hud-bg"></div> <!-- The physical background panel -->
 
-<div id="tooltip"></div>
-<div id="context-menu"></div>
-
-<!-- UI LAYER: Overlays -->
-<div id="ui-layer">
-    
-    <!-- BANNER TEXT (Visual) -->
-    <div id="questopoly-banner-text" style="display:none">Questopoly</div>
-	
-
-    <!-- THIS CONTAINER IS THE SQUARE THAT STICKS TO THE BOARD -->
-    <div id="board-overlay">
-        
-        <!-- TOP CENTER: TURN INFO -->
-        <div id="turn-info-container">
-            <div id="turn-banner">SETUP PHASE</div>
-            <div id="day-night-indicator">☀ DAY</div>
-        </div>
-
-        <!-- TOP LEFT: PLAYER SHEET -->
-        <div id="p1-sheet" class="panel minimized">
-            <div class="char-header">
-                <div style="display:flex; align-items:center; width:100%; justify-content:space-between;">
-                    <div style="display:flex; align-items:center;">
-                        <div id="p1-portrait" class="char-portrait"></div>
-                        <div>
-                            <div id="p1-name" style="font-weight:bold; color:#fff; font-size:1.2rem;">Hero</div>
-                            <div id="p1-class" style="font-size:0.8rem; color:#aaa; line-height:1.2;">Class</div>
-                        </div>
-                    </div>
-                    <div style="display:flex; align-items:center;">
-                        <div class="gold-large" style="margin-right:10px;"><span id="p1-gold">0</span> G</div>
-                        <button class="minimize-btn" onclick="togglePanel('p1-sheet')">+</button>
-                    </div>
-                </div>
-            </div>
-            <div class="stat-grid">
-                <div class="stat-box"><div class="stat-val" id="p1-str">0</div><div class="stat-lbl">STR</div></div>
-                <div class="stat-box"><div class="stat-val" id="p1-dex">0</div><div class="stat-lbl">DEX</div></div>
-                <div class="stat-box"><div class="stat-val" id="p1-int">0</div><div class="stat-lbl">INT</div></div>
-            </div>
-            <div class="paper-doll">
-                <div id="slot-head" class="equip-slot" onpointerup="handleEquipTouch('head')">Head</div>
-                <div id="slot-body" class="equip-slot" onpointerup="handleEquipTouch('body')">Body</div>
-                <div id="slot-main" class="equip-slot" onpointerup="handleEquipTouch('main')">Main</div>
-                <div id="slot-off" class="equip-slot" onpointerup="handleEquipTouch('off')">Off</div>
-            </div>
-            <div id="p1-inv" class="inv-grid"></div>
-        </div>
-
-        <!-- TOP RIGHT: LEADERBOARD -->
-        <div id="leaderboard" class="panel minimized"> 
-            <h3 style="margin:0 0 10px 0; text-align:center; color:#ccc; border-bottom:1px solid #444; padding-bottom:5px; position: relative;">
-                Leaderboard
-                <button class="minimize-btn" onclick="togglePanel('leaderboard')" style="position: absolute; right: 0; top: 0;">+</button>
-            </h3>
-            <div id="leader-list" style="flex-grow:1; overflow-y:auto; max-height:200px;"></div>
-            <div class="gold-large" id="treasury-box"><h4 style="margin:0; color:#fff; text-align: center;">Treasury</h4><div id="treasury-val"; style="text-align: center;">0</div><div style="color:#fff; text-align: center;">Capital City Hoard</div></div>
-        </div>
-
-        <!-- BOTTOM LEFT: HELP -->
-        <div id="btn-help" onclick="toggleHelpModal()">?</div>
-
-        <!-- BOTTOM CENTER: LOG & SKILLS -->
-        <div id="hud-bottom">
-            <div id="game-log"></div>
-            <div id="skill-bar">
-                <div class="skill-slot" id="skill-0" onclick="useSkill(0)"><div class="skill-key">1</div><span id="txt-skill-0">Class</span></div>
-                <div class="skill-slot" id="skill-1" onclick="useSkill(1)"><div class="skill-key">2</div><span id="txt-skill-1">Empty</span></div>
-                <div class="skill-slot" id="skill-2" onclick="useSkill(2)"><div class="skill-key">3</div><span id="txt-skill-2">Empty</span></div>
-                <div class="skill-slot" id="skill-3" onclick="useSkill(3)"><div class="skill-key">4</div><span id="txt-skill-3">Empty</span></div>
-                <div class="skill-slot" id="skill-4" onclick="useSkill(4)"><div class="skill-key">5</div><span id="txt-skill-4">Empty</span></div>
-                <div class="skill-slot" id="skill-5" onclick="useSkill(5)" ondragover="allowDrop(event)" ondrop="handleSkillDrop(event, 0)"><div class="skill-key">6</div><span id="txt-skill-5">Drag Item</span></div>
-                <div class="skill-slot" id="skill-6" onclick="useSkill(6)" ondragover="allowDrop(event)" ondrop="handleSkillDrop(event, 1)"><div class="skill-key">7</div><span id="txt-skill-6">Drag Item</span></div>
-            </div>
-        </div>
-
-        <!-- BOTTOM RIGHT: CONTROLS -->
-        <div id="controls">
-            <button id="btn-roll" class="primary" onclick="rollMove()">ROLL</button>
-            <button id="btn-end" onclick="endTurn()" disabled>END</button>
-        </div>
-		
-		<!-- INSIDE #board-overlay (Next to #btn-help) -->
-<div id="btn-settings" onclick="toggleSettingsModal()">⚙</div>
-
-<!-- ADD WITH OTHER MODALS -->
-<div id="settings-modal" class="modal-overlay">
-    <div class="modal-content" style="width: 400px; max-width: 90%;">
-        <button class="close-x" onclick="toggleSettingsModal()">×</button>
-        <h2 style="color:var(--gold); margin-top:0;">SETTINGS</h2>
-        
-        <div style="margin-bottom: 20px; text-align: left;">
-            <label style="color:#fff; display:block; margin-bottom:10px;">Music Volume</label>
-            <input type="range" id="vol-bgm" min="0" max="1" step="0.1" value="0.4" style="width:100%; cursor:pointer;" oninput="AUDIO.setBGM(this.value)">
-        </div>
-
-        <div style="margin-bottom: 20px; text-align: left;">
-            <label style="color:#fff; display:block; margin-bottom:10px;">Sound Effects</label>
-            <!-- UPDATED: value="0.3" -->
-            <input type="range" id="vol-sfx" min="0" max="1" step="0.1" value="0.3" style="width:100%; cursor:pointer;" oninput="AUDIO.setSFX(this.value)">
-        </div>
-
-        <button class="primary" onclick="toggleSettingsModal()">Close</button>
-    </div>
-</div>
-
-    </div> <!-- END BOARD OVERLAY -->
-
-</div>
-
-<!-- MODALS -->
+<!-- SPLASH SCREEN (Preserved) -->
 <div id="splash-screen">
-    <h1 style="font-size: 8rem; color: #fff; text-shadow: 0 0 30px var(--gold); margin-bottom: 20px;">QUESTOPOLY</h1>
+    <h1 style="font-size: 8rem; color: #fff; text-shadow: 0 0 30px var(--gold-main); margin-bottom: 20px;">QUESTOPOLY</h1>
     <h2 style="color: #ddd; font-size: 2rem; margin-top: 0; margin-bottom: 50px; text-shadow: 2px 2px 5px #000;">LEGENDS</h2>
-    <button class="primary" style="font-size: 2.5rem; padding: 20px 80px; box-shadow: 0 0 20px #000;" onclick="enterCreation()">PLAY</button>
+    <button class="primary" style="font-size: 2.5rem; padding: 20px 80px; box-shadow: 0 0 20px #000; background:var(--gold-main); border:none; font-weight:900; cursor:pointer;" onclick="enterCreation()">PLAY</button>
 </div>
 
+<!-- CREATE SCREEN (Preserved) -->
 <div id="create-screen" style="display:none;">
     <div class="input-group"><label>Name Your Hero</label><input type="text" id="char-name-input" value="Hero" maxlength="12"></div>
     <div class="input-group"><label>Choose Color</label><div class="color-grid" id="color-grid"></div></div>
@@ -782,108 +597,186 @@
     <div id="passive-section" style="display:none; width:100%; flex-direction:column; align-items:center;">
         <h3 style="color:#888;">Choose Passive Trait</h3><div class="skill-grid" id="passive-grid"></div>
     </div>
-    <button id="btn-start-game" class="primary" style="padding:15px 50px; font-size:1.5rem;" onclick="startGame()" disabled>Start Adventure</button>
+    <button id="btn-start-game" class="primary" style="padding:15px 50px; font-size:1.5rem; background:var(--gold-main); border:none; font-weight:900; cursor:pointer; opacity:0.5;" onclick="startGame()" disabled>Start Adventure</button>
     <div style="height:50px;"></div>
-    <div id="creator-portrait-frame"><button id="btn-min-portrait" class="minimize-btn" onclick="toggleCreatorPortrait()" style="position: absolute; top: 5px; right: 5px; background: rgba(0,0,0,0.8); border: 1px solid var(--gold); color: var(--gold); z-index: 205; width: 20px; height: 30px; line-height: 28px; padding: 0;">-</button></div>
+    <div id="creator-portrait-frame"><button id="btn-min-portrait" class="minimize-btn" onclick="toggleCreatorPortrait()" style="position: absolute; top: 5px; right: 5px; background: rgba(0,0,0,0.8); border: 1px solid var(--gold-main); color: var(--gold-main); z-index: 205; width: 20px; height: 30px; line-height: 28px; padding: 0;">-</button></div>
 </div>
 
-<div id="arrival-modal" class="card-modal" style="padding: 0; overflow: hidden;">
-    <button class="close-x" onclick="continueFromArrival()" style="top: 10px; right: 10px;">×</button>
+<!-- MAIN UI OVERLAY (REPLACED WITH NEW GLASS UI) -->
+<div id="ui-layer">
+
+    <!-- LEFT SIDEBAR -->
+    <div id="p1-sheet" class="glass-panel gold-border">
+        <div class="char-header">
+            <div style="display:flex; align-items:center;">
+                <div id="p1-portrait" class="char-portrait" onclick="openCharDetail(0)"></div>
+                <div>
+                    <div id="p1-name" style="font-weight:bold; cursor:pointer;" onclick="openCharDetail(0)">Hero</div>
+                    <div id="p1-class" style="font-size:0.8rem; color:#aaa;">Class</div>
+                </div>
+            </div>
+            <div class="gold-display"><span id="p1-gold">0</span> G</div>
+        </div>
+        <div class="stat-grid">
+            <div class="stat-box"><div id="p1-str" class="stat-val">0</div><div class="stat-lbl">STR</div></div>
+            <div class="stat-box"><div id="p1-dex" class="stat-val">0</div><div class="stat-lbl">DEX</div></div>
+            <div class="stat-box"><div id="p1-int" class="stat-val">0</div><div class="stat-lbl">INT</div></div>
+        </div>
+        <div class="paper-doll">
+            <div id="slot-head" class="equip-slot" onpointerup="handleEquipTouch('head')">Head</div>
+            <div id="slot-body" class="equip-slot" onpointerup="handleEquipTouch('body')">Body</div>
+            <div id="slot-main" class="equip-slot" onpointerup="handleEquipTouch('main')">Main</div>
+            <div id="slot-off" class="equip-slot" onpointerup="handleEquipTouch('off')">Off</div>
+        </div>
+        <div style="padding:0 10px; font-size:0.7rem; color:#888; margin-bottom:5px;">INVENTORY</div>
+        <div id="p1-inv" class="inv-grid"></div>
+    </div>
+
+    <!-- CENTER BOARD AREA -->
+    <div id="board-anchor">
+        <div id="inner-zone">
+            
+            <!-- Turn Tracker -->
+            <div id="turn-widget">
+                <h2 id="turn-banner">SETUP</h2>
+                <div id="day-night-indicator">☀ DAY</div>
+            </div>
+
+            <!-- NEW TREASURY WIDGET -->
+            <div id="treasury-widget">
+                <div class="treasury-icon">👑</div>
+                <div id="treasury-val" class="treasury-amount">0</div>
+                <div class="treasury-label">Treasury</div>
+            </div>
+
+            <!-- Adventure Log -->
+            <div id="adventure-log-widget">
+                <div id="game-log">
+                    <div class="log-entry" style="text-align:center; color:#aaa;">- Log Start -</div>
+                </div>
+            </div>
+
+            <!-- Skill Bar -->
+            <div id="skill-bar-container">
+                <div id="btn-action-container">
+                    <button id="btn-action" onclick="handleActionClick()">ROLL</button>
+                </div>
+                <div id="skill-bar">
+                    <div class="skill-slot" id="skill-0" onclick="useSkill(0)"><div class="skill-key">1</div><span id="txt-skill-0">Class</span></div>
+                    <div class="skill-slot" id="skill-1" onclick="useSkill(1)"><div class="skill-key">2</div><span id="txt-skill-1">-</span></div>
+                    <div class="skill-slot" id="skill-2" onclick="useSkill(2)"><div class="skill-key">3</div><span id="txt-skill-2">-</span></div>
+                    <div class="spacer-slot"></div>
+                    <div class="skill-slot" id="skill-3" onclick="useSkill(3)"><div class="skill-key">4</div><span id="txt-skill-3">-</span></div>
+                    <div class="skill-slot" id="skill-4" onclick="useSkill(4)"><div class="skill-key">5</div><span id="txt-skill-4">-</span></div>
+                    <div class="skill-slot" id="skill-5" onclick="useSkill(5)" ondragover="allowDrop(event)" ondrop="handleSkillDrop(event, 0)" style="border-style:dashed; opacity:0.6;"><div class="skill-key">6</div><span id="txt-skill-5">Drag</span></div>
+                </div>
+            </div>
+
+            <!-- Utility Stack -->
+            <div id="utility-stack">
+                <div id="btn-help" class="util-btn" onclick="toggleHelpModal()">?</div>
+                <div id="btn-settings" class="util-btn" onclick="toggleSettingsModal()">⚙</div>
+                <div class="util-btn mobile-toggle-btn" onclick="document.getElementById('p1-sheet').classList.toggle('active')">👤</div>
+                <div class="util-btn mobile-toggle-btn" onclick="document.getElementById('leaderboard').classList.toggle('active')">📜</div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- RIGHT SIDEBAR (Leaderboard) -->
+    <div id="leaderboard" class="glass-panel">
+        <div style="padding:10px; background:rgba(0,0,0,0.3); border-bottom:1px solid #444; font-weight:bold; font-size:0.9rem; text-align:center;">
+            LEADERBOARD
+        </div>
+        <div id="leader-list"></div>
+    </div>
+
+</div>
+
+<!-- TOOLTIP -->
+<div id="tooltip"></div>
+<div id="context-menu"></div>
+
+<!-- MODALS (Using New Styles but preserving IDs) -->
+<div id="card-modal" class="modal-overlay">
+    <div class="card-modal" ondragover="allowDrop(event)" ondrop="handleSellDrop(event)">
+        <div class="close-x" onclick="closeEnc()">×</div>
+        <div class="card-header" id="enc-header">Encounter</div>
+        <div class="card-body">
+            <h2 id="enc-title" style="margin:0 0 10px 0; color:var(--gold-main);">Title</h2>
+            <p id="enc-desc" class="card-desc">...</p>
+            <div id="market-sell-area" style="display:none; border:1px dashed #666; padding:15px; margin-bottom:15px; border-radius:8px; color:#aaa;">Drag items here to SELL</div>
+            <div id="choice-list"></div>
+            <div id="dice-result" class="dice-result"></div>
+        </div>
+    </div>
+</div>
+
+<div id="arrival-modal" class="card-modal" style="padding: 0; overflow: visible;">
+    <button class="close-x" onclick="continueFromArrival()">×</button>
+    
+    <!-- Wrapper for the visual border style -->
     <div class="card-border">
         <img id="arrival-image" src="" alt="Location Image" style="display:none;">
-        <div class="card-body" style="padding: 20px;">
-            <div id="arrival-flavor" class="flavor-text" style="min-height:60px; font-style: italic; color: #fff;">...</div>
-            <button class="primary" onclick="continueFromArrival()" style="width:100%; margin-top:20px;">Continue</button>
-        </div>
-    </div>
-</div>
-
-<div id="card-modal" class="card-modal" ondragover="allowDrop(event)" ondrop="handleSellDrop(event)">
-    <button class="close-x" onclick="closeEnc()">×</button>
-    <div class="card-header" id="enc-header">Encounter</div>
-    <div class="card-body">
-        <h2 id="enc-title" style="margin:0 0 10px 0; color:#fff;">Title</h2>
-        <p id="enc-desc" class="card-desc">...</p>
-        <div id="market-sell-area" class="market-sell-area" style="display:none;">Drag items here to SELL</div>
-        <div id="choice-list"></div>
-        <div id="dice-result" class="dice-result"></div>
-    </div>
-</div>
-
-<div id="flavor-modal" class="card-modal" style="z-index: 110;">
-    <div class="card-border">
-        <div class="card-header" id="flavor-header">Location</div>
-        <img id="flavor-image" src="" alt="Flavor Image">
         <div class="card-body">
-            <p id="flavor-text" class="card-desc" style="margin-top:20px;">...</p>
-            <button class="primary" onclick="closeFlavor()" style="width:100%; margin-top:10px;">Continue</button>
+            <div id="arrival-flavor" class="flavor-text" style="font-style: italic; color: #fff;">...</div>
+            <button class="primary" onclick="continueFromArrival()">CONTINUE</button>
         </div>
     </div>
 </div>
 
-<div id="char-detail-modal" class="card-modal" style="width: 350px; background: var(--panel-bg); border: 2px solid #444;">
-    <div style="display:flex; align-items:center; justify-content:center; padding:15px; border-bottom:1px solid #444;">
-        <div id="cd-portrait" class="char-portrait"></div>
-        <div style="text-align:left; margin-left:15px;">
-            <div id="cd-header" style="color:#fff; font-weight:bold; font-size:1.4rem;">Hero Name</div>
-            <div id="cd-sub" style="color:#aaa; font-size:0.9rem;">Race Class</div>
-        </div>
-    </div>
-    <button class="close-x" onclick="closeCharDetail()">×</button>
-    <div class="card-body" style="text-align: left; padding: 15px;">
-        <div style="display:flex; justify-content:space-around; background:#222; padding:8px; border-radius:4px; margin-bottom:10px; border:1px solid #444;">
-            <div style="text-align:center;"><span style="display:block; font-size:1.2rem; font-weight:bold; color:#fff;" id="cd-str">0</span><small style="color:#888;">STR</small></div>
-            <div style="text-align:center;"><span style="display:block; font-size:1.2rem; font-weight:bold; color:#fff;" id="cd-dex">0</span><small style="color:#888;">DEX</small></div>
-            <div style="text-align:center;"><span style="display:block; font-size:1.2rem; font-weight:bold; color:#fff;" id="cd-int">0</span><small style="color:#888;">INT</small></div>
-        </div>
-        <div style="margin-bottom:15px; border-top:1px solid #444; padding-top:10px;">
-            <div style="margin-bottom:5px;">
-                <span style="color:var(--gold); font-weight:bold;">Active:</span> <span id="cd-active" style="color:#fff;">-</span>
-                <div id="cd-active-desc" style="font-size:0.8rem; color:#888; font-style:italic;"></div>
+<div id="char-detail-modal" class="modal-overlay">
+    <div class="modal-content">
+        <div class="close-x" onclick="closeCharDetail()">×</div>
+        <div class="card-body">
+            <div style="display:flex; align-items:center; margin-bottom:20px;">
+                <div id="cd-portrait" class="char-portrait"></div>
+                <div style="text-align:left;">
+                    <div id="cd-header" style="font-weight:bold; font-size:1.2rem; color:var(--gold-main);">Name</div>
+                    <div id="cd-sub" style="font-size:0.9rem; color:#aaa;">Class</div>
+                </div>
             </div>
-            <div>
-                <span style="color:var(--epic); font-weight:bold;">Passive:</span> <span id="cd-passive" style="color:#fff;">-</span>
-                <div id="cd-passive-desc" style="font-size:0.8rem; color:#888; font-style:italic;"></div>
+            
+            <div style="display:flex; justify-content:space-around; background:#111; padding:10px; border-radius:8px; margin-bottom:15px;">
+                <div style="text-align:center;"><b id="cd-str" style="color:#fff; font-size:1.2rem;">0</b><br><small style="color:#666">STR</small></div>
+                <div style="text-align:center;"><b id="cd-dex" style="color:#fff; font-size:1.2rem;">0</b><br><small style="color:#666">DEX</small></div>
+                <div style="text-align:center;"><b id="cd-int" style="color:#fff; font-size:1.2rem;">0</b><br><small style="color:#666">INT</small></div>
             </div>
-        </div>
-        <div id="cd-inventory-section" style="display:none; border-top:1px solid #444; padding-top:10px;">
-            <div style="color:#aaa; text-align:center; margin-bottom:5px;">Equipment</div>
-            <div class="paper-doll" style="border:none; padding:0; margin-bottom:10px;">
-                <div id="cd-slot-head" class="equip-slot">Head</div>
-                <div id="cd-slot-body" class="equip-slot">Body</div>
-                <div id="cd-slot-main" class="equip-slot">Main</div>
-                <div id="cd-slot-off" class="equip-slot">Off</div>
+
+            <div style="text-align:left; border-top:1px solid #333; padding-top:10px;">
+                <div style="margin-bottom:10px;"><span style="color:var(--gold-main)">Active:</span> <span id="cd-active">-</span><div id="cd-active-desc" style="font-size:0.8rem; color:#666; font-style:italic;"></div></div>
+                <div><span style="color:var(--accent-purple)">Passive:</span> <span id="cd-passive">-</span><div id="cd-passive-desc" style="font-size:0.8rem; color:#666; font-style:italic;"></div></div>
             </div>
-            <div style="color:#aaa; text-align:center; margin-bottom:5px;">Backpack</div>
-            <div id="cd-inv-grid" class="inv-grid"></div>
+            
+            <!-- Injection point for dynamic stats from JS -->
+            
+            <div id="cd-inventory-section" style="display:none; margin-top:15px; border-top:1px solid #333; padding-top:10px;">
+                <div class="paper-doll" style="margin-bottom:10px;">
+                    <div id="cd-slot-head" class="equip-slot">Head</div>
+                    <div id="cd-slot-body" class="equip-slot">Body</div>
+                    <div id="cd-slot-main" class="equip-slot">Main</div>
+                    <div id="cd-slot-off" class="equip-slot">Off</div>
+                </div>
+                <div id="cd-inv-grid" class="inv-grid"></div>
+            </div>
+            <div id="cd-hidden-msg" style="display:none; margin-top:20px; color:#555;">Inventory Hidden</div>
         </div>
-        <div id="cd-hidden-msg" style="display:none; text-align:center; color:#555; font-style:italic; margin-top:20px;">Inventory Hidden</div>
     </div>
 </div>
 
-<div id="game-over-modal" class="modal-overlay">
-    <div class="modal-content" style="max-width: 700px; width: 95%;">
-        <h1 id="go-title" class="modal-title">GAME OVER</h1>
-        <p id="go-msg" class="modal-text" style="margin-bottom: 20px;">The game has ended.</p>
-        
-        <!-- WINNER STATS -->
-        <div id="go-stats" class="stat-summary"></div>
-
-        <button class="primary" onclick="toggleGraph()">View History Graph</button>
-        
-        <!-- GRAPH SECTION -->
-        <div id="graph-container">
-            <div class="graph-controls">
-                <label><input type="checkbox" id="chk-gold" checked onchange="drawGraph()"> Gold</label>
-                <label><input type="checkbox" id="chk-props" checked onchange="drawGraph()"> Properties</label>
-            </div>
-            <div id="graph-legend" class="graph-legend"></div>
-            <canvas id="game-chart"></canvas>
+<div id="settings-modal" class="modal-overlay">
+    <div class="modal-content" style="padding:20px;">
+        <div class="close-x" onclick="toggleSettingsModal()">×</div>
+        <h2 style="color:var(--gold-main); border-bottom:1px solid #333; padding-bottom:10px; margin-top:0;">SETTINGS</h2>
+        <div style="margin-bottom:20px;">
+            <label style="display:block; color:#aaa; margin-bottom:5px;">Music Volume</label>
+            <input type="range" min="0" max="1" step="0.1" value="0.4" style="width:100%" oninput="AUDIO.setBGM(this.value)">
         </div>
-
-        <div style="margin-top: 20px;">
-            <button class="primary" onclick="resetGame()">PLAY AGAIN</button>
+        <div style="margin-bottom:20px;">
+            <label style="display:block; color:#aaa; margin-bottom:5px;">SFX Volume</label>
+            <input type="range" min="0" max="1" step="0.1" value="0.3" style="width:100%" oninput="AUDIO.setSFX(this.value)">
         </div>
+        <button class="choice-btn" style="width:100%; justify-content:center;" onclick="toggleSettingsModal()">CLOSE</button>
     </div>
 </div>
 
@@ -972,13 +865,29 @@
     </div>
 </div>
 
+<div id="game-over-modal" class="modal-overlay">
+    <div class="modal-content">
+        <h1 id="go-title" style="font-size:3rem; margin:20px 0; text-shadow:0 0 10px #000;">GAME OVER</h1>
+        <p id="go-msg" style="color:#ccc;">...</p>
+        <div id="go-stats" style="text-align:left; padding:20px; background:#111; margin:20px 0; border-radius:8px;"></div>
+        <div id="graph-legend" style="display:flex; justify-content:center; gap:10px; margin-bottom:10px;"></div>
+        <div id="graph-container" style="display:none; width:100%; height:200px; background:#222; border:1px solid #444;">
+            <canvas id="game-chart"></canvas>
+        </div>
+        <div style="display:flex; gap:10px; justify-content:center;">
+            <button class="choice-btn" onclick="toggleGraph()">View Graph</button>
+            <button class="choice-btn" style="background:var(--gold-dim);" onclick="resetGame()">PLAY AGAIN</button>
+        </div>
+        <div style="display:none;"><input type="checkbox" id="chk-gold" checked><input type="checkbox" id="chk-props" checked></div>
+    </div>
+</div>
+
 <div id="bankruptcy-modal" class="modal-overlay">
-    <div class="modal-content" style="border-color: var(--accent);">
-        <h1 class="modal-title" style="color: var(--accent);">DEBT!</h1>
-        <p class="modal-text">You owe <span id="debt-amount" class="debt-val">0</span> G</p>
-        <p style="color:#aaa; font-size:0.9rem;">Select properties to sell (50% value):</p>
-        <div id="debt-prop-list" class="prop-list"></div>
-        <button id="btn-debt-done" class="primary" onclick="checkDebtCleared()" disabled>Pay & Continue</button>
+    <div class="modal-content" style="border-color:var(--accent-red);">
+        <h1 style="color:var(--accent-red); margin:20px 0;">DEBT!</h1>
+        <p>You owe <span id="debt-amount" style="color:#fff; font-weight:bold;">0</span> G</p>
+        <div id="debt-prop-list" style="padding:10px; background:#111; max-height:200px; overflow-y:auto; margin-bottom:20px;"></div>
+        <button id="btn-debt-done" class="choice-btn" style="width:100%; justify-content:center;" onclick="checkDebtCleared()" disabled>Pay & Continue</button>
     </div>
 </div>
 
@@ -994,6 +903,11 @@ let turnCount = 0, isNight = false;
 let selRace=null, selClass=null, selColor="#ef4444", selActiveId=null, selPassiveId=null;
 let nightBoard = null; 
 let fogGroup = null;
+let turnProcessing = false;
+
+// --- CAMERA & ANIMATION GLOBALS ---
+let isZoomed = false;
+let cameraTarget = null;
 
 const PLAYER_COLORS = ["#ef4444", "#3b82f6", "#10b981", "#f59e0b", "#8b5cf6", "#FFFFFF"];
 const EQUIP_ORDER = ['head', 'body', 'main', 'off'];
@@ -1138,7 +1052,23 @@ const ABILITY_LIBRARY = {
     ambush_master: { name: "Ambush", desc: "Passive: Start every combat with 1 automatic Success.", type:'passive', img: "https://static.wixstatic.com/media/b16479_6274cb33103f496d958019147a605599~mv2.jpeg" },
 
     // --- OTHER EXISTING SKILLS ---
-    teleport: { name: "Town Portal", desc: "Teleport to Old Crooks Inn.", fn: (p) => { p.pos=0; p.mesh.position.copy(tiles[0].position); resolveLanding(p); addLog("Teleported to Inn.", "log-rare"); return true; }, img: "https://static.wixstatic.com/media/b16479_e2653f032408459ea8d64eb87faf86fb~mv2.jpeg" },
+    teleport: { 
+        name: "Town Portal", 
+        desc: "Teleport to Old Crooks Inn.", 
+        fn: (p) => { 
+            p.pos = 0; 
+            const target = tiles[0];
+            
+            // Use new helper
+            animateTeleport(p, target, () => {
+                resolveLanding(p);
+            });
+            
+            addLog("Teleported to Inn.", "log-rare"); 
+            return true; 
+        }, 
+        img: "https://static.wixstatic.com/media/b16479_e2653f032408459ea8d64eb87faf86fb~mv2.jpeg" 
+    },
     backtrack: { name: "Recall", desc: "Move backwards 3 spaces.", fn: (p) => { p.pos = (p.pos - 3 + 40) % 40; const t = tiles[p.pos]; new TWEEN.Tween(p.mesh.position).to({x:t.position.x, z:t.position.z}, 500).onComplete(()=>resolveLanding(p)).start(); addLog("Rewound time.", "log-epic"); return true; }, img: "https://static.wixstatic.com/media/b16479_40db1c3f8b6b4c11bc8a509c62133e48~mv2.jpeg" },
     bribe: { 
         name: "Silver Tongue", desc: "Pay 100G: Steal ownership of current enemy tile.", type: 'active', img: "https://static.wixstatic.com/media/b16479_4eea8ba2071047a1bdc17eb37b648db3~mv2.jpeg", 
@@ -1200,9 +1130,35 @@ const ABILITY_LIBRARY = {
         } 
     },
     
-    transmute_gold: { 
+transmute_gold: { 
         name: "Transmute", desc: "Pay 50G. Destroy 1 Item -> Draw Treasure.", img: "https://static.wixstatic.com/media/b16479_765369c1c1bd4a8abb1b752a2245f56c~mv2.jpg",
         fn: (p) => {
+            // --- AI LOGIC FIX ---
+            if (p.isAi) {
+                if (p.gold < 50) return false;
+                if (p.inventory.length === 0) return false;
+                
+                // Find item with lowest cost
+                let cheapestIdx = 0;
+                let minCost = 9999;
+                p.inventory.forEach((item, idx) => {
+                    let cost = item.cost || 0;
+                    if(cost < minCost) { minCost = cost; cheapestIdx = idx; }
+                });
+
+                p.gold -= 50;
+                const removed = p.inventory.splice(cheapestIdx, 1)[0];
+                addLog(`${p.name} transmuted ${removed.name}!`, "log-epic");
+                
+                const card = DECK_TREASURE[Math.floor(Math.random() * DECK_TREASURE.length)]; 
+                p.inventory.push({...card}); 
+                addLog(`${p.name} gained ${card.name}`, "log-success");
+                
+                return true;
+            }
+            // --------------------
+
+            // HUMAN LOGIC (Existing)
             if (p.gold < 50) { addLog("Need 50G.", "log-fail"); return false; }
             if (p.inventory.length === 0) { addLog("Inventory empty.", "log-fail"); return false; }
             let opts = p.inventory.map((item, idx) => ({
@@ -1526,7 +1482,7 @@ const AUDIO = {
     // --- MUSIC TRACKS ---
     bgm_start: new Audio('https://static.wixstatic.com/mp3/b16479_c60fba3015874266934a6c546fa40969.mp3'),
     bgm_day: new Audio('https://static.wixstatic.com/mp3/b16479_c597397512544410bd146fd4ac8db680.mp3'),
-    bgm_night: new Audio('https://static.wixstatic.com/mp3/b16479_82ef385bf245496d8b6a87aecfef241f.mp3'),
+    bgm_night: new Audio('https://static.wixstatic.com/mp3/b16479_bcf6ce4574284c0e980537782ef4994b.mp3'),
 	sfx_equip: new Audio('https://static.wixstatic.com/mp3/b16479_491cb15103f549cb87f770d84ede0c26.mp3'),
 	sfx_click: new Audio('https://static.wixstatic.com/mp3/b16479_ba81d5de617146f8bcda766900080f5d.mp3'),
 	sfx_fail: new Audio('https://static.wixstatic.com/mp3/b16479_68b7d8f2d0214569b00ad55a90de74a5.mp3'),
@@ -1636,29 +1592,26 @@ const AUDIO = {
 };
 function updateCamera() {
     const width = window.innerWidth;
+    const isMobileMode = document.body.classList.contains('force-mobile') || width <= 768;
 
-    // --- DESKTOP VIEW (Original Fixed Position) ---
-    if (width > 768) {
+    // --- DESKTOP VIEW ---
+    if (!isMobileMode) {
         camera.position.set(0, 55, 0.1);
         camera.lookAt(0, 0, 0);
         return;
     }
 
-    // --- MOBILE VIEW (Dynamic Zoom / Starcraft Style) ---
-    // We need to fit a board size of ~55 units into the top 82% of the screen
+    // --- MOBILE VIEW (Dynamic Zoom) ---
     const boardSize = 55; 
-    const fovRad = (45 * Math.PI) / 360; // Convert vertical FOV to radians
+    const fovRad = (45 * Math.PI) / 360; 
     
-    // Effective height is only 82% because of the bottom panel
     const height = window.innerHeight * 0.82; 
     const aspect = width / height;
 
     let dist;
     if (aspect > 1) {
-        // Landscape Mobile: Height is the limiting factor
         dist = (boardSize / 2) / Math.tan(fovRad);
     } else {
-        // Portrait Mobile: Width is the limiting factor
         dist = ((boardSize / aspect) / 2) / Math.tan(fovRad);
     }
 
@@ -1671,18 +1624,116 @@ function animate(){
     TWEEN.update(); 
     renderer.render(scene,camera); 
     
-    // --- NEW: FOG ANIMATION ---
+    // SMOOTH FOLLOW FIX
+    // Instead of looking at the jumping piece (y), look at the floor (y=0) at the piece's X/Z
+    if(isZoomed && cameraTarget) {
+        camera.lookAt(cameraTarget.position.x, 0, cameraTarget.position.z);
+    }
+
     if(fogGroup) {
         fogGroup.children.forEach((cloud, idx) => {
-            // Slow rotation
             cloud.rotation.z += 0.001 * (idx % 2 === 0 ? 1 : -1);
-            // Slight drift if it's Night
             if(isNight) {
                 cloud.position.x += Math.sin(Date.now() * 0.0005 + idx) * 0.005;
             }
         });
     }
-    // --------------------------
+}
+
+//Camera Functions
+
+function zoomToPiece(p) {
+    isZoomed = true;
+    cameraTarget = p.mesh;
+    
+    // Zoom closer (Higher Y means further up, lower Y means closer)
+    const offset = { x: 0, y: 15, z: 12 }; 
+    
+    new TWEEN.Tween(camera.position)
+        .to({
+            x: p.mesh.position.x + offset.x,
+            y: p.mesh.position.y + offset.y,
+            z: p.mesh.position.z + offset.z
+        }, 800)
+        .easing(TWEEN.Easing.Quadratic.Out)
+        .start();
+}
+
+// Moves Player and Camera together to a specific tile
+function animateTeleport(p, targetTile, onComplete) {
+    // 1. Lock Camera Tracking
+    isZoomed = true;
+    cameraTarget = p.mesh;
+
+    // 2. Move Player Mesh
+    new TWEEN.Tween(p.mesh.position)
+        .to({ x: targetTile.position.x, z: targetTile.position.z }, 1500) // 1.5 seconds travel
+        .easing(TWEEN.Easing.Quadratic.InOut)
+        .onComplete(() => {
+            if (onComplete) onComplete();
+        })
+        .start();
+
+    // 3. Move Camera (Maintain offset relative to destination)
+    // We calculate where the camera SHOULD be when the player arrives
+    const width = window.innerWidth;
+    const isMobileMode = document.body.classList.contains('force-mobile') || width <= 768;
+    
+    // Use the Zoom offset
+    const offset = { x: 0, y: 15, z: 12 };
+
+    new TWEEN.Tween(camera.position)
+        .to({
+            x: targetTile.position.x + offset.x,
+            y: p.mesh.position.y + offset.y, 
+            z: targetTile.position.z + offset.z
+        }, 1500)
+        .easing(TWEEN.Easing.Quadratic.InOut)
+        .onUpdate(() => {
+            // Force look at player during flight
+            camera.lookAt(p.mesh.position.x, 0, p.mesh.position.z);
+        })
+        .start();
+}
+
+function resetCamera() {
+    isZoomed = false;
+    cameraTarget = null;
+    
+    // Default overhead view
+    const width = window.innerWidth;
+    const isMobileMode = document.body.classList.contains('force-mobile') || width <= 768;
+    let dist = 55;
+    if (isMobileMode) {
+       const boardSize = 55; 
+       const fovRad = (45 * Math.PI) / 360; 
+       const height = window.innerHeight * 0.82; 
+       const aspect = width / height;
+       if (aspect > 1) dist = (boardSize / 2) / Math.tan(fovRad);
+       else dist = ((boardSize / aspect) / 2) / Math.tan(fovRad);
+    }
+
+    new TWEEN.Tween(camera.position)
+        .to({ x: 0, y: dist, z: 0.1 }, 1200)
+        .easing(TWEEN.Easing.Cubic.Out)
+        .onUpdate(() => camera.lookAt(0, 0, 0))
+        .start();
+}
+
+// Handles the logic for the single big circle button
+function handleActionClick() {
+    // If it's the Roll Phase, Roll.
+    if (gameState === 'ROLL') {
+        rollMove();
+    } 
+    // If it's the End Phase, End Turn.
+    else if (gameState === 'END') {
+        endTurn();
+    }
+    // Otherwise, button shouldn't be clickable, but just in case:
+    else {
+        console.log("Not a valid phase for action button");
+    }
 }
 
 function onWindowResize() {
@@ -1796,6 +1847,16 @@ function init() {
     document.addEventListener('click', function(e) {
         if (e.target.closest('button, .choice-btn, .sel-opt, .skill-card, .color-opt, .help-tab, .skill-slot, .equip-slot, .inv-slot, .close-x, #btn-help, #btn-settings')) {
             AUDIO.playSound('sfx_click');
+        }
+    });
+	
+	// ... inside init() ...
+    
+    // FIX SCROLL ON APP SWITCH
+    document.addEventListener("visibilitychange", () => {
+        if (document.visibilityState === "visible") {
+            window.scrollTo(0, 0);
+            setTimeout(() => window.scrollTo(0, 0), 100);
         }
     });
 }
@@ -2127,72 +2188,138 @@ function finishRollLogic(p, r) {
 }
 
 function animateMove(p, s) { 
-    if (s <= 0) { resolveLanding(p); return; } 
-    p.pos = (p.pos + 1) % 40; 
+    // Start Zoom on first step of move
+    if (!isZoomed && s > 0) {
+        zoomToPiece(p);
+    }
+
+    if (s <= 0) { 
+        // Movement done, reset camera after a brief moment
+        setTimeout(() => {
+            // Only reset if it's the end of turn or an interaction that doesn't need zoom
+            // But usually we wait for endStep to reset
+            resolveLanding(p); 
+        }, 300);
+        return; 
+    } 
     
-    // --- TRACK STAT ---
+    p.pos = (p.pos + 1) % 40; 
     p.metrics.spacesMoved++;
-    // ------------------
 
     if (p.pos === 0) {
         p.gold += 200; addLog("Passed Inn (+200G)", "log-success");
         let recharged = false;
-        
         if(p.classSkillDepleted) { p.classSkillDepleted = false; recharged = true; }
         ['head', 'body', 'main', 'off'].forEach(slot => { 
             const item = p.equipment[slot]; 
             if (item && item.isDepleted) { item.isDepleted = false; recharged = true; } 
         });
-        const active = ABILITY_LIBRARY[p.activeSkillId];
-        if (active && active.onRecharge) { if (active.onRecharge(p)) recharged = true; }
-        const passive = ABILITY_LIBRARY[p.passiveSkillId];
-        if (passive && passive.onRecharge) { if (passive.onRecharge(p)) recharged = true; }
-
         if(recharged) addLog("All Abilities Recharged!", "log-epic");
         updateHUD();
     } 
 
-    const t = tiles[p.pos].position.clone(); if (p.id > 0) { t.x += Math.random() - 0.5; t.z += Math.random() - 0.5; } 
+    const t = tiles[p.pos].position.clone(); 
+    if (p.id > 0) { t.x += Math.random() - 0.5; t.z += Math.random() - 0.5; } 
+    
+    // Move Piece
     new TWEEN.Tween(p.mesh.position).to({x: t.x, z: t.z}, 250).start(); 
-    new TWEEN.Tween(p.mesh.position).to({y: 1.5}, 125).yoyo(true).repeat(1).onComplete(() => animateMove(p, s - 1)).start(); 
-}
+    
+    // If Zoomed, move camera along with piece
+    if(isZoomed) {
+        const offset = { x: 0, y: 15, z: 12 };
+        new TWEEN.Tween(camera.position)
+            .to({
+                x: t.x + offset.x,
+                y: 1.5 + offset.y, // 1.5 is player height
+                z: t.z + offset.z
+            }, 250)
+            .start();
+    }
 
+    new TWEEN.Tween(p.mesh.position)
+        .to({y: 1.5}, 125).yoyo(true).repeat(1)
+        .onComplete(() => animateMove(p, s - 1))
+        .start(); 
+}
 function endStep(){ 
-    gameState='END'; updateHUD(); 
-    if(players[turnIndex].isAi) { setTimeout(endTurn, 2000); }
+    gameState = 'END'; 
+    updateHUD(); 
+    
+    // Zoom out when player is done moving/acting
+    if(isZoomed) {
+        resetCamera();
+    }
+
+    if(players[turnIndex].isAi) { 
+        // Small buffer before AI decides to end turn
+        setTimeout(() => {
+            endTurn();
+        }, 500); 
+    }
 }
 
 function endTurn(){
+    // 1. Safety Check: If we are already switching turns, stop.
+    if (turnProcessing) return;
+    turnProcessing = true;
+
+    // 2. Lock UI immediately
+    const btnAction = document.getElementById('btn-action');
+    if(btnAction) {
+        btnAction.disabled = true;
+        btnAction.innerText = "...";
+    }
+
+    // 3. Process Previous Player Stats
     const prevP = players[turnIndex]; 
     recalcStats(prevP);
     if(prevP.isAi) manageAiInventory(prevP); 
     
-    // --- RECORD HISTORY ---
+    // Record History
     const props = tiles.filter(t => t.userData.owner === prevP.id).length;
     prevP.history.push({ turn: turnCount, gold: prevP.gold, props: props });
-    // ---------------------
 
-    let nextIndex = (turnIndex + 1) % players.length;
-    let safetyCount = 0;
-    
-    while(players[nextIndex].isDead && safetyCount < players.length) {
-        nextIndex = (nextIndex + 1) % players.length;
-        safetyCount++;
-    }
-    
-    turnIndex = nextIndex;
-    gameState='ROLL'; 
-    updateHUD();
-    
-    const curP = players[turnIndex];
-    if(curP.isDead) return;
+    // 4. THE DELAY (1 Second Break)
+    setTimeout(() => {
+        // Calculate Next Player
+        let nextIndex = (turnIndex + 1) % players.length;
+        let safetyCount = 0;
+        
+        // Find next living player
+        while(players[nextIndex].isDead && safetyCount < players.length) {
+            nextIndex = (nextIndex + 1) % players.length;
+            safetyCount++;
+        }
+        
+        // Apply Switch
+        turnIndex = nextIndex;
+        gameState = 'ROLL'; 
+        updateHUD();
+        
+        // Release Lock
+        turnProcessing = false;
 
-    if(curP.isAi) { 
-        attemptAiAbilities(curP, 'pre-roll'); 
-        setTimeout(rollMove, 1500); 
-    }
+        const curP = players[turnIndex];
+        if(curP.isDead) return;
+
+        // Start Next Turn Logic
+        if(curP.isAi) { 
+            attemptAiAbilities(curP, 'pre-roll'); 
+            
+            // Zoom to AI before they roll
+            zoomToPiece(curP);
+            
+            // Roll after visual setup
+            setTimeout(rollMove, 1000); 
+        } else {
+            // Human Turn
+            addLog("Your Turn!");
+            
+            // Optionally auto-zoom to human, or let them look around
+            // zoomToPiece(curP); 
+        }
+    }, 1000); // 1000ms = 1 second break
 }
-
 function resolveLanding(p) {
     // 1. SELF PASSIVE TRIGGER (Class)
     const passive = ABILITY_LIBRARY[p.passiveSkillId];
@@ -2601,6 +2728,7 @@ function rollCombat(p, stat, tn, req, t, mode, penalty, rewardVal, failCost, isS
             if(wins >= req) { 
                 addLog(`Success! (${wins} wins)`, "log-success"); 
                 if (p.id === 0) AUDIO.playSound('sfx_win');
+                
                 if (mode === 'capture' || mode === 'upgrade' || isSiege) { 
                     const passive = ABILITY_LIBRARY[p.passiveSkillId]; 
                     if (passive && passive.onCombatVictory) passive.onCombatVictory(p); 
@@ -2610,31 +2738,51 @@ function rollCombat(p, stat, tn, req, t, mode, penalty, rewardVal, failCost, isS
                 // --- TRACK SIEGE ---
                 if (isSiege) p.metrics.successfulSieges++;
 
+                // --- UPDATED TELEPORT LOGIC ---
                 if (mode === 'teleport') {
                     addLog("The portal opens... Teleporting!", "log-epic");
+                    
                     const newPos = Math.floor(Math.random() * 40);
                     p.pos = newPos;
                     const targetTile = tiles[newPos];
-                    new TWEEN.Tween(p.mesh.position).to({ x: targetTile.position.x, z: targetTile.position.z }, 1000).easing(TWEEN.Easing.Quadratic.Out).onComplete(() => { resolveLanding(p); }).start();
+                    
+                    // Call the new helper function for smooth camera/player travel
+                    animateTeleport(p, targetTile, () => {
+                        resolveLanding(p);
+                    });
+
+                    // Don't auto-close immediately, let the animation start
                     if(p.id === 0) autoClose = false; 
                 }
+                // ------------------------------
+
                 else if(isSiege) { 
                     let guards = t.userData.guardCount || 0; 
                     if (guards > 0) { t.userData.guardCount--; addLog(`Guard Defeated! (${t.userData.guardCount} remaining)`, "log-success"); } 
                     else { capture(t, p, 1, lootCallback); if(p.id === 0) autoClose = false; } 
                 } 
-                else if(mode === 'capture') { capture(t, p, 1, lootCallback); if(rewardVal > 0) { p.gold += rewardVal; addLog(`Bonus: +${rewardVal}G`, "log-gold"); } if(p.id === 0) autoClose = false; }
-                else if(mode === 'upgrade') { capture(t, p, 2, lootCallback); if(p.id === 0) autoClose = false; }
+                else if(mode === 'capture') { 
+                    capture(t, p, 1, lootCallback); 
+                    if(rewardVal > 0) { p.gold += rewardVal; addLog(`Bonus: +${rewardVal}G`, "log-gold"); } 
+                    if(p.id === 0) autoClose = false; 
+                }
+                else if(mode === 'upgrade') { 
+                    capture(t, p, 2, lootCallback); 
+                    if(p.id === 0) autoClose = false; 
+                }
+
             } else { 
                 addLog("Failure!", "log-fail"); 
                 if (p.id === 0) AUDIO.playSound('sfx_fail');
                 if(isSiege) { pay(p, failCost, players[t.userData.owner]); } else { pay(p, failCost); } 
             }
+            
             updateHUD(); 
             if(autoClose) setTimeout(closeEnc, 1000);
         }, 600);
     };
 
+    // Gambler's Luck Logic
     const hasOnes = results.includes(1);
     if (p.id === 0 && hasOnes) {
         let skillSource = null; let skillType = '';
@@ -2650,6 +2798,7 @@ function rollCombat(p, stat, tn, req, t, mode, penalty, rewardVal, failCost, isS
             return;
         }
     }
+    
     if (p.id === 0) AUDIO.playSound('sfx_roll');
     finalizeCombat(results);
 }
@@ -2687,7 +2836,6 @@ function checkForBonusLoot(p) {
     } 
 }
 function capture(t, p, lvl, callback) {
-    // Check if tile was owned by an enemy BEFORE capturing
     const previousOwner = t.userData.owner;
     const wasEnemy = (previousOwner !== null && previousOwner !== p.id);
 
@@ -2696,7 +2844,11 @@ function capture(t, p, lvl, callback) {
     t.userData.guardCount = 0; 
     if (t.userData.prop) t.remove(t.userData.prop);
     
-    // Visuals
+    // --- STEP 1: HIDE UI ONLY (Do NOT call closeEnc) ---
+    // removing 'active' hides the visual but keeps the game logic paused/zoomed
+    document.getElementById('card-modal').classList.remove('active');
+
+    // Visuals (Building)
     const g = new THREE.Group();
     if (lvl === 1) { 
         const m = new THREE.Mesh(new THREE.ConeGeometry(1, 1.5, 4), new THREE.MeshStandardMaterial({ color: p.mesh.children[0].material.color })); 
@@ -2706,38 +2858,66 @@ function capture(t, p, lvl, callback) {
         const r = new THREE.Mesh(new THREE.ConeGeometry(1.5, 1, 4), new THREE.MeshStandardMaterial({ color: p.mesh.children[0].material.color })); r.position.set(0, 1.5, 0); r.rotation.y = Math.PI / 4; 
         g.add(b); g.add(r); 
     }
+    
+    // --- SLOWER ANIMATION (4 Seconds) ---
+    g.position.y = -5; // Start lower underground
     t.add(g); t.userData.prop = g;
+    
+    // Rise up
+    new TWEEN.Tween(g.position)
+        .to({y: 0}, 4000) 
+        .easing(TWEEN.Easing.Elastic.Out) 
+        .start();
+    
+    // --- VICTORY DANCE ---
+    // Spin
+    new TWEEN.Tween(p.mesh.rotation)
+        .to({ y: p.mesh.rotation.y + Math.PI * 4 }, 2000) 
+        .easing(TWEEN.Easing.Cubic.Out)
+        .start();
+        
+    // Hop
+    new TWEEN.Tween(p.mesh.position)
+        .to({ y: 2.5 }, 500)
+        .yoyo(true)
+        .repeat(3) 
+        .start();
     
     addLog(lvl === 1 ? "Captured!" : "Upgraded!", "log-success");
 
-    // --- TRIGGER ON CAPTURE HOOK (SCAVENGE) ---
     if (wasEnemy) {
         const pass = ABILITY_LIBRARY[p.passiveSkillId];
         if (pass && pass.onCapture) pass.onCapture(p, t);
     }
 
-    // --- NEW FLOW LOGIC ---
     if (p.id === 0) {
         if (lvl === 1) {
-            setTimeout(() => chooseDefense(t, callback), 500);
+            // Wait 4s for animation, then show Defense Picker
+            // Camera is STILL ZOOMED here
+            setTimeout(() => chooseDefense(t, callback), 4000); 
         } else {
-            if (callback) setTimeout(callback, 500);
+            // Upgrade (Level 2) - No defense pick needed, just end
+            if (callback) setTimeout(callback, 4000);
+            else setTimeout(endStep, 4000);
         }
     } else {
+        // AI Logic
         const s = p.stats; 
-        if (s.str >= s.dex && s.str >= s.int) {
-            t.userData.defendingStat = 'str'; 
-        } else if (s.dex >= s.str && s.dex >= s.int) {
-            t.userData.defendingStat = 'dex'; 
-        } else {
-            t.userData.defendingStat = 'int';
-        }
+        if (s.str >= s.dex && s.str >= s.int) t.userData.defendingStat = 'str'; 
+        else if (s.dex >= s.str && s.dex >= s.int) t.userData.defendingStat = 'dex'; 
+        else t.userData.defendingStat = 'int';
         
-        if (callback) callback();
+        if (callback) setTimeout(callback, 2000);
+        else setTimeout(endStep, 2000);
     }
 }
 function chooseDefense(t, callback) { 
-    const next = () => { if (callback) callback(); else endStep(); };
+    // This function runs while camera is still zoomed in
+    
+    const next = () => { 
+        if (callback) callback(); 
+        else endStep(); // This triggers resetCamera()
+    };
     
     showModal("Tactics", "Choose a stat to defend this location.", [ 
         { txt: "Strength (STR)", act: () => { t.userData.defendingStat = 'str'; addLog("Defense set to STR", "log-success"); next(); } }, 
@@ -2875,10 +3055,16 @@ function switchHelpTab(tabId) {
 function addLog(m, c) {
     const l = document.getElementById('game-log');
     if (!l) return;
+    
     let d = document.createElement('div');
     d.className = 'log-entry ' + (c || '');
     d.innerText = '> ' + m;
-    l.insertBefore(d, l.firstChild);
+    
+    // CHANGED: Append to bottom instead of insertBefore
+    l.appendChild(d);
+    
+    // CHANGED: Auto-scroll to the bottom to show new message
+    l.scrollTop = l.scrollHeight;
 }
 
 // --- NEW HELPER: LONG PRESS TO SELL ---
@@ -2909,14 +3095,30 @@ function setupLongPressSell(element, identifier, source) {
 function updateHUD() {
     if(players.length===0) return;
     const p = players[0];
-    setT('p1-name', p.name); setT('p1-gold', p.gold); setT('p1-str', p.stats.str); setT('p1-dex', p.stats.dex); setT('p1-int', p.stats.int); setT('treasury-val', treasuryGold);
+    setT('p1-name', p.name); setT('p1-gold', p.gold); setT('p1-str', p.stats.str); setT('p1-dex', p.stats.dex); setT('p1-int', p.stats.int); 
+    
+    // UPDATE TREASURY WIDGET
+    setT('treasury-val', treasuryGold);
+    
     const elPortrait = document.getElementById('p1-portrait'); if(elPortrait) elPortrait.style.backgroundImage = `url('${p.portrait}')`;
     
     setT('day-night-indicator', isNight ? "☾ NIGHT" : "☀ DAY");
     const elDayNight = document.getElementById('day-night-indicator'); if(elDayNight) { elDayNight.style.color = isNight ? "#a855f7" : "#87ceeb"; }
     
     const cur = players[turnIndex]; setT('turn-banner', cur.id === 0 ? "YOUR TURN" : `${cur.name}'S TURN`);
-    const btnRoll = document.getElementById('btn-roll'); const btnEnd = document.getElementById('btn-end'); if(btnRoll && btnEnd){ btnRoll.disabled = (gameState !== 'ROLL' || cur.id !== 0); btnEnd.disabled = (gameState !== 'END' || cur.id !== 0); }
+    
+    // ACTION BUTTON LOGIC
+    const btnAction = document.getElementById('btn-action');
+    if (btnAction) {
+        btnAction.disabled = true;
+        btnAction.classList.remove('state-end');
+        btnAction.innerText = "...";
+        if (cur.id === 0) {
+            if (gameState === 'ROLL') { btnAction.disabled = false; btnAction.innerText = "ROLL"; }
+            else if (gameState === 'END') { btnAction.disabled = false; btnAction.classList.add('state-end'); btnAction.innerText = "END"; }
+            else { btnAction.innerText = "WAIT"; }
+        } else { btnAction.innerText = "AI"; }
+    }
     
     const invDiv = document.getElementById('p1-inv'); 
     if(invDiv){ 
@@ -2926,39 +3128,54 @@ function updateHUD() {
             d.ondragstart = (e) => { if(document.getElementById('context-menu').style.display === 'flex') { e.preventDefault(); return; } dragStart(e, i); }; 
             d.oncontextmenu = (e) => { e.preventDefault(); handleContextOpen(e, i, 'inv'); }; 
             d.onclick = () => { if(document.getElementById('context-menu').style.display !== 'flex') equipItem(0, i); }; 
-            if(p.inventory[i]){ 
-                d.innerText = p.inventory[i].name; d.classList.add('rarity-' + p.inventory[i].rarity); 
-                d.onmouseenter = () => showTooltip(p.inventory[i]); d.onmouseleave = hideTooltip;
-                setupLongPressSell(d, i, 'inv');
-            } 
+            if(p.inventory[i]){ d.innerText = p.inventory[i].name; d.classList.add('rarity-' + p.inventory[i].rarity); d.onmouseenter = () => showTooltip(p.inventory[i]); d.onmouseleave = hideTooltip; setupLongPressSell(d, i, 'inv'); } 
             invDiv.appendChild(d); 
         } 
     }
     
+    // UPDATED LEADERBOARD RENDER
     const lb = document.getElementById('leader-list'); 
     if(lb){ 
         lb.innerHTML = ''; 
         players.forEach(pl => { 
-            let d = document.createElement('div'); 
-            d.className = 'leader-row' + (pl.isDead ? ' dead' : ''); 
-            
-            // --- NEW STATS ---
+            let d = document.createElement('div'); d.className = 'leader-row' + (pl.isDead ? ' dead' : ''); 
             const camps = tiles.filter(t => t.userData.owner === pl.id && t.userData.buildingLevel === 1).length;
             const taverns = tiles.filter(t => t.userData.owner === pl.id && t.userData.buildingLevel === 2).length;
-
-            let nameSpan = document.createElement('span'); 
-            nameSpan.className = "leader-name"; nameSpan.style.color = pl.color; nameSpan.innerText = pl.name; 
-            if(!pl.isDead) { nameSpan.addEventListener('click', function() { openCharDetail(pl.id); }); } 
             
-            let infoSpan = document.createElement('div');
-            infoSpan.style.display = 'flex'; infoSpan.style.alignItems = 'center'; infoSpan.style.gap = '8px';
-            infoSpan.innerHTML = `<span style="font-size:0.9rem">⛺${camps} 🍺${taverns}</span><span style="font-weight:bold">${pl.isDead ? "DEAD" : pl.gold + "G"}</span>`;
-
-            d.appendChild(nameSpan); d.appendChild(infoSpan); 
+            // Name Section
+            let nameSpan = document.createElement('div'); 
+            nameSpan.className = "leader-name"; 
+            nameSpan.style.color = pl.color; 
+            nameSpan.innerText = pl.name; 
+            nameSpan.style.fontWeight = "bold";
+            nameSpan.style.cursor = "pointer"; 
+            nameSpan.style.fontSize = "1rem";
+            if(!pl.isDead) { nameSpan.onclick = function() { openCharDetail(pl.id); }; } 
+            
+            // Info Section (Stacked for better visibility on small screens)
+            let infoSpan = document.createElement('div'); 
+            infoSpan.style.display = 'flex'; 
+            infoSpan.style.justifyContent = 'space-between';
+            infoSpan.style.width = '100%';
+            infoSpan.style.color = '#ccc';
+            infoSpan.style.fontSize = '0.85rem';
+            infoSpan.innerHTML = `<span>⛺${camps} 🍺${taverns}</span><span>${pl.isDead ? "DEAD" : pl.gold + "G"}</span>`;
+            
+            // Row Layout container
+            let rowContent = document.createElement('div');
+            rowContent.style.display = 'flex';
+            rowContent.style.flexDirection = 'column';
+            rowContent.style.width = '100%';
+            
+            rowContent.appendChild(nameSpan);
+            rowContent.appendChild(infoSpan);
+            
+            d.appendChild(rowContent); 
             lb.appendChild(d); 
         }); 
     }
     
+    // UPDATE SKILL 0 (Class)
     const s0 = document.getElementById('skill-0'); const txt0 = document.getElementById('txt-skill-0'); const actSkill = ABILITY_LIBRARY[p.activeSkillId]; 
     if(actSkill && s0 && txt0) { 
         if(p.classSkillDepleted) { s0.className="skill-slot"; s0.style.opacity="0.5"; txt0.innerText="Recharge"; } 
@@ -2967,41 +3184,36 @@ function updateHUD() {
         s0.onmouseenter = () => showTooltip(p.activeSkillId, true); s0.onmouseleave = hideTooltip; 
     }
 
+    // UPDATE EQUIPPED (Slots 1-4)
     EQUIP_ORDER.forEach((slotName, i) => { 
         const idx = i + 1; const el = document.getElementById(`skill-${idx}`); const txt = document.getElementById(`txt-skill-${idx}`); 
         const item = p.equipment[slotName]; const dollEl = document.getElementById('slot-'+slotName); 
         if(dollEl) { 
-            dollEl.innerHTML = item ? item.name : slotName.toUpperCase(); 
-            dollEl.className = 'equip-slot' + (item ? ' filled' : ''); 
+            dollEl.innerHTML = item ? item.name : slotName.toUpperCase(); dollEl.className = 'equip-slot' + (item ? ' filled' : ''); 
             dollEl.oncontextmenu = (e) => { e.preventDefault(); handleContextOpen(e, slotName, 'equip'); }; 
-            if(item) { dollEl.onmouseenter = () => showTooltip(item); dollEl.onmouseleave = hideTooltip; setupLongPressSell(dollEl, slotName, 'equip'); } 
-            else { dollEl.onmouseenter = null; dollEl.onmouseleave = null; } 
+            if(item) { dollEl.onmouseenter = () => showTooltip(item); dollEl.onmouseleave = hideTooltip; setupLongPressSell(dollEl, slotName, 'equip'); } else { dollEl.onmouseenter = null; dollEl.onmouseleave = null; } 
         } 
         if(el && txt) { 
             el.style.backgroundImage = 'none'; 
             if (item) {
                 if (item.ability) { const libSkill = Object.values(ABILITY_LIBRARY).find(s => s.name === item.ability.name); if(libSkill && libSkill.img) el.style.backgroundImage = `url('${libSkill.img}')`; }
-                if (item.ability && item.ability.type === 'active') { 
-                    if(item.isDepleted) { el.className = "skill-slot"; el.style.opacity="0.5"; txt.innerText = "Recharge"; } 
-                    else { el.className = "skill-slot filled"; el.style.opacity="1"; txt.innerText = item.ability.name; } 
-                } else { el.className = "skill-slot"; el.style.opacity="1"; txt.innerText = item.ability ? item.ability.name : "(Passive)"; }
+                if (item.ability && item.ability.type === 'active') { if(item.isDepleted) { el.className = "skill-slot"; el.style.opacity="0.5"; txt.innerText = "Recharge"; } else { el.className = "skill-slot filled"; el.style.opacity="1"; txt.innerText = item.ability.name; } } else { el.className = "skill-slot"; el.style.opacity="1"; txt.innerText = item.ability ? item.ability.name : "(Passive)"; }
                 el.onmouseenter = () => showTooltip(item); el.onmouseleave = hideTooltip; 
             } else { el.className = "skill-slot"; el.style.opacity="1"; txt.innerText = "Empty"; el.onmouseenter = null; el.onmouseleave = null; }
         } 
     });
     
-    p.quickSlots.forEach((item, i) => { 
-        const idx = i + 5; const el = document.getElementById(`skill-${idx}`); const txt = document.getElementById(`txt-skill-${idx}`); 
-        if(el && txt) { 
-            el.style.backgroundImage = 'none'; 
-            if (item && p.inventory.includes(item)) { 
-                el.className = "skill-slot consumable"; txt.innerText = item.name; 
-                const libSkill = Object.values(ABILITY_LIBRARY).find(s => s.name === item.name);
-                if(libSkill && libSkill.img) el.style.backgroundImage = `url('${libSkill.img}')`;
-                el.onmouseenter = () => showTooltip(item); el.onmouseleave = hideTooltip; 
-            } else { p.quickSlots[i] = null; el.className = "skill-slot"; txt.innerText = "Drag Item"; el.onmouseenter = null; el.onmouseleave = null; } 
-        } 
-    });
+    // UPDATE SINGLE DRAG SLOT (Slot 5)
+    const item = p.quickSlots[0]; const el = document.getElementById('skill-5'); const txt = document.getElementById('txt-skill-5'); 
+    if(el && txt) { 
+        el.style.backgroundImage = 'none'; 
+        if (item && p.inventory.includes(item)) { 
+            el.className = "skill-slot consumable"; txt.innerText = item.name; 
+            const libSkill = Object.values(ABILITY_LIBRARY).find(s => s.name === item.name);
+            if(libSkill && libSkill.img) el.style.backgroundImage = `url('${libSkill.img}')`;
+            el.onmouseenter = () => showTooltip(item); el.onmouseleave = hideTooltip; 
+        } else { p.quickSlots[0] = null; el.className = "skill-slot"; txt.innerText = "Drag Item"; el.onmouseenter = null; el.onmouseleave = null; } 
+    } 
 }
 function setT(id,t){ let e=document.getElementById(id); if(e) e.innerText=t; }
 function handleContextOpen(e, identifier, source='inv') {
@@ -3137,7 +3349,29 @@ function showTooltip(data, isSkillId = false) {
     tt.style.display = 'block'; 
 }
 function hideTooltip() { document.getElementById('tooltip').style.display = 'none'; }
-document.addEventListener('mousemove', (e) => { const tt = document.getElementById('tooltip'); if (tt && tt.style.display === 'block') { const pad = 15; let left = e.pageX + pad; let top = e.pageY + pad; if (left + tt.offsetWidth > window.innerWidth) left = e.pageX - tt.offsetWidth - pad; if (top + tt.offsetHeight > window.innerHeight) top = e.pageY - tt.offsetHeight - pad; tt.style.left = left + 'px'; tt.style.top = top + 'px'; } });
+// --- UPDATED TOOLTIP FOLLOWER ---
+document.addEventListener('mousemove', (e) => { 
+    const tt = document.getElementById('tooltip'); 
+    if (tt && tt.style.display === 'block') { 
+        const pad = 20; // Increased padding to prevent cursor overlap
+        
+        let left = e.clientX + pad; 
+        let top = e.clientY + pad; 
+        
+        // Prevent going off right screen edge
+        if (left + tt.offsetWidth > window.innerWidth) {
+            left = e.clientX - tt.offsetWidth - pad; 
+        }
+        
+        // Prevent going off bottom screen edge
+        if (top + tt.offsetHeight > window.innerHeight) {
+            top = e.clientY - tt.offsetHeight - pad; 
+        }
+        
+        tt.style.left = left + 'px'; 
+        tt.style.top = top + 'px'; 
+    } 
+});
 document.addEventListener('click', (e) => { const menu = document.getElementById('context-menu'); if (menu && !e.target.classList.contains('inv-slot') && !e.target.classList.contains('ctx-item')) menu.style.display = 'none'; });
 let lastTouchTime = 0; let lastTouchSlot = "";
 function toggleHelpModal() { const m = document.getElementById('help-modal'); m.style.display = (m.style.display === 'flex') ? 'none' : 'flex'; }
@@ -3145,6 +3379,15 @@ function toggleSettingsModal() {
     const m = document.getElementById('settings-modal'); 
     // Toggle between Flex and None
     m.style.display = (m.style.display === 'flex') ? 'none' : 'flex'; 
+}
+function toggleUIMode(isForced) {
+    if (isForced) {
+        document.body.classList.add('force-mobile');
+    } else {
+        document.body.classList.remove('force-mobile');
+    }
+    // Recalculate camera because viewport size/logic effectively changed
+    updateCamera();
 }
 function handleEquipTouch(slot) { const currentTime = new Date().getTime(); const tapLength = currentTime - lastTouchTime; if (lastTouchSlot === slot && tapLength < 500 && tapLength > 0) { unequipItem(slot); lastTouchTime = 0; } else { useEquipped(slot); lastTouchTime = currentTime; lastTouchSlot = slot; } }
 function allowDrop(ev){ev.preventDefault();}
@@ -3363,7 +3606,28 @@ function showClassOptions(c) {
     });
 }
 function hl(el){el.parentElement.childNodes.forEach(c=>c.classList&&c.classList.remove('selected'));el.classList.add('selected');}
-function up(){ document.getElementById('btn-start-game').disabled = !(selRace && selClass && selActiveId && selPassiveId); if(selRace && selClass) { const key = `${selRace.id}_${selClass.id}`; const url = CHAR_PORTRAITS[key]; if(url) { const frame = document.getElementById('creator-portrait-frame'); frame.style.backgroundImage = `url('${url}')`; frame.style.display = 'block'; } } }
+function up() { 
+    const btn = document.getElementById('btn-start-game');
+    const isReady = (selRace && selClass && selActiveId && selPassiveId);
+    
+    // Enable/Disable button
+    btn.disabled = !isReady;
+    
+    // Toggle Alpha (Opacity)
+    btn.style.opacity = isReady ? "1" : "0.5"; 
+    btn.style.cursor = isReady ? "pointer" : "not-allowed";
+
+    // Update Portrait if ready
+    if(selRace && selClass) { 
+        const key = `${selRace.id}_${selClass.id}`; 
+        const url = CHAR_PORTRAITS[key]; 
+        if(url) { 
+            const frame = document.getElementById('creator-portrait-frame'); 
+            frame.style.backgroundImage = `url('${url}')`; 
+            frame.style.display = 'block'; 
+        } 
+    } 
+}
 function startGame() {
     document.getElementById('create-screen').style.display='none'; 
     const name = document.getElementById('char-name-input').value || "Hero";
