@@ -2712,13 +2712,14 @@ function openCustomShop(p, items, title) {
     items.forEach(it => {
         let b = document.createElement('div'); b.className = 'choice-btn';
         b.innerText = `${it.name} (${it.cost}G)`;
-        b.onclick = () => {
+			b.onclick = () => {
             if(p.gold >= it.cost) {
                 p.gold -= it.cost;
-                p.inventory.push({...it});
+                // UPDATED
+                p.inventory.push(createItemInstance(it));
                 addLog(`Bought ${it.name}`, "log-success");
                 updateHUD();
-                b.remove(); // Remove bought item
+                b.remove(); 
             } else {
                 addLog("Not enough Gold!", "log-fail");
             }
@@ -2733,6 +2734,33 @@ function openCustomShop(p, items, title) {
     l.appendChild(b);
     
     m.classList.add('active');
+}
+
+// --- UNIQUE ID GENERATOR ---
+function generateUID() {
+    return 'item_' + Date.now().toString(36) + Math.random().toString(36).substr(2, 9);
+}
+
+// --- ITEM INSTANTIATOR ---
+// Creates a unique copy of an item so it doesn't share state with others
+function createItemInstance(templateItem) {
+    // 1. Shallow copy the main properties
+    const newItem = { ...templateItem };
+    
+    // 2. Assign Unique ID
+    newItem.uid = generateUID();
+    
+    // 3. Deep Copy the Ability Object (The Fix for Linked Skills)
+    if (newItem.ability) {
+        newItem.ability = { ...templateItem.ability };
+        // Ensure the function reference is preserved (spread operator handles this, but good to be safe)
+        newItem.ability.fn = templateItem.ability.fn; 
+    }
+    
+    // 4. Reset state
+    newItem.isDepleted = false;
+    
+    return newItem;
 }
 
 function init() {
@@ -2948,9 +2976,11 @@ function spawnPlayer(id, n, r, c, actId, pasId, ai, col) {
     const stats = { str: r.stats.str, dex: r.stats.dex, int: r.stats.int, gold: 1000 };
     const passiveDef = ABILITY_LIBRARY[pasId];
     if (passiveDef && passiveDef.effect) passiveDef.effect(stats);
+    
     let archetype = 'str';
     if(c.id === 'wizard' || c.id === 'cleric' || r.stats.int > r.stats.str) archetype = 'int';
     else if(c.id === 'rogue' || r.stats.dex > r.stats.str) archetype = 'dex';
+    
     const g = new THREE.Group();
     const m = new THREE.MeshStandardMaterial({ color: col });
     const cone = new THREE.Mesh(new THREE.ConeGeometry(0.5, 1.5, 16), m); cone.position.y = 0.75;
@@ -2959,22 +2989,23 @@ function spawnPlayer(id, n, r, c, actId, pasId, ai, col) {
     g.position.copy(tiles[0].position);
     if (id > 0) { g.position.x += Math.random() - 0.5; g.position.z += Math.random() - 0.5; }
     scene.add(g);
+    
     const portraitUrl = CHAR_PORTRAITS[`${r.id}_${c.id}`] || "";
+    
     players.push({
         id: id, name: n, race: r, class: c, portrait: portraitUrl,
         activeSkillId: actId, passiveSkillId: pasId,
         stats: stats, gold: stats.gold, pos: 0, mesh: g, color: col, isAi: ai,
-        archetype: archetype, equipment: { main: null, off: null, head: null, body: null },
-        inventory: [], quickSlots: [null, null], isSkipping: false, abilityUsed: false,
+        archetype: archetype, 
         
-        // --- NEW STAT TRACKING ---
-        metrics: {
-            spacesMoved: 0,
-            successfulSieges: 0,
-            guardsHired: 0
-        },
+        // Ensure specific IDs for equipment slots, though they start empty
+        equipment: { main: null, off: null, head: null, body: null },
+        
+        inventory: [], 
+        quickSlots: [null, null], 
+        isSkipping: false, abilityUsed: false,
+        metrics: { spacesMoved: 0, successfulSieges: 0, guardsHired: 0 },
         history: [{ turn: 0, gold: 1000, props: 0 }] 
-        // -------------------------
     });
 }
 
@@ -3406,7 +3437,21 @@ function continueFromArrival() {
         return; 
     } 
     if(i.type === 'jail') { endStep(); return; }
-    if(i.type === 'chest') { drawCardAnim('treasure', () => showEncounter(p, i, t, "loot")); return; }
+	if(i.type === 'chest') { 
+            const card = DECK_TREASURE[Math.floor(Math.random() * DECK_TREASURE.length)]; 
+            
+            // UPDATED
+            p.inventory.push(createItemInstance(card)); 
+            
+            addLog(`${p.name} found ${card.name}.`, "log-success"); 
+            if (card.name === "Pouch of Gold" && p.passiveSkillId === 'alchemist_pas') { 
+                const extra = DECK_TREASURE[Math.floor(Math.random() * DECK_TREASURE.length)]; 
+                // UPDATED
+                p.inventory.push(createItemInstance(extra)); 
+                addLog(`Alchemist Bonus: Found ${extra.name}!`, "log-epic"); 
+            } 
+            endStep(); return; 
+        }
 
     const deckType = isNight ? 'skirmish' : 'normal'; const modeType = isNight ? 'wild_skirmish' : 'wild'; const owner = t.userData.owner;
     
@@ -3585,7 +3630,6 @@ function showEncounter(p, i, t, mode) {
         card = DECK_TREASURE[Math.floor(Math.random() * DECK_TREASURE.length)]; 
     }
     else if (mode === 'mystery_event') {
-        // Night or Fog triggers Skirmish deck preference
         const isFoggy = (activeEvent && activeEvent.data.id === 'event_fog');
         if (isNight || isFoggy) {
             card = DECK_SKIRMISH[Math.floor(Math.random() * DECK_SKIRMISH.length)];
@@ -3630,7 +3674,8 @@ function showEncounter(p, i, t, mode) {
     if (mode === 'loot') { 
         desc = `You found: ${card.name} (${card.rarity || 'Common'})`; 
         opts = [{ txt: "Keep", act: () => { 
-            p.inventory.push({...card}); 
+            p.inventory.push(createItemInstance(card)); 
+            
             addLog("Gained " + card.name, "log-success"); 
             if (card.name === "Pouch of Gold" && p.passiveSkillId === 'alchemist_pas') {
                 addLog("Alchemist: Transmuting extra loot...", "log-epic");
@@ -3649,13 +3694,16 @@ function showEncounter(p, i, t, mode) {
         if(card.rare) pool = pool.filter(x => x.rarity === 'legendary'); 
         let items = []; 
         if(pool.length > 0) { for(let k=0; k<3; k++) items.push(pool[Math.floor(Math.random() * pool.length)]); } 
+        
         items.forEach(it => opts.push({ txt: `Buy ${it.name} (${it.cost}G)`, act: (btn) => { 
             if (p.gold >= it.cost) { 
                 if(p.inventory.length >= 12) { addLog("Inventory Full", "log-fail"); return; } 
-                p.gold -= it.cost; p.inventory.push({...it}); 
+                p.gold -= it.cost; 
+                p.inventory.push(createItemInstance(it)); 
                 addLog(`Bought ${it.name}`, "log-success"); updateHUD(); if(btn) btn.remove(); 
             } else { addLog("No Gold", "log-fail"); } 
         } })); 
+        
         opts.push({ txt: "Leave", act: () => { 
             const isCombatMode = (originalMode === 'wild' || originalMode === 'wild_skirmish' || originalMode === 'skirmish' || originalMode === 'upgrade' || originalMode === 'mystery_event');
             if (isCombatMode) {
@@ -3676,10 +3724,8 @@ function showEncounter(p, i, t, mode) {
             card.choices.forEach(c => { 
                 let btnTxt = c.txt; 
                 
-                // --- FOG LOGIC START ---
+                // Fog Logic
                 if (isFog) {
-                    // Split at '(' to remove the stat requirement part
-                    // Example: "Power Through (STR 4+)" becomes "Power Through (???)"
                     const parts = btnTxt.split('(');
                     if (parts.length > 1) {
                         btnTxt = parts[0].trim() + " (???)";
@@ -3689,7 +3735,6 @@ function showEncounter(p, i, t, mode) {
                 } else {
                     if(c.fail) btnTxt += ` | Fail: -${c.fail}G`; 
                 }
-                // --- FOG LOGIC END ---
 
                 let useMode = (originalMode === 'mystery_event') ? 'teleport' : (originalMode === 'upgrade' ? 'upgrade' : c.mode);
                 opts.push({ txt: btnTxt, stat: c.stat, tn: c.tn, req: c.req || 1, mode: useMode, val: c.val || 0, failCost: c.fail || 50 }); 
@@ -3960,15 +4005,11 @@ function checkForBonusLoot(p) {
         // --- AI LOGIC: Instant Get ---
         if (p.isAi) {
             const card = DECK_TREASURE[Math.floor(Math.random() * DECK_TREASURE.length)];
-            p.inventory.push({...card});
+            // UPDATED
+            p.inventory.push(createItemInstance(card));
             addLog(`${p.name} found ${card.name}`, "log-success");
-            // Check Alchemist for AI
-            if (card.name === "Pouch of Gold" && p.passiveSkillId === 'alchemist_pas') {
-                const extra = DECK_TREASURE[Math.floor(Math.random() * DECK_TREASURE.length)];
-                p.inventory.push({...extra});
-                addLog(`Alchemist Bonus: Found ${extra.name}!`, "log-epic");
-            }
-            return; // AI doesn't need to close windows or end turns here usually
+            // ... alchemist logic ...
+            return;
         }
         // -----------------------------
 
