@@ -3192,32 +3192,25 @@ function finishRollLogic(p, r) {
 }
 
 function animateMove(p, s) { 
-    // Start Zoom on first step of move
-    if (!isZoomed && s > 0) {
-        zoomToPiece(p);
-    }
-
-    if (s <= 0) { 
-        // Movement done, reset camera after a brief moment
-        setTimeout(() => {
-            // Only reset if it's the end of turn or an interaction that doesn't need zoom
-            // But usually we wait for endStep to reset
-            resolveLanding(p); 
-        }, 300);
-        return; 
-    } 
-    
+    if (s <= 0) { resolveLanding(p); return; } 
     p.pos = (p.pos + 1) % 40; 
+    
     p.metrics.spacesMoved++;
 
     if (p.pos === 0) {
         p.gold += 200; addLog("Passed Inn (+200G)", "log-success");
         let recharged = false;
+        
         if(p.classSkillDepleted) { p.classSkillDepleted = false; recharged = true; }
         ['head', 'body', 'main', 'off'].forEach(slot => { 
             const item = p.equipment[slot]; 
             if (item && item.isDepleted) { item.isDepleted = false; recharged = true; } 
         });
+        const active = ABILITY_LIBRARY[p.activeSkillId];
+        if (active && active.onRecharge) { if (active.onRecharge(p)) recharged = true; }
+        const passive = ABILITY_LIBRARY[p.passiveSkillId];
+        if (passive && passive.onRecharge) { if (passive.onRecharge(p)) recharged = true; }
+
         if(recharged) addLog("All Abilities Recharged!", "log-epic");
         updateHUD();
     } 
@@ -3225,23 +3218,17 @@ function animateMove(p, s) {
     const t = tiles[p.pos].position.clone(); 
     if (p.id > 0) { t.x += Math.random() - 0.5; t.z += Math.random() - 0.5; } 
     
-    // Move Piece
-    new TWEEN.Tween(p.mesh.position).to({x: t.x, z: t.z}, 250).start(); 
-    
-    // If Zoomed, move camera along with piece
-    if(isZoomed) {
-        const offset = { x: 0, y: 15, z: 12 };
-        new TWEEN.Tween(camera.position)
-            .to({
-                x: t.x + offset.x,
-                y: 1.5 + offset.y, // 1.5 is player height
-                z: t.z + offset.z
-            }, 250)
-            .start();
-    }
-
+    // --- SLOWER MOVEMENT ---
+    // Horizontal Move: Increased from 250ms to 400ms
     new TWEEN.Tween(p.mesh.position)
-        .to({y: 1.5}, 125).yoyo(true).repeat(1)
+        .to({x: t.x, z: t.z}, 400) 
+        .start(); 
+        
+    // Vertical Hop: Increased from 125ms to 200ms
+    new TWEEN.Tween(p.mesh.position)
+        .to({y: 1.5}, 200) 
+        .yoyo(true)
+        .repeat(1)
         .onComplete(() => animateMove(p, s - 1))
         .start(); 
 }
@@ -3289,7 +3276,8 @@ function endTurn(){
     const props = tiles.filter(t => t.userData.owner === prevP.id).length;
     prevP.history.push({ turn: turnCount, gold: prevP.gold, props: props });
 
-    // THE DELAY (1 Second Break)
+    // --- INCREASED DELAY (2.5 Seconds) ---
+    // This gives time for animations to finish and the player to read the log
     setTimeout(() => {
         // Calculate Next Player
         let nextIndex = (turnIndex + 1) % players.length;
@@ -3317,21 +3305,21 @@ function endTurn(){
             // Zoom to them
             zoomToPiece(curP);
             
-            // If it's a boss, process boss turn
-            if(curP.isBoss) {
-                setTimeout(() => processBossTurn(curP), 1000);
-            } 
-            // If it's AI, standard roll logic
-            else {
-                attemptAiAbilities(curP, 'pre-roll'); 
-                setTimeout(rollMove, 1000); 
-            }
+            // Wait 1.5 seconds after zoom before rolling/acting
+            setTimeout(() => {
+                if(curP.isBoss) {
+                    processBossTurn(curP);
+                } else {
+                    attemptAiAbilities(curP, 'pre-roll'); 
+                    setTimeout(rollMove, 1000); 
+                }
+            }, 1500);
         } else {
             // Human Turn
             addLog("Your Turn!");
-            zoomToPiece(curP); // Auto zoom to human on start
+            zoomToPiece(curP); 
         }
-    }, 1000); 
+    }, 2500); // Changed from 1000 to 2500
 }
 function resolveLanding(p) {
     // --- 1. CHECK BOSS/MERCHANT COLLISION ---
@@ -3459,140 +3447,139 @@ function continueFromArrival() {
 }
 
 function processAiTurn(p, t, i) {
-    try {
-        // --- FIX: BOSS IGNORES TILE LOGIC ---
-        // Bosses don't pay rent, buy land, or get jailed. They just move.
-        if (p.isBoss) {
-            // Apply Tile Effect if defined (e.g. Dragon burns building)
-            if (activeEvent && activeEvent.data.onTileEffect) {
-                activeEvent.data.onTileEffect(t);
-            }
-            endStep();
-            return;
-        }
-        // ------------------------------------
-
-        // 1. Handle Instant Events
-        if(i.type === 'tax') { processTax(p, 50); endStep(); return; } 
-        if(i.type === 'park') { 
-            if(treasuryGold > 0){ p.gold += treasuryGold; addLog(`${p.name} wins the Treasury!`, "log-gold"); treasuryGold = 0; } 
-            endStep(); return; 
-        } 
-        if(i.type === 'goto') { 
-            if (p.passiveSkillId === 'smoke_bomb' || p.activeSkillId === 'smoke_bomb') { addLog(`${p.name} uses Skeleton Key to evade Dungeon!`, "log-epic"); } 
-            else { p.pos=10; p.mesh.position.copy(tiles[10].position); addLog(`${p.name} jailed.`, "log-fail"); p.isSkipping = true; } 
-            endStep(); return; 
-        } 
-        if(i.type === 'chest') { 
-            const card = DECK_TREASURE[Math.floor(Math.random() * DECK_TREASURE.length)]; 
-            p.inventory.push({...card}); 
-            addLog(`${p.name} found ${card.name}.`, "log-success"); 
-            if (card.name === "Pouch of Gold" && p.passiveSkillId === 'alchemist_pas') { 
-                const extra = DECK_TREASURE[Math.floor(Math.random() * DECK_TREASURE.length)]; 
-                p.inventory.push({...extra}); 
-                addLog(`Alchemist Bonus: Found ${extra.name}!`, "log-epic"); 
-            } 
-            endStep(); return; 
-        }
-
-        // 2. Handle Mystery / Teleport
-        if (i.type === 'mystery') {
-            addLog(`${p.name} explores the ${i.name}...`, "log-rare");
-            const deck = isNight ? DECK_SKIRMISH : DECK_ENCOUNTER;
-            const card = deck[Math.floor(Math.random() * deck.length)];
-            
-            if (card.choices) {
-                let best = card.choices[0];
-                
-                // Fog Logic
-                if (activeEvent && activeEvent.data.id === 'event_fog') {
-                    best = card.choices[Math.floor(Math.random() * card.choices.length)];
-                } 
-                else if (card.choices[1]) {
-                    const stat1 = p.stats[best.stat] || 0;
-                    const stat2 = p.stats[card.choices[1].stat] || 0;
-                    if (stat2 > stat1) best = card.choices[1];
+    // --- ADD "THINKING" DELAY ---
+    // The AI waits 1.5 seconds after landing before making a decision
+    setTimeout(() => {
+        try {
+            // Boss Logic Override
+            if (p.isBoss) {
+                if (activeEvent && activeEvent.data.onTileEffect) {
+                    activeEvent.data.onTileEffect(t);
                 }
-
-                setTimeout(() => {
-                    rollCombat(p, best.stat, best.tn, best.req || 1, t, 'teleport', false, best.val || 0, best.fail || 50, false);
-                }, 1000);
+                endStep();
                 return;
-            } else {
-                endStep(); return;
             }
-        }
 
-        // 3. Buy Empty Land
-        if(i.cost > 0 && t.userData.owner === null) { 
-            const safetyRatio = (p.class.id === 'rogue' || p.race.id === 'dragonborn') ? 1.2 : 2.0; 
-            if (p.gold >= i.cost * safetyRatio) { 
-                capture(t, p, 1, () => { checkForBonusLoot(p); endStep(); }); 
-                return; 
+            // 1. Instant Events
+            if(i.type === 'tax') { processTax(p, 50); endStep(); return; } 
+            if(i.type === 'park') { 
+                if(treasuryGold > 0){ p.gold += treasuryGold; addLog(`${p.name} wins the Treasury!`, "log-gold"); treasuryGold = 0; } 
+                endStep(); return; 
             } 
-            else { addLog(`${p.name} passes on ${i.name}.`); } 
-            endStep(); return; 
-        } 
-
-        // 4. Enemy Land (Pay or Attack)
-        if(t.userData.owner !== null && t.userData.owner !== p.id) {
-            const enemyDefStat = t.userData.defendingStat || 'str'; 
-            const tn = i.tn || 3; 
-            const aiDicePool = p.stats[enemyDefStat] || 1; 
-            const chancePerDie = (7 - tn) / 6; 
-            const expectedWins = aiDicePool * chancePerDie; 
-            const requiredWins = (i.req || 1) + (t.userData.guardCount || 0);
-            
-            let willSiege = false; 
-            const failCost = (i.cost * 2) + ((t.userData.guardCount || 0) * 10);
-            
-            if (expectedWins >= requiredWins) willSiege = true; 
-            if (p.gold < i.cost) willSiege = true; 
-            if (failCost > p.gold && expectedWins < requiredWins + 0.5) willSiege = false;
-
-            if (willSiege) { 
-                attemptAiAbilities(p, 'combat'); 
-                addLog(`${p.name} attacks ${players[t.userData.owner].name}'s tile!`, "log-accent"); 
-                setTimeout(() => { rollCombat(p, enemyDefStat, tn, requiredWins, t, 'capture', false, 0, failCost, true); }, 500); 
-                return; 
-            } else { 
-                pay(p, i.cost, players[t.userData.owner]); endStep(); return; 
+            if(i.type === 'goto') { 
+                if (p.passiveSkillId === 'smoke_bomb' || p.activeSkillId === 'smoke_bomb') { addLog(`${p.name} uses Skeleton Key to evade Dungeon!`, "log-epic"); } 
+                else { p.pos=10; p.mesh.position.copy(tiles[10].position); addLog(`${p.name} jailed.`, "log-fail"); p.isSkipping = true; } 
+                endStep(); return; 
+            } 
+            if(i.type === 'chest') { 
+                const card = DECK_TREASURE[Math.floor(Math.random() * DECK_TREASURE.length)]; 
+                p.inventory.push({...card}); 
+                addLog(`${p.name} found ${card.name}.`, "log-success"); 
+                if (card.name === "Pouch of Gold" && p.passiveSkillId === 'alchemist_pas') { 
+                    const extra = DECK_TREASURE[Math.floor(Math.random() * DECK_TREASURE.length)]; 
+                    p.inventory.push({...extra}); 
+                    addLog(`Alchemist Bonus: Found ${extra.name}!`, "log-epic"); 
+                } 
+                endStep(); return; 
             }
-        }
 
-        // 5. Own Land (Upgrade or Guard)
-        if (t.userData.owner === p.id) { 
-            if (t.userData.buildingLevel === 1 && p.gold > i.cost * 3) { 
-                addLog(`${p.name} attempts to upgrade...`); 
-                const card = DECK_SKIRMISH[Math.floor(Math.random() * DECK_SKIRMISH.length)]; 
+            // 2. Mystery / Teleport
+            if (i.type === 'mystery') {
+                addLog(`${p.name} explores the ${i.name}...`, "log-rare");
+                const deck = isNight ? DECK_SKIRMISH : DECK_ENCOUNTER;
+                const card = deck[Math.floor(Math.random() * deck.length)];
                 
-                let bestChoice = card.choices[0];
-                if (card.choices[1]) {
+                if (card.choices) {
+                    let best = card.choices[0];
+                    // Fog Logic
                     if (activeEvent && activeEvent.data.id === 'event_fog') {
-                        bestChoice = card.choices[Math.floor(Math.random() * 2)];
-                    } else {
-                        if (card.choices[1].tn < card.choices[0].tn) bestChoice = card.choices[1];
+                        best = card.choices[Math.floor(Math.random() * card.choices.length)];
+                    } 
+                    else if (card.choices[1]) {
+                        const stat1 = p.stats[best.stat] || 0;
+                        const stat2 = p.stats[card.choices[1].stat] || 0;
+                        if (stat2 > stat1) best = card.choices[1];
                     }
+
+                    // Extra delay for reading the card
+                    setTimeout(() => {
+                        rollCombat(p, best.stat, best.tn, best.req || 1, t, 'teleport', false, best.val || 0, best.fail || 50, false);
+                    }, 1000);
+                    return;
+                } else {
+                    endStep(); return;
                 }
+            }
 
-                rollCombat(p, bestChoice.stat, bestChoice.tn, bestChoice.req, t, 'upgrade', false, 0, 50, false); 
-                return; 
-            } else if (t.userData.buildingLevel > 1 && p.gold > 200 && (t.userData.guardCount || 0) < 2) { 
-                p.gold -= 50; 
-                t.userData.guardCount = (t.userData.guardCount || 0) + 1; 
-                p.metrics.guardsHired++;
-                addLog(`${p.name} hired a guard.`, "log-gold"); 
-                updateHUD(); 
+            // 3. Buy Empty Land
+            if(i.cost > 0 && t.userData.owner === null) { 
+                const safetyRatio = (p.class.id === 'rogue' || p.race.id === 'dragonborn') ? 1.2 : 2.0; 
+                if (p.gold >= i.cost * safetyRatio) { 
+                    capture(t, p, 1, () => { checkForBonusLoot(p); endStep(); }); 
+                    return; 
+                } 
+                else { addLog(`${p.name} passes on ${i.name}.`); } 
+                endStep(); return; 
             } 
-        }
-        
-        endStep();
 
-    } catch (err) {
-        console.error("AI Error:", err);
-        addLog("AI glitched... passing turn.", "log-fail");
-        endStep();
-    }
+            // 4. Enemy Land
+            if(t.userData.owner !== null && t.userData.owner !== p.id) {
+                const enemyDefStat = t.userData.defendingStat || 'str'; 
+                const tn = i.tn || 3; 
+                const aiDicePool = p.stats[enemyDefStat] || 1; 
+                const chancePerDie = (7 - tn) / 6; 
+                const expectedWins = aiDicePool * chancePerDie; 
+                const requiredWins = (i.req || 1) + (t.userData.guardCount || 0);
+                
+                let willSiege = false; 
+                const failCost = (i.cost * 2) + ((t.userData.guardCount || 0) * 10);
+                
+                if (expectedWins >= requiredWins) willSiege = true; 
+                if (p.gold < i.cost) willSiege = true; 
+                if (failCost > p.gold && expectedWins < requiredWins + 0.5) willSiege = false;
+
+                if (willSiege) { 
+                    attemptAiAbilities(p, 'combat'); 
+                    addLog(`${p.name} attacks ${players[t.userData.owner].name}'s tile!`, "log-accent"); 
+                    setTimeout(() => { rollCombat(p, enemyDefStat, tn, requiredWins, t, 'capture', false, 0, failCost, true); }, 500); 
+                    return; 
+                } else { 
+                    pay(p, i.cost, players[t.userData.owner]); endStep(); return; 
+                }
+            }
+
+            // 5. Own Land
+            if (t.userData.owner === p.id) { 
+                if (t.userData.buildingLevel === 1 && p.gold > i.cost * 3) { 
+                    addLog(`${p.name} attempts to upgrade...`); 
+                    const card = DECK_SKIRMISH[Math.floor(Math.random() * DECK_SKIRMISH.length)]; 
+                    let bestChoice = card.choices[0];
+                    if (card.choices[1]) {
+                        if (activeEvent && activeEvent.data.id === 'event_fog') {
+                            bestChoice = card.choices[Math.floor(Math.random() * 2)];
+                        } else {
+                            if (card.choices[1].tn < card.choices[0].tn) bestChoice = card.choices[1];
+                        }
+                    }
+                    rollCombat(p, bestChoice.stat, bestChoice.tn, bestChoice.req, t, 'upgrade', false, 0, 50, false); 
+                    return; 
+                } else if (t.userData.buildingLevel > 1 && p.gold > 200 && (t.userData.guardCount || 0) < 2) { 
+                    p.gold -= 50; 
+                    t.userData.guardCount = (t.userData.guardCount || 0) + 1; 
+                    p.metrics.guardsHired++;
+                    addLog(`${p.name} hired a guard.`, "log-gold"); 
+                    updateHUD(); 
+                } 
+            }
+            
+            endStep();
+
+        } catch (err) {
+            console.error("AI Error:", err);
+            addLog("AI glitched... passing turn.", "log-fail");
+            endStep();
+        }
+    }, 1500); // 1.5 Second "Thinking" Delay
 }
 
 function showEncounter(p, i, t, mode) {
