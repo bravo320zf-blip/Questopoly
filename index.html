@@ -2042,7 +2042,7 @@ function animate(){
     
     // --- CAMERA TRACKING ---
     if(isZoomed && cameraTarget) {
-        // This ensures the camera rotates to face the player even if the tween is slightly off
+        // Look at the floor (y=0) at the piece's X/Z
         camera.lookAt(cameraTarget.position.x, 0, cameraTarget.position.z);
     }
 
@@ -3185,9 +3185,17 @@ function finishRollLogic(p, r) {
 }
 
 function animateMove(p, s) { 
+    // 0. End Check
     if (s <= 0) { resolveLanding(p); return; } 
-    p.pos = (p.pos + 1) % 40; 
     
+    // --- FORCE CAMERA LOCK ---
+    // If we aren't zoomed in yet, lock onto this piece immediately.
+    if (!isZoomed || cameraTarget !== p.mesh) {
+        zoomToPiece(p);
+    }
+
+    // 1. Logic Updates
+    p.pos = (p.pos + 1) % 40; 
     p.metrics.spacesMoved++;
 
     if (p.pos === 0) {
@@ -3208,28 +3216,27 @@ function animateMove(p, s) {
         updateHUD();
     } 
 
+    // 2. Calculate Targets
     const t = tiles[p.pos].position.clone(); 
     if (p.id > 0) { t.x += Math.random() - 0.5; t.z += Math.random() - 0.5; } 
     
-    // --- 1. Move Player ---
+    // 3. Move Player Mesh
     new TWEEN.Tween(p.mesh.position)
-        .to({x: t.x, z: t.z}, 250) // Fast speed
+        .to({x: t.x, z: t.z}, 250) 
         .start(); 
     
-    // --- 2. Move Camera (RESTORED) ---
-    if(isZoomed) {
-        // Keeps the camera at the standard zoom offset relative to the new tile
-        const offset = { x: 0, y: 15, z: 12 };
-        new TWEEN.Tween(camera.position)
-            .to({
-                x: t.x + offset.x,
-                y: 1.5 + offset.y, 
-                z: t.z + offset.z
-            }, 250) // Syncs with player speed
-            .start();
-    }
+    // 4. Move Camera (The Follow Logic)
+    // We manually tween the camera to the destination + offset
+    const offset = { x: 0, y: 15, z: 12 }; // Must match zoomToPiece offset
+    new TWEEN.Tween(camera.position)
+        .to({
+            x: t.x + offset.x,
+            y: 1.5 + offset.y, 
+            z: t.z + offset.z
+        }, 250) // Sync duration with player move
+        .start();
 
-    // --- 3. Hop Animation ---
+    // 5. Hop Animation & Recursion
     new TWEEN.Tween(p.mesh.position)
         .to({y: 1.5}, 125) 
         .yoyo(true)
