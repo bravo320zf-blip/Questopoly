@@ -3211,79 +3211,67 @@ function animateMove(p, s) {
         const passive = ABILITY_LIBRARY[p.passiveSkillId];
         if (passive && passive.onRecharge) { if (passive.onRecharge(p)) recharged = true; }
 
-        if(recharged) addLog("All Abilities Recharged!", "log-epic");
+        if(recharged) addLog("Abilities Recharged.", "log-epic");
         updateHUD();
     } 
 
     const t = tiles[p.pos].position.clone(); 
     if (p.id > 0) { t.x += Math.random() - 0.5; t.z += Math.random() - 0.5; } 
     
-    // --- SLOWER MOVEMENT ---
-    // Horizontal Move: Increased from 250ms to 400ms
+    // --- SNAPPIER MOVEMENT ---
     new TWEEN.Tween(p.mesh.position)
-        .to({x: t.x, z: t.z}, 400) 
+        .to({x: t.x, z: t.z}, 250) // Reduced from 400
         .start(); 
         
-    // Vertical Hop: Increased from 125ms to 200ms
     new TWEEN.Tween(p.mesh.position)
-        .to({y: 1.5}, 200) 
+        .to({y: 1.5}, 125) // Reduced from 200
         .yoyo(true)
         .repeat(1)
         .onComplete(() => animateMove(p, s - 1))
         .start(); 
 }
 function endStep(){ 
+    // Prevent double-ending the same turn
+    if (gameState === 'END') return; 
+
     gameState = 'END'; 
     updateHUD(); 
     
-    // Zoom out when player is done moving/acting
-    if(isZoomed) {
-        resetCamera();
-    }
-
-    if(players[turnIndex].isAi) { 
-        // Small buffer before AI decides to end turn
-        setTimeout(() => {
-            endTurn();
-        }, 500); 
+    // AI/Boss Auto-End
+    const currentP = players[turnIndex];
+    if(currentP.isAi || currentP.isBoss) { 
+        // Short delay to let the user see the result (e.g., "Captured!")
+        setTimeout(endTurn, 800); 
     }
 }
 
 function endTurn(){
-    // --- SAFETY CHECKS ---
-    if (turnProcessing) return; // Already switching
-    if (gameState === 'MOVING') {
-        console.log("Attempted to end turn while moving. Blocked.");
-        return; // Block turn end if animation is playing
-    }
-    // ---------------------
+    // Safety: Don't run if already switching or moving
+    if (turnProcessing || gameState === 'MOVING') return;
 
     turnProcessing = true;
 
-    // Lock UI
     const btnAction = document.getElementById('btn-action');
     if(btnAction) {
         btnAction.disabled = true;
         btnAction.innerText = "...";
     }
 
-    // Process Previous Player Stats
+    // Process Previous Player
     const prevP = players[turnIndex]; 
     recalcStats(prevP);
     if(prevP.isAi) manageAiInventory(prevP); 
     
-    // Record History
+    // History
     const props = tiles.filter(t => t.userData.owner === prevP.id).length;
     prevP.history.push({ turn: turnCount, gold: prevP.gold, props: props });
 
-    // --- INCREASED DELAY (2.5 Seconds) ---
-    // This gives time for animations to finish and the player to read the log
+    // --- FASTER DELAY (1.2 Seconds) ---
     setTimeout(() => {
         // Calculate Next Player
         let nextIndex = (turnIndex + 1) % players.length;
         let safetyCount = 0;
         
-        // Find next living player
         while(players[nextIndex].isDead && safetyCount < players.length) {
             nextIndex = (nextIndex + 1) % players.length;
             safetyCount++;
@@ -3302,24 +3290,22 @@ function endTurn(){
 
         // Start Next Turn Logic
         if(curP.isAi || curP.isBoss) { 
-            // Zoom to them
             zoomToPiece(curP);
             
-            // Wait 1.5 seconds after zoom before rolling/acting
+            // Wait just 1 second for zoom to finish before rolling
             setTimeout(() => {
                 if(curP.isBoss) {
                     processBossTurn(curP);
                 } else {
                     attemptAiAbilities(curP, 'pre-roll'); 
-                    setTimeout(rollMove, 1000); 
+                    setTimeout(rollMove, 500); // Quick roll
                 }
-            }, 1500);
+            }, 1000);
         } else {
-            // Human Turn
             addLog("Your Turn!");
             zoomToPiece(curP); 
         }
-    }, 2500); // Changed from 1000 to 2500
+    }, 1200); 
 }
 function resolveLanding(p) {
     // --- 1. CHECK BOSS/MERCHANT COLLISION ---
@@ -3447,8 +3433,7 @@ function continueFromArrival() {
 }
 
 function processAiTurn(p, t, i) {
-    // --- ADD "THINKING" DELAY ---
-    // The AI waits 1.5 seconds after landing before making a decision
+    // --- FASTER THINKING (600ms) ---
     setTimeout(() => {
         try {
             // Boss Logic Override
@@ -3467,7 +3452,7 @@ function processAiTurn(p, t, i) {
                 endStep(); return; 
             } 
             if(i.type === 'goto') { 
-                if (p.passiveSkillId === 'smoke_bomb' || p.activeSkillId === 'smoke_bomb') { addLog(`${p.name} uses Skeleton Key to evade Dungeon!`, "log-epic"); } 
+                if (p.passiveSkillId === 'smoke_bomb' || p.activeSkillId === 'smoke_bomb') { addLog(`${p.name} uses Skeleton Key!`, "log-epic"); } 
                 else { p.pos=10; p.mesh.position.copy(tiles[10].position); addLog(`${p.name} jailed.`, "log-fail"); p.isSkipping = true; } 
                 endStep(); return; 
             } 
@@ -3478,20 +3463,19 @@ function processAiTurn(p, t, i) {
                 if (card.name === "Pouch of Gold" && p.passiveSkillId === 'alchemist_pas') { 
                     const extra = DECK_TREASURE[Math.floor(Math.random() * DECK_TREASURE.length)]; 
                     p.inventory.push({...extra}); 
-                    addLog(`Alchemist Bonus: Found ${extra.name}!`, "log-epic"); 
+                    addLog(`Alchemist Bonus: ${extra.name}!`, "log-epic"); 
                 } 
                 endStep(); return; 
             }
 
             // 2. Mystery / Teleport
             if (i.type === 'mystery') {
-                addLog(`${p.name} explores the ${i.name}...`, "log-rare");
+                addLog(`${p.name} explores...`, "log-rare");
                 const deck = isNight ? DECK_SKIRMISH : DECK_ENCOUNTER;
                 const card = deck[Math.floor(Math.random() * deck.length)];
                 
                 if (card.choices) {
                     let best = card.choices[0];
-                    // Fog Logic
                     if (activeEvent && activeEvent.data.id === 'event_fog') {
                         best = card.choices[Math.floor(Math.random() * card.choices.length)];
                     } 
@@ -3500,11 +3484,10 @@ function processAiTurn(p, t, i) {
                         const stat2 = p.stats[card.choices[1].stat] || 0;
                         if (stat2 > stat1) best = card.choices[1];
                     }
-
-                    // Extra delay for reading the card
+                    // Fast reaction
                     setTimeout(() => {
                         rollCombat(p, best.stat, best.tn, best.req || 1, t, 'teleport', false, best.val || 0, best.fail || 50, false);
-                    }, 1000);
+                    }, 500);
                     return;
                 } else {
                     endStep(); return;
@@ -3518,7 +3501,7 @@ function processAiTurn(p, t, i) {
                     capture(t, p, 1, () => { checkForBonusLoot(p); endStep(); }); 
                     return; 
                 } 
-                else { addLog(`${p.name} passes on ${i.name}.`); } 
+                else { addLog(`${p.name} passes.`, "log-entry"); } 
                 endStep(); return; 
             } 
 
@@ -3540,7 +3523,7 @@ function processAiTurn(p, t, i) {
 
                 if (willSiege) { 
                     attemptAiAbilities(p, 'combat'); 
-                    addLog(`${p.name} attacks ${players[t.userData.owner].name}'s tile!`, "log-accent"); 
+                    addLog(`${p.name} attacks!`, "log-accent"); 
                     setTimeout(() => { rollCombat(p, enemyDefStat, tn, requiredWins, t, 'capture', false, 0, failCost, true); }, 500); 
                     return; 
                 } else { 
@@ -3551,15 +3534,12 @@ function processAiTurn(p, t, i) {
             // 5. Own Land
             if (t.userData.owner === p.id) { 
                 if (t.userData.buildingLevel === 1 && p.gold > i.cost * 3) { 
-                    addLog(`${p.name} attempts to upgrade...`); 
+                    addLog(`${p.name} upgrades...`); 
                     const card = DECK_SKIRMISH[Math.floor(Math.random() * DECK_SKIRMISH.length)]; 
                     let bestChoice = card.choices[0];
                     if (card.choices[1]) {
-                        if (activeEvent && activeEvent.data.id === 'event_fog') {
-                            bestChoice = card.choices[Math.floor(Math.random() * 2)];
-                        } else {
-                            if (card.choices[1].tn < card.choices[0].tn) bestChoice = card.choices[1];
-                        }
+                        if (activeEvent && activeEvent.data.id === 'event_fog') bestChoice = card.choices[Math.floor(Math.random() * 2)];
+                        else if (card.choices[1].tn < card.choices[0].tn) bestChoice = card.choices[1];
                     }
                     rollCombat(p, bestChoice.stat, bestChoice.tn, bestChoice.req, t, 'upgrade', false, 0, 50, false); 
                     return; 
@@ -3567,19 +3547,17 @@ function processAiTurn(p, t, i) {
                     p.gold -= 50; 
                     t.userData.guardCount = (t.userData.guardCount || 0) + 1; 
                     p.metrics.guardsHired++;
-                    addLog(`${p.name} hired a guard.`, "log-gold"); 
+                    addLog(`${p.name} hired guard.`, "log-gold"); 
                     updateHUD(); 
                 } 
             }
-            
             endStep();
 
         } catch (err) {
             console.error("AI Error:", err);
-            addLog("AI glitched... passing turn.", "log-fail");
             endStep();
         }
-    }, 1500); // 1.5 Second "Thinking" Delay
+    }, 600); // Changed from 1500 to 600
 }
 
 function showEncounter(p, i, t, mode) {
