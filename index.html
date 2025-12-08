@@ -874,29 +874,43 @@
         background: #000;
     }
 
-    /* Mobile Positioning for Toggles */
     @media only screen and (max-width: 768px) {
+        
+        /* 1. HUD Toggles (Open Buttons) */
         #hud-toggles {
             top: auto;
             bottom: 150px; /* Sits above the bottom controls */
             right: 10px;
         }
-		#mystats-widget {
-            /* Lock to the actual screen corner on phone */
-            top: -5% !important;
-            right: -5% !important;
+
+        /* 2. Player Stats Widget (Fixed) */
+        #mystats-widget {
+            /* CHANGED to Positive 2% to bring it INSIDE the screen */
+            top: 2% !important;
+            right: 2% !important;
             
             /* Reset Desktop "hang" style */
             left: auto !important; 
             
-            /* Scale down slightly for phone screens */
-            padding: 1vmin 2vmin !important;
-            border-radius: 15px !important; /* Full rounded on mobile */
-            min-width: 12vmin;
+            /* Visual tweaks for mobile */
+            padding: 5px 10px !important;
+            border-radius: 10px !important;
+            background: rgba(15, 23, 42, 0.95) !important; /* Slightly more opaque */
+            min-width: auto !important;
+            border-width: 1px !important;
         }
-		#mystats-widget .ms-icon { font-size: 3.5vmin !important; }
-        #mystats-widget .treasury-amount { font-size: 3vmin !important; }
-        #mystats-widget .treasury-label { font-size: 1.5vmin !important; }
+        
+        /* Scale text down for phone */
+        #mystats-widget .ms-icon { font-size: 4vmin !important; }
+        #mystats-widget .treasury-amount { font-size: 3.5vmin !important; }
+        #mystats-widget .treasury-label { font-size: 2vmin !important; margin-top: 2px !important; }
+        
+        /* Optional: If Treasury is also off-screen, lock it in too */
+        #treasury-widget {
+            top: 2% !important;
+            left: 2% !important;
+            padding: 5px 10px !important;
+        }
     }
 	
 /* --- NEW: PLAYER STATS WIDGET --- */
