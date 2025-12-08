@@ -102,23 +102,66 @@
 
     /* 1. TURN TRACKER */
     #turn-widget {
-        position: absolute; top: 0; left: 50%; transform: translate(-50%, -50%); width: 50%;
-        background: linear-gradient(90deg, transparent, rgba(0,0,0,0.9), transparent); text-align: center;
+        position: absolute; 
+        top: -8%; 
+        left: 50%; 
+        transform: translate(-50%, 0); /* Stick to top */
+        width: 60%;
+        padding-top: 1vmin;
+        background: linear-gradient(90deg, transparent, rgba(0,0,0,0.9), transparent); 
+        text-align: center;
+        z-index: 150; /* Ensure above shadows */
     }
-    #turn-banner { font-size: 3vh; color: #fff; text-shadow: 0 0 10px var(--gold-glow); margin: 0; white-space: nowrap; }
-    #day-night-indicator { font-size: 1.5vh; color: var(--accent-blue); padding: 0.5vh 2vh; background: rgba(0,0,0,0.5); border-radius: 10px; display: inline-block; border: 1px solid #333; }
+    #turn-banner { 
+        font-size: 4.5vmin; /* Scales with screen width on mobile */
+        color: #fff; 
+        text-shadow: 0 0 10px var(--gold-glow); 
+        margin: 0; 
+        white-space: nowrap; 
+    }
+    #day-night-indicator { 
+        font-size: 2.5vmin; 
+        color: var(--accent-blue); 
+        padding: 0.5vmin 2vmin; 
+        background: rgba(0,0,0,0.5); 
+        border-radius: 10px; 
+        display: inline-block; 
+        border: 1px solid #333; 
+        margin-top: 0.5vmin;
+    }
 
     /* 2. TREASURY */
     #treasury-widget {
-        position: absolute; top: 0; left: -5%;
+        position: absolute; 
+        top: -5%; 
+        left: -5%; /* Pinned to corner */
         background: radial-gradient(circle, #451a03 0%, #000 100%);
-        border: 2px solid var(--gold-main); border-radius: 0 0 15px 0;
-        padding: 10px 20px; box-shadow: 2px 2px 10px rgba(0,0,0,0.8);
-        display: flex; flex-direction: column; align-items: center; pointer-events: auto;
+        border: 2px solid var(--gold-main); 
+        border-radius: 15px;
+        padding: 1vmin 2vmin; 
+        box-shadow: 2px 2px 10px rgba(0,0,0,0.8);
+        display: flex; 
+        flex-direction: column; 
+        align-items: center; 
+        pointer-events: auto;
+        z-index: 150;
+        min-width: 12vmin;
     }
-    .treasury-icon { font-size: 2.5vh; margin-bottom: 2px; }
+    .treasury-icon { font-size: 3.5vmin; margin-bottom: 0; line-height: 1; }
+    .treasury-amount { 
+        font-family: var(--font-head); 
+        font-size: 3vmin; 
+        color: var(--gold-glow); 
+        font-weight: 900; 
+        text-shadow: 0 0 5px var(--gold-main); 
+    }
     .treasury-amount { font-family: var(--font-head); font-size: 2vh; color: var(--gold-glow); font-weight: 900; text-shadow: 0 0 5px var(--gold-main); }
-    .treasury-label { font-size: 1vh; color: #aaa; text-transform: uppercase; letter-spacing: 1px; }
+    .treasury-label { 
+        font-size: 1.5vmin; 
+        color: #aaa; 
+        text-transform: uppercase; 
+        letter-spacing: 1px; 
+    }
 
     /* 3. LOG */
     #adventure-log-widget {
@@ -450,10 +493,121 @@
     }
     .color-grid { display: flex; gap: 15px; justify-content: center; margin-top: 10px; }
     .color-opt { width: 50px; height: 50px; border-radius: 50%; border: 3px solid #000; cursor: pointer; transition: 0.2s; box-shadow: 0 2px 5px rgba(0,0,0,0.5); } .color-opt:hover, .color-opt.selected { transform: scale(1.2); border-color: white; box-shadow: 0 0 15px var(--gold-main); }
-    .sel-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin: 10px 0 20px 0; max-width: 800px; width: 100%; }
-    .sel-opt { background: #1e293b; padding: 20px; cursor: pointer; border: 2px solid transparent; text-align: center; transition: 0.2s; border-radius: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.5); } .sel-opt:hover { transform: translateY(-3px); background: #334155; } .sel-opt.selected { border-color: var(--gold-main); background: #334155; box-shadow: 0 0 15px rgba(251, 191, 36, 0.5); } .sel-opt b { color: #fff; display: block; margin-bottom: 5px; font-size: 1.2rem; } .sel-opt small { color: #94a3b8; display: block; line-height: 1.2; font-size: 0.9rem; }
-    .skill-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-bottom: 30px; }
-    .skill-card { background: #1e293b; border: 1px solid #475569; padding: 20px; cursor: pointer; border-radius: 6px; width: 200px; text-align: center; box-shadow: 0 4px 10px rgba(0,0,0,0.5); } .skill-card:hover { border-color: var(--accent-green); } .skill-card.selected { background: #064e3b; border-color: var(--accent-green); box-shadow: 0 0 15px var(--accent-green); } .skill-card b { color: #fff; display: block; margin-bottom: 5px; font-size: 1.1rem; } .skill-card small { color: #ccc; font-size: 0.9rem; }
+    .sel-grid { 
+        display: grid; 
+        grid-template-columns: repeat(4, 1fr); 
+        gap: 10px; 
+        margin: 10px 0 20px 0; 
+        max-width: 800px; 
+        width: 100%; 
+    }
+    }
+    .sel-grid { 
+        display: grid; 
+        grid-template-columns: repeat(4, 1fr); 
+        gap: 10px; 
+        margin: 10px 0 20px 0; 
+        max-width: 800px; 
+        width: 100%; 
+    }
+    
+    .skill-grid { 
+        display: grid; 
+        grid-template-columns: repeat(3, 1fr); 
+        gap: 15px; 
+        margin-bottom: 30px; 
+        width: 100%; 
+    }
+
+    /* --- 2. RACE/CLASS BUTTONS (Fixed Backgrounds) --- */
+    .sel-opt { 
+        background: #1e293b !important; /* Force Dark Background */
+        border: 2px solid #475569; /* Add Border definition */
+        padding: 15px; 
+        cursor: pointer; 
+        text-align: center; 
+        transition: 0.2s; 
+        border-radius: 8px; 
+        box-shadow: 0 4px 10px rgba(0,0,0,0.5); 
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        min-height: 80px; /* Ensure consistent height */
+    } 
+    
+    .sel-opt:hover { 
+        transform: translateY(-3px); 
+        background: #334155 !important; 
+        border-color: #fff;
+    } 
+    
+    .sel-opt.selected { 
+        border-color: var(--gold-main); 
+        background: #0f172a !important; /* Darker when selected */
+        box-shadow: 0 0 15px rgba(251, 191, 36, 0.5); 
+    } 
+    
+    .sel-opt b { color: #fff; display: block; margin-bottom: 5px; font-size: 1.1rem; } 
+    .sel-opt small { color: #94a3b8; display: block; line-height: 1.2; font-size: 0.8rem; }
+
+    /* --- 3. SKILL CARDS --- */
+    .skill-card { 
+        background: #1e293b !important; 
+        border: 1px solid #475569; 
+        padding: 15px; 
+        cursor: pointer; 
+        border-radius: 6px; 
+        width: 100%; 
+        text-align: center; 
+        box-shadow: 0 4px 10px rgba(0,0,0,0.5); 
+    }
+    
+    .skill-card:hover { border-color: var(--accent-green); } 
+    .skill-card.selected { background: #064e3b !important; border-color: var(--accent-green); box-shadow: 0 0 15px var(--accent-green); } 
+    .skill-card b { color: #fff; display: block; margin-bottom: 5px; font-size: 1rem; } 
+    .skill-card small { color: #ccc; font-size: 0.8rem; }
+    .skill-card img { width: 40px; height: 40px; border-radius: 50%; border: 2px solid #555; object-fit: cover; display: block; margin: 0 auto 5px auto; }
+
+    /* --- 4. PORTRAIT FRAME FIX --- */
+    #creator-portrait-frame {
+        position: fixed;
+        right: 5%;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 400px;
+        height: 500px;
+        border: 4px solid var(--gold-main);
+        border-radius: 10px;
+        box-shadow: 0 0 30px #000;
+        background-color: #000;
+        background-size: cover;
+        background-position: top center;
+        background-repeat: no-repeat;
+        display: none; /* JS toggles this */
+        z-index: 5000 !important; /* Force On Top */
+        pointer-events: auto;
+        transition: all 0.3s ease;
+    }
+	
+    /* --- 5. MOBILE ADJUSTMENTS --- */
+    @media (max-width: 1000px) {
+        .sel-grid { grid-template-columns: repeat(2, 1fr); }
+        .skill-grid { grid-template-columns: repeat(2, 1fr); }
+        .input-group input { width: 100%; } 
+        
+        /* On Tablet/Mobile, make portrait smaller and tuck into corner */
+        #creator-portrait-frame {
+            width: 120px;
+            height: 120px;
+            right: 10px;
+            top: 10px;
+            transform: none;
+            border-width: 2px;
+        }
+    }
+	
+    }
     #creator-portrait-frame { position: fixed; right: 5%; top: 50%; transform: translateY(-50%); width: 400px; height: 500px; border: 4px solid var(--gold-main); border-radius: 10px; box-shadow: 0 0 30px #000; background-color: #000; background-size: cover; background-position: top center; background-repeat: no-repeat; display: none; z-index: 201; pointer-events: auto; transition: all 0.3s ease; }
     #creator-portrait-frame.minimized { width: 80px !important; height: 80px !important; right: 20px !important; top: 20px !important; transform: none !important; border-width: 2px !important; background-position: top center !important; }
     .skill-card img { width: 50px; height: 50px; border-radius: 50%; border: 2px solid #555; object-fit: cover; display: block; margin: 0 auto 5px auto; }
