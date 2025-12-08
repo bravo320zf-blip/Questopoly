@@ -2040,13 +2040,13 @@ function animate(){
     TWEEN.update(); 
     renderer.render(scene,camera); 
     
-    // --- 1. RESTORED CAMERA TRACKING ---
+    // --- CAMERA TRACKING ---
     if(isZoomed && cameraTarget) {
-        // Look at the floor (y=0) at the piece's X/Z
+        // This ensures the camera rotates to face the player even if the tween is slightly off
         camera.lookAt(cameraTarget.position.x, 0, cameraTarget.position.z);
     }
 
-    // --- 2. FOG ANIMATION ---
+    // --- FOG & PARTICLES ---
     if(fogGroup) {
         fogGroup.children.forEach((cloud, idx) => {
             cloud.rotation.z += 0.001 * (idx % 2 === 0 ? 1 : -1);
@@ -2054,27 +2054,20 @@ function animate(){
         });
     }
 
-    // --- 3. WEATHER PARTICLES ---
     if(particleSystem) {
         const positions = particleSystem.geometry.attributes.position.array;
         const type = particleSystem.userData.type;
         for(let i=1; i<positions.length; i+=3) {
-            // Move Y down (Gravity)
             positions[i] -= 0.1;
-            
-            // Wind effect for snow
             if(type === 'snow') positions[i-1] -= 0.02;
-
-            // Reset if below floor
             if(positions[i] < 0) {
-                positions[i] = 10 + Math.random() * 5; // Reset Height
-                if(type === 'snow') positions[i-1] += (Math.random()*10); // Reset X position
+                positions[i] = 10 + Math.random() * 5;
+                if(type === 'snow') positions[i-1] += (Math.random()*10);
             }
         }
         particleSystem.geometry.attributes.position.needsUpdate = true;
     }
     
-    // --- 4. BOSS ROTATION ---
     if (activeEvent && activeEvent.mesh && (activeEvent.data.type === 'boss' || activeEvent.data.type === 'merchant')) {
         activeEvent.mesh.rotation.y += 0.01;
     }
@@ -3218,13 +3211,27 @@ function animateMove(p, s) {
     const t = tiles[p.pos].position.clone(); 
     if (p.id > 0) { t.x += Math.random() - 0.5; t.z += Math.random() - 0.5; } 
     
-    // --- SNAPPIER MOVEMENT ---
+    // --- 1. Move Player ---
     new TWEEN.Tween(p.mesh.position)
-        .to({x: t.x, z: t.z}, 250) // Reduced from 400
+        .to({x: t.x, z: t.z}, 250) // Fast speed
         .start(); 
-        
+    
+    // --- 2. Move Camera (RESTORED) ---
+    if(isZoomed) {
+        // Keeps the camera at the standard zoom offset relative to the new tile
+        const offset = { x: 0, y: 15, z: 12 };
+        new TWEEN.Tween(camera.position)
+            .to({
+                x: t.x + offset.x,
+                y: 1.5 + offset.y, 
+                z: t.z + offset.z
+            }, 250) // Syncs with player speed
+            .start();
+    }
+
+    // --- 3. Hop Animation ---
     new TWEEN.Tween(p.mesh.position)
-        .to({y: 1.5}, 125) // Reduced from 200
+        .to({y: 1.5}, 125) 
         .yoyo(true)
         .repeat(1)
         .onComplete(() => animateMove(p, s - 1))
