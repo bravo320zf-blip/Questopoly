@@ -36,196 +36,123 @@
         --radius-main: 12px;
     }
 
+    /* --- 1. GLOBAL RESETS --- */
     * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; outline: none; user-select: none; }
     html, body { width: 100%; height: 100%; margin: 0; padding: 0; overflow: hidden; background: #000; color: #e2e8f0; font-family: var(--font-body); position: fixed; touch-action: none; }
     h1, h2, h3, button, .modal-title { font-family: var(--font-head); text-transform: uppercase; }
 
-    /* --- LAYOUT LAYERS --- */
+    /* --- 2. GAME LAYOUT LAYERS --- */
     #game-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; }
     
     #ui-layer {
         position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-        z-index: 100; pointer-events: none;
-        /* REMOVED display: flex; justify-content... */
-        /* Now acts as a static canvas for absolute children */
+        z-index: 100; pointer-events: none; /* Allows clicking through to 3D game */
         overflow: hidden; 
     }
 
-    /* THE BLUE BOX (Board Anchor - Keeps Aspect Ratio) */
+    /* Aspect Ratio Anchors */
     #board-anchor {
-        position: absolute;
-        top: 50%; 
-        left: 50%; 
-        transform: translate(-50%, -50%); /* Keeps it dead center */
+        position: absolute; top: 50%; left: 50%; 
+        transform: translate(-50%, -50%);
         height: 96vh; width: 96vh; 
         max-width: 96vw; max-height: 96vw; 
         pointer-events: none;
     }
 
-    /* THE RED BOX (Inner Play Area) */
     #inner-zone {
-        position: absolute;
-        top: 14.5%; left: 14.5%;
+        position: absolute; top: 14.5%; left: 14.5%;
         width: 71%; height: 77%;
         pointer-events: none;
     }
 
-    /* --- UI COMPONENTS --- */
-    .glass-panel, button, .modal-content, .skill-slot, .equip-slot, .inv-slot, .util-btn, #btn-action, #turn-widget, #adventure-log-widget { pointer-events: auto; }
-
-    /* SIDEBARS */
-    #p1-sheet { 
-        position: absolute;
-        top: 10%;
-        left: 20px; /* Pinned to left */
-        width: 280px; 
-        height: 80%; 
-        z-index: 20; 
-        transition: transform 0.3s ease;
-    }
-    #leaderboard { 
-        position: absolute;
-        top: 10%;
-        right: 20px; /* Pinned to right */
-        width: 240px; 
-        height: auto; 
-        max-height: 60%; 
-        z-index: 20; 
-        transition: transform 0.3s ease; 
+    /* --- 3. SHARED UI COMPONENTS --- */
+    .glass-panel { 
+        background: var(--glass-bg); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); 
+        border: 1px solid var(--glass-border); border-radius: var(--radius-main); 
+        box-shadow: 0 4px 20px rgba(0,0,0,0.5); color: #fff; 
+        display: flex; flex-direction: column; overflow: hidden; pointer-events: auto;
     }
     
-/* HIDE SIDEBARS LOGIC & ACTIVE STATE */
-    @media (max-width: 1600px) {
-        #p1-sheet, #leaderboard { display: none !important; }
-        
-        /* When toggled via buttons, show as popup */
-        #p1-sheet.active, #leaderboard.active {
-            display: flex !important;
-            position: fixed;
-            top: 50%; left: 50%;
-            transform: translate(-50%, -50%);
-            width: 80vw; max-width: 400px; height: 70vh;
-            
-            /* UPDATED: Increased from 2000 to 4000 to sit ABOVE the Skill Bar (3000) */
-            z-index: 4000 !important; 
-            
-            background: rgba(15, 23, 42, 0.98);
-            border: 2px solid var(--gold-main);
-        }
-        
-        /* Show the toggle buttons in the utility stack */
-        .mobile-toggle-btn { display: flex !important; }
-    }
-
-    /* 1. TURN TRACKER */
-    #turn-widget {
-        position: absolute; 
-        top: -8%; 
-        left: 50%; 
-        transform: translate(-50%, 0); /* Stick to top */
-        width: 60%;
-        padding-top: 1vmin;
-        background: linear-gradient(90deg, transparent, rgba(0,0,0,0.9), transparent); 
-        text-align: center;
-        z-index: 150; /* Ensure above shadows */
-    }
-    #turn-banner { 
-        font-size: 4.5vmin; /* Scales with screen width on mobile */
-        color: #fff; 
-        text-shadow: 0 0 10px var(--gold-glow); 
-        margin: 0; 
-        white-space: nowrap; 
-    }
-    #day-night-indicator { 
-        font-size: 2.5vmin; 
-        color: var(--accent-blue); 
-        padding: 0.5vmin 2vmin; 
-        background: rgba(0,0,0,0.5); 
-        border-radius: 10px; 
-        display: inline-block; 
-        border: 1px solid #333; 
-        margin-top: 0.5vmin;
-    }
-
-    /* 2. TREASURY */
-    #treasury-widget {
-        position: absolute; 
-        top: -5%; 
-        left: -5%; /* Pinned to corner */
-        background: radial-gradient(circle, #451a03 0%, #000 100%);
-        border: 2px solid var(--gold-main); 
-        border-radius: 15px;
-        padding: 1vmin 2vmin; 
-        box-shadow: 2px 2px 10px rgba(0,0,0,0.8);
-        display: flex; 
-        flex-direction: column; 
-        align-items: center; 
+    .gold-border { border: 1px solid var(--gold-dim); box-shadow: inset 0 0 20px rgba(0,0,0,0.5), 0 0 10px rgba(0,0,0,0.5); }
+    
+    button { pointer-events: auto; }
+    
+    .choice-btn { 
+        background: linear-gradient(to right, #2d3748, #1a202c); 
+        border: 1px solid #4a5568; padding: 15px; margin-bottom: 8px; 
+        text-align: left; cursor: pointer; border-radius: 8px; 
+        display: flex; justify-content: space-between; align-items: center; 
         pointer-events: auto;
-        z-index: 150;
-        min-width: 12vmin;
+    }
+    .choice-btn:hover { border-color: var(--gold-main); transform: translateX(5px); background: #2d3748; }
+
+    .close-x { 
+        position: absolute; top: 10px; right: 10px; 
+        width: 30px; height: 30px; 
+        background: var(--accent-red); color: white; border: 2px solid #fff; border-radius: 50%; 
+        font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center; z-index: 50;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.5); pointer-events: auto;
+    }
+
+    /* --- 4. HUD WIDGETS --- */
+    
+    /* Turn Tracker */
+    #turn-widget {
+        position: absolute; top: -8%; left: 50%; transform: translate(-50%, 0);
+        width: 60%; padding-top: 1vmin;
+        background: linear-gradient(90deg, transparent, rgba(0,0,0,0.9), transparent); 
+        text-align: center; z-index: 150; pointer-events: auto;
+    }
+    #turn-banner { font-size: 4.5vmin; color: #fff; text-shadow: 0 0 10px var(--gold-glow); margin: 0; white-space: nowrap; }
+    #day-night-indicator { font-size: 2.5vmin; color: var(--accent-blue); padding: 0.5vmin 2vmin; background: rgba(0,0,0,0.5); border-radius: 10px; display: inline-block; border: 1px solid #333; margin-top: 0.5vmin; }
+
+    /* Treasury (Top Left) */
+    #treasury-widget {
+        position: absolute; top: -5%; left: -5%;
+        background: radial-gradient(circle, #451a03 0%, #000 100%);
+        border: 2px solid var(--gold-main); border-radius: 15px; padding: 1vmin 2vmin; 
+        box-shadow: 2px 2px 10px rgba(0,0,0,0.8);
+        display: flex; flex-direction: column; align-items: center; 
+        z-index: 150; min-width: 12vmin; pointer-events: auto;
     }
     .treasury-icon { font-size: 3.5vmin; margin-bottom: 0; line-height: 1; }
-    .treasury-amount { 
-        font-family: var(--font-head); 
-        font-size: 3vmin; 
-        color: var(--gold-glow); 
-        font-weight: 900; 
-        text-shadow: 0 0 5px var(--gold-main); 
-    }
-    .treasury-amount { font-family: var(--font-head); font-size: 2vh; color: var(--gold-glow); font-weight: 900; text-shadow: 0 0 5px var(--gold-main); }
-    .treasury-label { 
-        font-size: 1.5vmin; 
-        color: #aaa; 
-        text-transform: uppercase; 
-        letter-spacing: 1px; 
-    }
+    .treasury-amount { font-family: var(--font-head); font-size: 3vmin; color: var(--gold-glow); font-weight: 900; text-shadow: 0 0 5px var(--gold-main); }
+    .treasury-label { font-size: 1.5vmin; color: #aaa; text-transform: uppercase; letter-spacing: 1px; }
 
-    /* 3. LOG */
-    #adventure-log-widget {
-        position: absolute;
-        top: 8%; left: 50%; transform: translateX(-50%);
-        height: 20%; width: 60%;
-        
-        background: rgba(15, 23, 42, 0.6); 
-        border: 1px solid var(--glass-border); 
-        border-radius: 10px; padding: 5px 10px;
-        
-        /* CHANGED: Normal column direction, hidden overflow on widget */
-        display: flex; 
-        flex-direction: column; 
-        overflow: hidden; 
-        
-        pointer-events: auto;
+    /* Player Stats (Top Right) */
+    #mystats-widget {
+        position: absolute; top: -5%; right: -5%;
+        background: radial-gradient(circle, #0f172a 0%, #000 100%);
+        border: 2px solid var(--gold-main); border-radius: 0 0 0 15px;
+        padding: 10px 20px; box-shadow: -2px 2px 10px rgba(0,0,0,0.8);
+        display: flex; flex-direction: column; align-items: flex-end; 
+        z-index: 150; pointer-events: auto;
     }
-	#game-log {
-        width: 100%;
-        height: 100%;
-        overflow-y: auto; /* Scroll inside this inner div */
-        display: flex;
-        flex-direction: column;
-        /* Gradient mask to fade out old text at the top */
+    .stat-row { display: flex; align-items: center; gap: 8px; margin-bottom: 2px; }
+    .ms-icon { font-size: 1.8vh; }
+
+    /* Adventure Log */
+    #adventure-log-widget {
+        position: absolute; top: 8%; left: 50%; transform: translateX(-50%);
+        height: 20%; width: 60%;
+        background: rgba(15, 23, 42, 0.6); border: 1px solid var(--glass-border); 
+        border-radius: 10px; padding: 5px 10px;
+        display: flex; flex-direction: column; overflow: hidden; pointer-events: auto;
+    }
+    #game-log {
+        width: 100%; height: 100%; overflow-y: auto; display: flex; flex-direction: column;
         mask-image: linear-gradient(to bottom, transparent, black 15%); 
         -webkit-mask-image: linear-gradient(to bottom, transparent, black 15%);
     }
-    .log-entry { 
-        font-size: 1.4vh; 
-        padding: 2px 0; 
-        text-shadow: 1px 1px 2px #000; 
-        border-bottom: 1px solid rgba(255,255,255,0.05); 
-        flex-shrink: 0; /* Prevent squishing */
-    }
+    .log-entry { font-size: 1.4vh; padding: 2px 0; text-shadow: 1px 1px 2px #000; border-bottom: 1px solid rgba(255,255,255,0.05); flex-shrink: 0; }
 
-    /* 4. SKILL BAR (SCALING FIX) */
+    /* --- 5. SKILL BAR & CONTROLS --- */
     #skill-bar-container {
-        position: absolute; 
-		bottom: 8%; 
-		left: 50%; 
-		transform: translateX(-50%);
-        width: 85%; height: 15%; /* Percentage based on Red Box */
-        display: flex; 
-		justify-content: center; 
-		align-items: flex-end; 
-		z-index: 60;
+        position: absolute; bottom: 8%; left: 50%; transform: translateX(-50%);
+        width: 85%; height: 15%; 
+        display: flex; justify-content: center; align-items: flex-end; 
+        z-index: 3000; /* High z-index to stay above basic modals */
+        pointer-events: auto;
     }
     #skill-bar {
         background: linear-gradient(to top, #020617, rgba(2,6,23,0.95));
@@ -234,18 +161,28 @@
         display: flex; gap: 2%; justify-content: space-between; align-items: center;
         padding: 0 2%; box-shadow: 0 0 30px rgba(0,0,0,0.9);
     }
+    .skill-slot {
+        flex: 1; height: 80%; background: #1e293b; border: 2px solid #475569; border-radius: 8px;
+        position: relative; cursor: pointer; display: flex; flex-direction: column; justify-content: flex-end;
+        background-size: cover; background-position: center; overflow: hidden; transition: transform 0.1s; box-shadow: inset 0 0 10px #000;
+        pointer-events: auto;
+    }
+    .skill-slot:active { transform: scale(0.95); }
+    .skill-slot span { font-size: 1.5vmin; padding: 2px; background: rgba(0,0,0,0.8); text-align: center; width: 100%; white-space:nowrap; overflow:hidden;}
+    .skill-key { font-size: 1.5vmin; width: 2.5vmin; height: 2.5vmin; position: absolute; top: 2px; left: 2px; background: #000; color: #fff; display: flex; align-items: center; justify-content: center; border: 1px solid #666; border-radius: 4px; }
+    .spacer-slot { width: 30%; height: 0; pointer-events: none; }
 
-    /* BUTTON SCALING FIX */
+    /* Action Button */
     #btn-action-container {
-        position: absolute; left: 50%; bottom: 50%; transform: translate(-50%, 50%); z-index: 100;
-        width: 25%; height: auto; aspect-ratio: 1; pointer-events: none; /* Container ignores clicks, button accepts */
-        display: flex; justify-content: center; align-items: center;
+        position: absolute; left: 50%; bottom: 50%; transform: translate(-50%, 50%); 
+        width: 25%; height: auto; aspect-ratio: 1; pointer-events: none;
+        display: flex; justify-content: center; align-items: center; z-index: 3000;
     }
     #btn-action {
         width: 90%; height: 90%; border-radius: 50%;
         background: radial-gradient(circle at 30% 30%, var(--gold-glow), var(--gold-main));
         border: 3px solid #fff; box-shadow: 0 0 30px var(--gold-glow), 0 10px 0 #451a03;
-        color: #2a1a00; font-family: var(--font-head); font-weight: 900; font-size: 3vmin; /* Scales with viewport */
+        color: #2a1a00; font-family: var(--font-head); font-weight: 900; font-size: 3vmin;
         cursor: pointer; display: flex; align-items: center; justify-content: center; text-align: center;
         pointer-events: auto;
     }
@@ -253,1050 +190,236 @@
     #btn-action:disabled { filter: grayscale(1); cursor: not-allowed; background: #333; border-color:#555; box-shadow:none; color:#888;}
     #btn-action.state-end { background: radial-gradient(circle at 30% 30%, #ef4444, #991b1b); color: #fff; box-shadow: 0 0 30px #ef4444, 0 10px 0 #450a0a; }
 
-    .skill-slot {
-        flex: 1; height: 80%; background: #1e293b; border: 2px solid #475569; border-radius: 8px;
-        position: relative; cursor: pointer; display: flex; flex-direction: column; justify-content: flex-end;
-        background-size: cover; background-position: center; overflow: hidden; transition: transform 0.1s; box-shadow: inset 0 0 10px #000;
-    }
-    .skill-slot span { font-size: 1.5vmin; padding: 2px; background: rgba(0,0,0,0.8); text-align: center; width: 100%; white-space:nowrap; overflow:hidden;}
-    .skill-key { font-size: 1.5vmin; width: 2.5vmin; height: 2.5vmin; position: absolute; top: 2px; left: 2px; background: #000; color: #fff; display: flex; align-items: center; justify-content: center; border: 1px solid #666; border-radius: 4px; }
-    .skill-slot:active { transform: scale(0.95); }
-    .spacer-slot { width: 30%; height: 0; pointer-events: none; }
-
-    /* 5. UTILITY BAR */
+    /* Utility Stack */
     #utility-stack {
-        position: absolute; bottom: 3%; 
-		right: -4%; 
-		width: 8%;
-        display: flex; 
-		flex-direction: column-reverse; 
-		gap: 1vh; 
-		z-index: 500;
+        position: absolute; bottom: 3%; right: -4%; width: 8%;
+        display: flex; flex-direction: column-reverse; gap: 1vh; z-index: 500;
     }
     .util-btn {
         width: 100%; aspect-ratio: 1; border-radius: 50%;
         background: rgba(15, 23, 42, 0.9); border: 2px solid var(--gold-dim);
         color: var(--gold-main); font-size: 2.5vh;
         display: flex; align-items: center; justify-content: center;
-        cursor: pointer; transition: 0.2s; box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+        cursor: pointer; transition: 0.2s; box-shadow: 0 4px 10px rgba(0,0,0,0.5); pointer-events: auto;
     }
     .util-btn:hover { background: var(--gold-main); color: #000; transform: scale(1.1); }
-    .mobile-toggle-btn { display: none; }
 
-    /* Shared Styles */
-    .glass-panel { background: var(--glass-bg); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); border: 1px solid var(--glass-border); border-radius: var(--radius-main); box-shadow: 0 4px 20px rgba(0,0,0,0.5); color: #fff; display: flex; flex-direction: column; overflow: hidden; }
-    .gold-border { border: 1px solid var(--gold-dim); box-shadow: inset 0 0 20px rgba(0,0,0,0.5), 0 0 10px rgba(0,0,0,0.5); }
-    .char-header { padding: 10px; border-bottom: 1px solid var(--glass-border); display: flex; justify-content: space-between; align-items: center; }
+    /* --- 6. SIDEBARS (Desktop) --- */
+    #p1-sheet { 
+        position: absolute; top: 10%; left: 20px; width: 280px; height: 80%; 
+        z-index: 20; transition: transform 0.3s ease; 
+    }
+    #leaderboard { 
+        position: absolute; top: 10%; right: 20px; width: 240px; height: auto; max-height: 60%; 
+        z-index: 20; transition: transform 0.3s ease; 
+    }
+    
+    .char-header, .leader-header { padding: 10px; border-bottom: 1px solid var(--glass-border); display: flex; justify-content: space-between; align-items: center; cursor: move; }
     .char-portrait { width: 50px; height: 50px; border-radius: 50%; border: 2px solid var(--gold-main); background-color: #000; background-size: cover; margin-right: 10px; cursor: pointer; }
+    
+    /* Stats & Inventory in Sidebars */
     .stat-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 5px; padding: 10px; }
     .stat-box { background: rgba(0,0,0,0.3); padding: 5px; text-align: center; border-radius: 4px; }
     .stat-val { font-weight: bold; color: #fff; } .stat-lbl { font-size: 0.65rem; color: #aaa; }
     .paper-doll { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; padding: 0 10px 10px 10px; }
-    .equip-slot { background: rgba(0,0,0,0.4); border: 1px dashed #444; color: #666; height: 40px; display: flex; align-items: center; justify-content: center; font-size: 0.75rem; cursor: pointer; border-radius: 4px; transition: 0.2s; }
+    .equip-slot { background: rgba(0,0,0,0.4); border: 1px dashed #444; color: #666; height: 40px; display: flex; align-items: center; justify-content: center; font-size: 0.75rem; cursor: pointer; border-radius: 4px; transition: 0.2s; pointer-events: auto;}
     .equip-slot.filled { border: 1px solid var(--gold-dim); background: rgba(16, 185, 129, 0.2); color: #fff; text-shadow: 0 1px 2px #000; }
-    .inv-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; padding: 10px; background: rgba(0,0,0,0.2); flex-grow: 1; align-content: flex-start; overflow-y: auto; }
-    .inv-slot { aspect-ratio: 1; background: #1e293b; border: 1px solid #333; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 0.6rem; cursor: pointer; }
-    
-/* ================================================================
-       MODAL & CARD STYLES (MATCHING SCREENSHOT)
-       ================================================================ */
+    .inv-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; padding: 10px; background: rgba(0,0,0,0.2); flex-grow: 1; align-content: flex-start; overflow-y: auto; pointer-events: auto; }
+    .inv-slot { aspect-ratio: 1; background: #1e293b; border: 1px solid #333; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 0.6rem; cursor: pointer; pointer-events: auto; }
 
-    /* 1. Arrival/Encounter Specific Modal Wrapper */
-    #arrival-modal {
-        background: transparent; /* Remove default background */
-        border: none;
-        box-shadow: none;
-        padding: 0;
-        overflow: visible; /* Allow buttons to hang out if needed */
-    }
+    /* Leaderboard Specifics */
+    .leader-row.boss { border: 1px solid #ef4444; background: linear-gradient(90deg, rgba(20,0,0,0.9), rgba(60,0,0,0.8)); }
+    .leader-row.merchant { border: 1px solid #a855f7; background: linear-gradient(90deg, rgba(20,0,20,0.9), rgba(50,0,60,0.8)); }
+    .boss-icon { font-size: 1.2rem; margin-right: 5px; }
+    .panel-close-btn { margin: 10px auto; display: block; background: rgba(127, 29, 29, 0.8); border: 1px solid #ef4444; color: #fff; padding: 8px 20px; border-radius: 4px; cursor: pointer; width: 80%; }
 
-    /* Inner Container for the Visual "Card" Look */
-    .card-border {
-        background: #111;
-        border: 4px solid #fff; /* White border from screenshot */
-        border-radius: 12px;
-        overflow: hidden;
-        box-shadow: 0 0 50px #000;
-        display: flex;
-        flex-direction: column;
-        max-height: 90vh; /* Don't go off screen */
-    }
-
-    /* 2. The Image - Full Width, Natural Height */
-    #arrival-image {
-        display: block;
-        width: 100%;
-        height: auto;
-        max-height: 50vh; /* Maximum height to keep buttons visible */
-        object-fit: contain; /* Shows FULL image, no cropping */
-        background: #000;
-        border-bottom: 2px solid #fff;
-        margin: 0;
-    }
-
-    /* 3. The Body Text */
-    .card-body {
-        padding: 20px;
-        background: #111;
-        color: #fff;
-        text-align: center;
-        flex-grow: 1;
-        display: flex;
-        flex-direction: column;
-        justify-content: center;
-        align-items: center;
-        overflow-y: auto; /* Allow text to scroll if image is huge */
-    }
-
-    .card-desc { font-style: italic; margin-bottom: 20px; line-height: 1.5; color: #fff; font-size: 1.1rem; }
-
-    /* 4. The "Continue" Button (Yellow/Gold) */
-    .card-body button.primary {
-        background: linear-gradient(to bottom, #fbbf24, #d97706);
-        border: 2px solid #78350f;
-        color: #000;
-        font-family: 'Cinzel', serif;
-        font-weight: 900;
-        font-size: 1.5rem;
-        padding: 15px 0;
-        width: 100%;
-        margin-top: 15px;
-        border-radius: 8px;
-        box-shadow: 0 4px 0 #78350f;
-        text-shadow: 0 1px 0 rgba(255,255,255,0.4);
-    }
-    .card-body button.primary:active { transform: translateY(4px); box-shadow: none; }
-
-    /* Close Button Positioning */
-    #arrival-modal .close-x {
-        position: absolute;
-        top: -15px;
-        right: -15px;
-        z-index: 200;
-        background: #ef4444;
-        border: 2px solid #fff;
-        box-shadow: 0 2px 5px #000;
-        width: 40px; height: 40px;
-        font-size: 1.5rem;
-    }
-
-    /* --- STANDARD MODALS (Settings, Game Over, etc) --- */
+    /* --- 7. MODALS (GENERAL) --- */
     .modal-overlay { 
         position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
         background: rgba(0, 0, 0, 0.85); z-index: 500; 
         display: none; align-items: center; justify-content: center; 
-        flex-direction: column; 
+        flex-direction: column; pointer-events: auto;
     }
     .modal-overlay.active { display: flex; }
 
     .modal-content, .card-modal { 
-        background: #1a1a1a; 
-        border: 2px solid var(--gold-dim); 
-        border-radius: 16px; 
-        box-shadow: 0 0 50px rgba(0,0,0,1); 
-        max-width: 600px; width: 95%; max-height: 90vh;
+        background: #1a1a1a; border: 2px solid var(--gold-dim); border-radius: 16px; 
+        box-shadow: 0 0 50px rgba(0,0,0,1); max-width: 600px; width: 95%; max-height: 90vh;
         overflow: hidden; display: flex; flex-direction: column; 
-        transform: scale(0.95); transition: transform 0.2s; 
-        pointer-events: auto; 
+        transform: scale(0.95); transition: transform 0.2s; pointer-events: auto; 
     }
     .modal-overlay.active .modal-content, .modal-overlay.active .card-modal { transform: scale(1); }
 
-    .card-header { padding: 15px; text-align: center; color: #fff; font-size: 1.4rem; font-weight: 900; background: var(--gold-dim); border-bottom: 2px solid #000; text-shadow: 0 2px 0 rgba(0,0,0,0.5); }
+    /* Event Card Styles */
+    #card-modal { background: transparent !important; border: none !important; box-shadow: none !important; pointer-events: none !important; }
+    #card-modal .card-header { pointer-events: auto; padding: 15px; text-align: center; color: #fff; font-size: 1.4rem; font-weight: 900; background: var(--gold-dim); border: 2px solid var(--gold-dim); border-bottom: 2px solid #000; border-radius: 12px 12px 0 0; }
+    #card-modal .card-body { pointer-events: auto; background: #1a1a1a; padding: 20px; text-align: center; border: 2px solid var(--gold-dim); border-top: none; border-radius: 0 0 12px 12px; }
+    
     .card-header.skirmish { background: #991b1b; } 
     .card-header.loot { background: #065f46; } 
     .card-header.market { background: #713f12; }
-
-    /* Interactive Elements */
-    .choice-btn { 
-        background: linear-gradient(to right, #2d3748, #1a202c); 
-        border: 1px solid #4a5568; padding: 15px; margin-bottom: 8px; 
-        text-align: left; cursor: pointer; border-radius: 8px; 
-        display: flex; justify-content: space-between; align-items: center; 
-    }
-    .choice-btn:hover { border-color: var(--gold-main); transform: translateX(5px); background: #2d3748; }
-
+    .card-desc { font-style: italic; margin-bottom: 20px; color: #fff; }
     .dice-result { display: flex; gap: 10px; justify-content: center; margin-top: 15px; min-height: 40px; }
-    .mini-die { width: 36px; height: 36px; background: #000; color: #fff; display: flex; align-items: center; justify-content: center; font-weight: bold; border-radius: 4px; font-size: 1.2rem; border: 1px solid #444; }
+    .mini-die { width: 36px; height: 36px; background: #000; color: #fff; display: flex; align-items: center; justify-content: center; font-weight: bold; border-radius: 4px; border: 1px solid #444; }
     .mini-die.win { background: var(--accent-green); border-color: #fff; } 
     .mini-die.lose { background: var(--accent-red); }
 
-    /* Standard Close Button */
-    .close-x { 
-        position: absolute; top: 10px; right: 10px; 
-        width: 30px; height: 30px; 
-        background: var(--accent-red); color: white; border: 2px solid #fff; border-radius: 50%; 
-        font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center; z-index: 50;
-        box-shadow: 0 2px 5px rgba(0,0,0,0.5);
-    }
+    /* Arrival Modal (Image Card) */
+    #arrival-modal { background: transparent !important; padding: 0 !important; overflow: visible !important; pointer-events: auto !important; }
+    .card-border { background: #111; border: 4px solid #fff; border-radius: 12px; overflow: hidden; box-shadow: 0 0 50px #000; display: flex; flex-direction: column; max-height: 90vh; pointer-events: auto; }
+    #arrival-image { display: block; width: 100%; height: auto; max-height: 50vh; object-fit: contain; background: #000; border-bottom: 2px solid #fff; }
+    #arrival-modal button.primary { background: linear-gradient(to bottom, #fbbf24, #d97706); border: 2px solid #78350f; color: #000; font-family: 'Cinzel', serif; font-weight: 900; font-size: 1.5rem; padding: 15px 0; width: 100%; margin-top: 15px; border-radius: 8px; cursor: pointer; }
 
-    /* --- TOOLTIP FIXES --- */
-    #tooltip { 
-        position: absolute; display: none; 
-        background: rgba(10,10,15,0.98); 
-        border: 2px solid var(--gold-main); 
-        padding: 15px; font-size: 0.9rem; 
-        z-index: 9999; /* Always on top */
-        pointer-events: none; /* IGNORE MOUSE to prevent getting stuck */
-        max-width: 250px; border-radius: 8px; 
-        box-shadow: 0 5px 20px #000;
-    }
-    
-    /* Fixed Tooltip Image Size */
-    .tt-icon {
-        width: 40px !important; height: 40px !important; min-width: 40px;
-        object-fit: cover; border: 1px solid var(--gold-main); margin-right: 10px; background: #000;
-    }
+    /* Help Modal */
+    #help-modal { z-index: 2000; }
+    .help-window { background: #111; border: 2px solid #f59e0b; }
+    .help-header-title { background: #f59e0b; color: #fff; font-weight: 900; text-align: center; padding: 10px; text-shadow: 0 2px 4px rgba(0,0,0,0.8); }
+    .help-tabs { display: flex; background: #222; border-bottom: 2px solid #444; overflow-x: auto; }
+    .help-tab { flex: 1; background: transparent; border: none; color: #888; padding: 15px 5px; font-weight: bold; cursor: pointer; border-bottom: 4px solid transparent; }
+    .help-tab.active { color: #f59e0b; border-bottom-color: #f59e0b; background: rgba(251, 191, 36, 0.1); }
+    .help-section { display: none; padding: 20px; overflow-y: auto; text-align: left; color: #ccc; line-height: 1.5; }
+    .help-section.active { display: block; }
 
-    #context-menu { position: absolute; display: none; flex-direction: column; background: #222; border: 1px solid var(--gold-main); z-index: 1000; border-radius: 4px; }
-    .ctx-item { padding: 10px 15px; cursor: pointer; border-bottom: 1px solid #333; color: #eee; } .ctx-item:hover { background: var(--gold-dim); }
-    
-    /* PRESERVED STYLES FOR START/CREATE/LOGO */
-    #splash-screen { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: linear-gradient(rgba(0,0,0,0.3), rgba(0,0,0,0.3)), url('https://static.wixstatic.com/media/b16479_0ce055a502234368915b49af52e0b18d~mv2.jpg'); background-size: cover; background-position: center; z-index: 300; display: flex; flex-direction: column; align-items: center; justify-content: center; pointer-events: auto; transition: opacity 1.5s ease-in-out; opacity: 1; }
-    #create-screen { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: url('https://static.wixstatic.com/media/b16479_564e3eade6b7410785d835af2f340665~mv2.jpg'); background-size: cover; background-position: center; z-index: 200; display: none; flex-direction: column; align-items: center; justify-content: flex-start; padding: 80px 20px 40px 20px; overflow-y: auto; pointer-events: auto; opacity: 0; transition: opacity 1s ease-in-out; }
-    #logo-screen { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #000; z-index: 400; display: flex; flex-direction: column; align-items: center; justify-content: center; transition: opacity 1.5s ease-out; pointer-events: auto; }
-    #logo-img { width: 60%; max-width: 800px; height: auto; opacity: 0; animation: logoFadeIn 5s forwards; transition: opacity 1s ease-out; }
-    #logo-text { margin-top: 20px; color: #fff; font-family: 'Cinzel', serif; font-size: 3vmin; opacity: 0; animation: logoFadeIn 2s forwards 5.5s; transition: opacity 1s ease-out; }
-    @keyframes logoFadeIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
-    #splash-screen h1 { 
-        /* Use vw to ensure the width of the word fits the width of the phone */
-        font-size: 13vw !important; 
-        line-height: 1.1 !important;
-        margin-bottom: 20px !important;
-        width: 100%;
-        padding: 0 10px;
+    /* --- 8. CHARACTER SHEET (NEW OVERHAUL) --- */
+    /* Wrapper */
+    #char-detail-modal {
+        position: fixed !important; top: 0 !important; left: 0 !important; right: 0 !important; bottom: 0 !important;
+        width: 100vw !important; height: 100vh !important;
+        background-color: rgba(0, 0, 0, 0.85) !important;
+        z-index: 5000 !important;
+        display: none !important; /* Hidden by default */
+        align-items: center; justify-content: center;
+        transform: none !important; margin: 0 !important; pointer-events: none !important;
     }
-    
-    #splash-screen h2 { 
-        font-size: 5vw !important; 
-        margin-bottom: 40px !important;
+    #char-detail-modal.active { display: flex !important; pointer-events: auto !important; }
+
+    /* The Card */
+    #char-detail-modal .modal-content {
+        position: relative !important; top: auto !important; left: auto !important; transform: none !important; margin: auto !important;
+        background: linear-gradient(160deg, #1e293b 0%, #0f172a 100%);
+        border: 2px solid var(--gold-main); box-shadow: 0 0 50px rgba(0, 0, 0, 0.8), inset 0 0 20px rgba(0,0,0,0.5);
+        border-radius: 16px; width: 92vw !important; max-width: 450px !important; max-height: 90vh !important;
+        padding: 0; overflow-y: auto !important; overflow-x: hidden; display: flex; flex-direction: column;
+        animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); pointer-events: auto;
     }
-	    #splash-screen button {
-        font-size: 1.5rem !important;
-        padding: 15px 40px !important;
-    }
-	#create-screen h1 { color: #000; margin-bottom: 20px; text-shadow: 2px 2px 0px #FFF; text-align: center; font-size: 8rem; }
-    @media (max-width: 800px) { #splash-screen h1, #create-screen h1 { font-size: 4rem; } }
-    #create-screen h3 { 
-        color: #fff !important; 
-        font-size: 1.5rem; 
-        font-weight: 900; 
-        margin-top: 15px; 
-        margin-bottom: 10px; 
-        text-shadow: 2px 2px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000; /* Strong Outline */
-        background: rgba(0, 0, 0, 0.4); /* Subtle backing */
-        padding: 5px 15px;
-        border-radius: 20px;
-        display: inline-block;
-    }
-    .input-group label { 
-        display: block; 
-        color: #fff; /* Changed to White */
-        margin-bottom: 8px; 
-        font-size: 2rem; 
-        font-weight: 900; 
-        font-family: 'Cinzel', serif; 
-        text-shadow: 3px 3px 0 #000, -1px -1px 0 #000; /* Strong Shadow */
-    }
-    .input-group input { 
-        padding: 15px; 
-        font-size: 1.5rem; 
-        border-radius: 5px; 
-        border: 3px solid #fbbf24; /* Gold border */
-        background: rgba(30, 41, 59, 0.9); 
-        color: white; 
-        text-align: center; 
-        width: 300px; 
-        font-weight: bold; 
-    }
+    @keyframes popIn { from { transform: scale(0.9); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+
+    /* Internal CS Styles */
+    .cs-header-bg { background: linear-gradient(to right, rgba(0,0,0,0.8), rgba(0,0,0,0.4)), url('https://www.transparenttextures.com/patterns/dark-leather.png'); padding: 15px; border-bottom: 2px solid var(--gold-dim); display: flex; align-items: center; gap: 15px; position: relative; flex-shrink: 0; }
+    .cs-portrait { width: 60px; height: 60px; min-width: 60px; border-radius: 50%; border: 2px solid var(--gold-main); background-color: #000; background-size: cover; box-shadow: 0 0 10px var(--gold-dim); }
+    .cs-info { display: flex; flex-direction: column; }
+    .cs-name { font-family: var(--font-head); font-size: 1.4rem; color: var(--gold-glow); text-transform: uppercase; text-shadow: 0 2px 4px #000; line-height: 1; margin-bottom: 5px; }
+    .cs-class { font-size: 0.8rem; color: #94a3b8; font-weight: bold; text-transform: uppercase; letter-spacing: 1px; }
+    .cs-main-stats { display: flex; justify-content: space-evenly; background: rgba(0,0,0,0.3); padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.1); flex-shrink: 0; }
+    .cs-stat-orb { display: flex; flex-direction: column; align-items: center; width: 60px; }
+    .cs-stat-val { font-family: var(--font-head); font-size: 1.5rem; color: #fff; font-weight: 900; text-shadow: 0 0 10px var(--accent-blue); }
+    .cs-stat-label { font-size: 0.6rem; color: var(--gold-main); letter-spacing: 1px; margin-top: -2px; }
+    .cs-skills { padding: 15px; flex-shrink: 0; }
+    .cs-skill-row { display: flex; align-items: center; background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.05); padding: 8px; border-radius: 8px; margin-bottom: 8px; }
+    .cs-skill-icon { width: 32px; height: 32px; min-width: 32px; border-radius: 6px; border: 1px solid #555; margin-right: 10px; object-fit: cover; background: #000; }
+    .cs-skill-text { display: flex; flex-direction: column; overflow: hidden; }
+    .cs-skill-name { font-weight: bold; color: #e2e8f0; font-size: 0.85rem; }
+    .cs-skill-desc { font-size: 0.7rem; color: #94a3b8; font-style: italic; line-height: 1.1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .cs-metrics { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 0 15px 15px 15px; flex-shrink: 0; }
+    .cs-metric-box { background: rgba(0,0,0,0.4); border-radius: 6px; padding: 6px 10px; display: flex; justify-content: space-between; align-items: center; font-size: 0.75rem; border: 1px solid #334155; }
+    .cs-metric-lbl { color: #94a3b8; }
+    .cs-metric-val { color: #fff; font-weight: bold; }
+    #char-detail-modal .close-x { top: 15px !important; right: 15px !important; background: #ef4444 !important; border: 2px solid #fff !important; box-shadow: 0 2px 5px #000 !important; z-index: 20 !important; }
+    #cd-inv-grid-new { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; }
+
+    /* --- 9. START & CREATION SCREENS --- */
+    #splash-screen { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: linear-gradient(rgba(0,0,0,0.3), rgba(0,0,0,0.3)), url('https://static.wixstatic.com/media/b16479_0ce055a502234368915b49af52e0b18d~mv2.jpg'); background-size: cover; background-position: center; z-index: 300; display: flex; flex-direction: column; align-items: center; justify-content: center; transition: opacity 1.5s ease-in-out; pointer-events: auto; }
+    #splash-screen h1 { font-size: 13vw !important; line-height: 1.1; margin-bottom: 20px; color: #fff; text-shadow: 0 0 30px var(--gold-main); }
+    #splash-screen h2 { font-size: 5vw !important; margin-bottom: 40px; color: #ddd; text-shadow: 2px 2px 5px #000; }
+    #splash-screen button { font-size: 1.5rem; padding: 15px 40px; background:var(--gold-main); border:none; font-weight:900; cursor:pointer; box-shadow: 0 0 20px #000; }
+
+    #create-screen { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: url('https://static.wixstatic.com/media/b16479_564e3eade6b7410785d835af2f340665~mv2.jpg'); background-size: cover; background-position: center; z-index: 200; display: none; flex-direction: column; align-items: center; justify-content: flex-start; padding: 80px 20px 40px 20px; overflow-y: auto; opacity: 0; transition: opacity 1s ease-in-out; pointer-events: auto; }
+    #create-screen h1 { font-size: 8rem; color: #000; text-shadow: 2px 2px 0px #FFF; text-align: center; }
+    #create-screen h3 { color: #fff; font-size: 1.5rem; font-weight: 900; margin: 15px 0 10px 0; background: rgba(0,0,0,0.4); padding: 5px 15px; border-radius: 20px; display: inline-block; text-shadow: 2px 2px 0 #000; }
+    .input-group label { display: block; color: #fff; margin-bottom: 8px; font-size: 2rem; font-weight: 900; font-family: 'Cinzel', serif; text-shadow: 3px 3px 0 #000; }
+    .input-group input { padding: 15px; font-size: 1.5rem; border-radius: 5px; border: 3px solid #fbbf24; background: rgba(30, 41, 59, 0.9); color: white; text-align: center; width: 300px; font-weight: bold; }
+    .sel-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin: 10px 0 20px 0; max-width: 800px; width: 100%; }
+    .skill-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-bottom: 30px; width: 100%; }
     .color-grid { display: flex; gap: 15px; justify-content: center; margin-top: 10px; }
-    .color-opt { width: 50px; height: 50px; border-radius: 50%; border: 3px solid #000; cursor: pointer; transition: 0.2s; box-shadow: 0 2px 5px rgba(0,0,0,0.5); } .color-opt:hover, .color-opt.selected { transform: scale(1.2); border-color: white; box-shadow: 0 0 15px var(--gold-main); }
-    .sel-grid { 
-        display: grid; 
-        grid-template-columns: repeat(4, 1fr); 
-        gap: 10px; 
-        margin: 10px 0 20px 0; 
-        max-width: 800px; 
-        width: 100%; 
-    }
-    }
-    .sel-grid { 
-        display: grid; 
-        grid-template-columns: repeat(4, 1fr); 
-        gap: 10px; 
-        margin: 10px 0 20px 0; 
-        max-width: 800px; 
-        width: 100%; 
-    }
-    
-    .skill-grid { 
-        display: grid; 
-        grid-template-columns: repeat(3, 1fr); 
-        gap: 15px; 
-        margin-bottom: 30px; 
-        width: 100%; 
-    }
-
-    /* --- 2. RACE/CLASS BUTTONS (Fixed Backgrounds) --- */
-    .sel-opt { 
-        background: #1e293b !important; /* Force Dark Background */
-        border: 2px solid #475569; /* Add Border definition */
-        padding: 15px; 
-        cursor: pointer; 
-        text-align: center; 
-        transition: 0.2s; 
-        border-radius: 8px; 
-        box-shadow: 0 4px 10px rgba(0,0,0,0.5); 
-        display: flex;
-        flex-direction: column;
-        justify-content: center;
-        align-items: center;
-        min-height: 80px; /* Ensure consistent height */
-    } 
-    
-    .sel-opt:hover { 
-        transform: translateY(-3px); 
-        background: #334155 !important; 
-        border-color: #fff;
-    } 
-    
-    .sel-opt.selected { 
-        border-color: var(--gold-main); 
-        background: #0f172a !important; /* Darker when selected */
-        box-shadow: 0 0 15px rgba(251, 191, 36, 0.5); 
-    } 
-    
-    .sel-opt b { color: #fff; display: block; margin-bottom: 5px; font-size: 1.1rem; } 
-    .sel-opt small { color: #94a3b8; display: block; line-height: 1.2; font-size: 0.8rem; }
-
-    /* --- 3. SKILL CARDS --- */
-    .skill-card { 
-        background: #1e293b !important; 
-        border: 1px solid #475569; 
-        padding: 15px; 
-        cursor: pointer; 
-        border-radius: 6px; 
-        width: 100%; 
-        text-align: center; 
-        box-shadow: 0 4px 10px rgba(0,0,0,0.5); 
-    }
-    
-    .skill-card:hover { border-color: var(--accent-green); } 
-    .skill-card.selected { background: #064e3b !important; border-color: var(--accent-green); box-shadow: 0 0 15px var(--accent-green); } 
-    .skill-card b { color: #fff; display: block; margin-bottom: 5px; font-size: 1rem; } 
-    .skill-card small { color: #ccc; font-size: 0.8rem; }
+    .color-opt { width: 50px; height: 50px; border-radius: 50%; border: 3px solid #000; cursor: pointer; transition: 0.2s; }
+    .color-opt:hover, .color-opt.selected { transform: scale(1.2); border-color: white; box-shadow: 0 0 15px var(--gold-main); }
+    .sel-opt { background: #1e293b; border: 2px solid #475569; padding: 15px; cursor: pointer; text-align: center; transition: 0.2s; border-radius: 8px; display: flex; flex-direction: column; justify-content: center; align-items: center; min-height: 80px; }
+    .sel-opt:hover { transform: translateY(-3px); background: #334155; border-color: #fff; }
+    .sel-opt.selected { border-color: var(--gold-main); background: #0f172a; box-shadow: 0 0 15px rgba(251, 191, 36, 0.5); }
+    .sel-opt b { color: #fff; display: block; margin-bottom: 5px; font-size: 1.1rem; }
+    .sel-opt small { color: #94a3b8; font-size: 0.8rem; }
+    .skill-card { background: #1e293b; border: 1px solid #475569; padding: 15px; cursor: pointer; border-radius: 6px; width: 100%; text-align: center; }
+    .skill-card:hover { border-color: var(--accent-green); }
+    .skill-card.selected { background: #064e3b; border-color: var(--accent-green); box-shadow: 0 0 15px var(--accent-green); }
     .skill-card img { width: 40px; height: 40px; border-radius: 50%; border: 2px solid #555; object-fit: cover; display: block; margin: 0 auto 5px auto; }
+    #creator-portrait-frame { position: fixed; right: 5%; top: 50%; transform: translateY(-50%); width: 400px; height: 500px; border: 4px solid var(--gold-main); border-radius: 10px; box-shadow: 0 0 30px #000; background-color: #000; background-size: cover; background-position: top center; background-repeat: no-repeat; display: none; z-index: 5000; transition: all 0.3s ease; }
+    #creator-portrait-frame.minimized { width: 80px !important; height: 80px !important; right: 20px !important; top: 20px !important; transform: none !important; border-width: 2px !important; }
 
-    /* --- 4. PORTRAIT FRAME FIX --- */
-    #creator-portrait-frame {
-        position: fixed;
-        right: 5%;
-        top: 50%;
-        transform: translateY(-50%);
-        width: 400px;
-        height: 500px;
-        border: 4px solid var(--gold-main);
-        border-radius: 10px;
-        box-shadow: 0 0 30px #000;
-        background-color: #000;
-        background-size: cover;
-        background-position: top center;
-        background-repeat: no-repeat;
-        display: none; /* JS toggles this */
-        z-index: 5000 !important; /* Force On Top */
-        pointer-events: auto;
-        transition: all 0.3s ease;
+    #logo-screen { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #000; z-index: 400; display: flex; flex-direction: column; align-items: center; justify-content: center; transition: opacity 1.5s ease-out; pointer-events: auto; }
+    #logo-img { width: 60%; max-width: 800px; height: auto; opacity: 0; animation: logoFadeIn 5s forwards; }
+    #logo-text { margin-top: 20px; color: #fff; font-family: 'Cinzel', serif; font-size: 3vmin; opacity: 0; animation: logoFadeIn 2s forwards 5.5s; }
+    @keyframes logoFadeIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
+
+    /* --- 10. DEBUG CONSOLE --- */
+    #debug-console { position: fixed; top: 10px; left: 10px; width: 300px; max-width: 90vw; background: rgba(0, 0, 0, 0.85); border: 1px solid #0f0; padding: 10px; z-index: 10000; border-radius: 4px; box-shadow: 0 0 10px #000; }
+    #console-input { width: 100%; background: #111; border: none; border-bottom: 1px solid #0f0; color: #fff; font-family: monospace; padding: 5px; outline: none; }
+    .debug-btn { background: #333; color: #fff; border: 1px solid #555; padding: 8px; cursor: pointer; text-align: left; font-size: 0.8rem; display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+    .debug-btn:hover { background: #ef4444; border-color: #fff; }
+    
+    #debug-log-overlay { position: fixed; bottom: 160px; left: 10px; width: 300px; height: 200px; background: rgba(0, 0, 0, 0.85); border: 1px solid #0f0; z-index: 10000; font-family: monospace; font-size: 12px; display: flex; flex-direction: column; pointer-events: none; transition: height 0.3s ease, width 0.3s ease; }
+    #debug-log-overlay.minimized { height: 38px !important; overflow: hidden; border-bottom: none; }
+    .debug-header { background: #000; color: #0f0; padding: 5px; font-weight: bold; border-bottom: 1px solid #0f0; display: flex; justify-content: space-between; align-items: center; pointer-events: auto; height: 36px; box-sizing: border-box; }
+    #debug-log-content { flex-grow: 1; overflow-y: auto; padding: 5px; color: #fff; display: flex; flex-direction: column-reverse; }
+    .debug-line { margin-bottom: 2px; border-bottom: 1px solid #333; }
+    .debug-line span { color: #0f0; margin-right: 5px; }
+    #btn-copy-log, #btn-min-log { background: #000; color: #0f0; border: 1px solid #0f0; font-family: monospace; font-size: 10px; padding: 2px 8px; cursor: pointer; pointer-events: auto; text-transform: uppercase; border-radius: 2px; height: auto; }
+    #btn-min-log { margin-left: 5px; font-size: 14px; line-height: 20px; display: flex; align-items: center; justify-content: center; }
+    #btn-copy-log:hover, #btn-min-log:hover { background: #0f0; color: #000; }
+
+    /* Tooltip */
+    #tooltip { position: absolute; display: none; background: rgba(10,10,15,0.98); border: 2px solid var(--gold-main); padding: 15px; font-size: 0.9rem; z-index: 9999; pointer-events: none; max-width: 250px; border-radius: 8px; box-shadow: 0 5px 20px #000; }
+    .tt-icon { width: 40px !important; height: 40px !important; min-width: 40px; object-fit: cover; border: 1px solid var(--gold-main); margin-right: 10px; background: #000; }
+    #context-menu { position: absolute; display: none; flex-direction: column; background: #222; border: 1px solid var(--gold-main); z-index: 1000; border-radius: 4px; pointer-events: auto; }
+    .ctx-item { padding: 10px 15px; cursor: pointer; border-bottom: 1px solid #333; color: #eee; } .ctx-item:hover { background: var(--gold-dim); }
+
+    /* --- 11. MOBILE & RESPONSIVE --- */
+    @media (max-width: 1600px) {
+        /* Hide Desktop Sidebars */
+        #p1-sheet, #leaderboard { display: none !important; }
+        
+        /* Sidebar Popups when active */
+        #p1-sheet.active, #leaderboard.active {
+            display: flex !important; position: fixed; top: 50%; left: 50%;
+            transform: translate(-50%, -50%); width: 80vw; max-width: 400px; height: 70vh;
+            z-index: 4000 !important; background: rgba(15, 23, 42, 0.98); border: 2px solid var(--gold-main);
+        }
+        
+        /* Show toggle buttons */
+        .mobile-toggle-btn { display: flex !important; }
     }
-	
-    /* --- 5. MOBILE ADJUSTMENTS --- */
+
     @media (max-width: 1000px) {
         .sel-grid { grid-template-columns: repeat(2, 1fr); }
         .skill-grid { grid-template-columns: repeat(2, 1fr); }
         .input-group input { width: 100%; } 
-        
-        /* On Tablet/Mobile, make portrait smaller and tuck into corner */
-        #creator-portrait-frame {
-            width: 120px;
-            height: 120px;
-            right: 10px;
-            top: 10px;
-            transform: none;
-            border-width: 2px;
-        }
-    }
-	
-    }
-    #creator-portrait-frame { position: fixed; right: 5%; top: 50%; transform: translateY(-50%); width: 400px; height: 500px; border: 4px solid var(--gold-main); border-radius: 10px; box-shadow: 0 0 30px #000; background-color: #000; background-size: cover; background-position: top center; background-repeat: no-repeat; display: none; z-index: 201; pointer-events: auto; transition: all 0.3s ease; }
-    #creator-portrait-frame.minimized { width: 80px !important; height: 80px !important; right: 20px !important; top: 20px !important; transform: none !important; border-width: 2px !important; background-position: top center !important; }
-    .skill-card img { width: 50px; height: 50px; border-radius: 50%; border: 2px solid #555; object-fit: cover; display: block; margin: 0 auto 5px auto; }
-	
-	/* Fix Tooltip Image Size */
-    .tt-icon {
-        width: 40px !important;
-        height: 40px !important;
-        min-width: 40px;
-        object-fit: cover;
-        border: 1px solid var(--gold-main);
-        margin-right: 10px;
-        background: #000;
-    }
-    
-    /* Ensure Tooltip ignores mouse interaction */
-    #tooltip {
-        pointer-events: none !important;
-        z-index: 9999; /* Force on top of everything */
-    }
-	
-	/* ================================================================
-       [08] CRITICAL MODAL FIX
-       Paste this at the very bottom of your CSS to fix the freeze/invisibility
-       ================================================================ */
-
-    /* Force specific positioning for the Arrival and Encounter Modals */
-    #arrival-modal, #card-modal, #char-detail-modal, #flavor-modal {
-        position: fixed !important;
-        top: 50% !important;
-        left: 50% !important;
-        transform: translate(-50%, -50%) scale(0.9) !important;
-        
-        /* Ensure visibility states */
-        opacity: 0 !important;
-        pointer-events: none !important;
-        z-index: -1 !important; /* Hide behind everything when inactive */
-        display: flex !important;
-        
-        /* Sizing Constraints */
-        max-height: 90vh !important;
-        max-width: 600px !important;
-        width: 95% !important;
-        
-        /* Reset styles */
-        margin: 0 !important;
-        transition: opacity 0.2s ease, transform 0.2s ease !important;
-    }
-
-    /* Active State - Brings them to front and center */
-    #arrival-modal.active, #card-modal.active, #char-detail-modal.active, #flavor-modal.active {
-        opacity: 1 !important;
-        pointer-events: auto !important;
-        z-index: 2000 !important; /* On top of everything */
-        transform: translate(-50%, -50%) scale(1) !important;
-    }
-    
-    /* Ensure content inside is visible */
-    #arrival-modal *, #card-modal * {
-        visibility: visible !important;
-    }
-
-    /* Ensure backgrounds are dark so you can't see through them */
-    #card-modal, #char-detail-modal {
-        background: #1a1a1a !important;
-        border: 2px solid var(--gold-dim) !important;
-        box-shadow: 0 0 50px #000 !important;
-    }
-	
-	/* ================================================================
-       [09] FINAL VISUAL FIXES (Invisible Container + Z-Index)
-       ================================================================ */
-
-    /* 1. Make the Encounter Container Invisible */
-    #card-modal {
-        background: transparent !important;
-        border: none !important;
-        box-shadow: none !important;
-        pointer-events: none !important; /* Let clicks pass through the empty space */
-    }
-
-    /* 2. Style the Content inside so it looks like a card floating */
-    #card-modal .card-header,
-    #card-modal .card-body {
-        pointer-events: auto !important; /* Re-enable clicking on the actual card */
-        background: #1a1a1a !important; /* Dark background for text */
-        width: 100%;
-        box-shadow: 0 10px 40px #000;
-        position: relative; /* Ensure z-index works locally */
-    }
-
-    /* Restore borders to the inner pieces since the outer box is gone */
-    #card-modal .card-header {
-        border: 2px solid var(--gold-dim);
-        border-bottom: 2px solid #000;
-        border-radius: 12px 12px 0 0;
-    }
-
-    #card-modal .card-body {
-        border: 2px solid var(--gold-dim);
-        border-top: none;
-        border-radius: 0 0 12px 12px;
-    }
-
-    /* 3. Raise Skill Bar & Roll Button ABOVE the modal layer */
-    /* Modals are z-index 2000, so we make these 3000 */
-    #skill-bar-container,
-    #btn-action-container {
-        z-index: 3000 !important; 
-        pointer-events: auto !important;
-    }
-	
-	/* Ensure Help Modal is always on top */
-#help-modal {
-    z-index: 2000 !important; /* Higher than UI overlay (130) */
-}
-
-/* Fix Help Window Layout */
-.help-window { 
-    width: 95%; 
-    max-width: 700px; 
-    height: 85vh; /* Taller on mobile */
-    display: flex; 
-    flex-direction: column; 
-    padding: 0; 
-    background: #111; 
-    border: 2px solid var(--gold); 
-    overflow: hidden; 
-    position: relative;
-    border-radius: 8px;
-}
-
-/* Header & Tabs - Fixed Height */
-.help-header-title { 
-    background: var(--gold); 
-    color: #ffffff; /* CHANGED: White text */
-    font-weight: 900; 
-    font-size: 1.5rem; 
-    text-align: center; 
-    padding: 10px; 
-    flex-shrink: 0; 
-    /* ADDED: Drop shadow for readability on gold */
-    text-shadow: 0 2px 4px rgba(0,0,0,0.8);
-}
-
-.help-tabs { 
-    display: flex; 
-    background: #222; 
-    border-bottom: 2px solid #444; 
-    flex-shrink: 0; 
-    overflow-x: auto; 
-}
-
-.help-tab { 
-    flex: 1; 
-    background: transparent; 
-    border: none; 
-    color: #888; 
-    padding: 15px 5px; 
-    font-weight: bold; 
-    font-size: 1rem; 
-    cursor: pointer; 
-    border-bottom: 4px solid transparent; 
-}
-
-.help-tab.active { 
-    color: var(--gold); 
-    border-bottom-color: var(--gold); 
-    background: rgba(251, 191, 36, 0.1); 
-}
-
-/* Content Section - Scrollable */
-.help-section { 
-    display: none; 
-    padding: 20px; 
-    overflow-y: auto; 
-    flex-grow: 1; 
-    text-align: left; 
-    color: #ccc; 
-    font-size: 1rem; 
-    line-height: 1.5;
-    
-    /* CRITICAL FOR MOBILE SCROLLING */
-    touch-action: pan-y; 
-    -webkit-overflow-scrolling: touch;
-}
-
-.help-section.active { 
-    display: block; 
-}
-
-/* --- NEW CLOSE BUTTONS (Inside Panels) --- */
-    .panel-close-btn {
-        margin-top: auto; /* Pushes to bottom of flex container */
-        align-self: center; /* Centers horizontally */
-        background: rgba(127, 29, 29, 0.8); /* Dark Red */
-        border: 1px solid #ef4444;
-        color: #fff;
-        font-family: var(--font-head);
-        font-size: 0.8rem;
-        padding: 8px 0;
-        width: 80%;
-        border-radius: 4px;
-        cursor: pointer;
-        box-shadow: 0 4px 10px rgba(0,0,0,0.5);
-        margin-bottom: 10px;
-        transition: 0.2s;
-        text-shadow: 0 1px 2px #000;
-    }
-    .panel-close-btn:hover { 
-        background: #b91c1c; 
-        transform: scale(1.05);
-        box-shadow: 0 0 15px #ef4444;
-    }
-
-    /* Hide close button when panel is minimized to prevent clutter */
-    .panel.minimized .panel-close-btn { display: none; }
-
-    /* --- NEW HUD TOGGLES (Open Buttons) --- */
-    #hud-toggles {
-        position: absolute;
-        top: 20%; 
-        right: 2%; /* Desktop: Sits to the right of the board */
-        display: flex;
-        flex-direction: column;
-        gap: 10px;
-        pointer-events: auto;
-        z-index: 140;
-    }
-
-    .hud-toggle-btn {
-        width: 5vmin; height: 5vmin;
-        min-width: 40px; min-height: 40px;
-        background: rgba(20, 25, 35, 0.9);
-        border: 2px solid #555;
-        color: var(--gold);
-        font-size: 1.5rem;
-        border-radius: 50%;
-        cursor: pointer;
-        display: flex; align-items: center; justify-content: center;
-        box-shadow: 0 0 10px #000;
-        transition: 0.2s;
-    }
-    .hud-toggle-btn:hover { 
-        border-color: var(--gold); 
-        transform: scale(1.1); 
-        background: #000;
+        #splash-screen h1, #create-screen h1 { font-size: 4rem; }
+        #creator-portrait-frame { width: 120px; height: 120px; right: 10px; top: 10px; transform: none; border-width: 2px; }
     }
 
     @media only screen and (max-width: 768px) {
+        #hud-toggles { top: auto; bottom: 150px; right: 10px; }
         
-        /* 1. HUD Toggles (Open Buttons) */
-        #hud-toggles {
-            top: auto;
-            bottom: 150px; /* Sits above the bottom controls */
-            right: 10px;
-        }
-
-        /* 2. Player Stats Widget (Fixed) */
         #mystats-widget {
-            /* CHANGED to Positive 2% to bring it INSIDE the screen */
-            top: -7% !important;
-            right: -7% !important;
-            
-            /* Reset Desktop "hang" style */
-            left: auto !important; 
-            
-            /* Visual tweaks for mobile */
-            padding: 5px 10px !important;
-            border-radius: 10px !important;
-            background: rgba(15, 23, 42, 0.95) !important; /* Slightly more opaque */
-            min-width: auto !important;
-            border-width: 1px !important;
+            top: -7% !important; right: -7% !important; left: auto !important; 
+            padding: 5px 10px !important; border-radius: 10px !important;
+            background: rgba(15, 23, 42, 0.95) !important; min-width: auto !important; border-width: 1px !important;
         }
-        
-        /* Scale text down for phone */
         #mystats-widget .ms-icon { font-size: 4vmin !important; }
         #mystats-widget .treasury-amount { font-size: 3.5vmin !important; }
         #mystats-widget .treasury-label { font-size: 2vmin !important; margin-top: 2px !important; }
         
-        /* Optional: If Treasury is also off-screen, lock it in too */
-        #treasury-widget {
-            top: -7% !important;
-            left: -7% !important;
-            padding: 5px 10px !important;
-        }
+        #treasury-widget { top: -7% !important; left: -7% !important; padding: 5px 10px !important; }
     }
-	
-/* --- NEW: PLAYER STATS WIDGET --- */
-    #mystats-widget {
-        position: absolute; 
-        
-        top: -5%; 
-        right: -5%; 
-        
-        background: radial-gradient(circle, #0f172a 0%, #000 100%);
-        border: 2px solid var(--gold-main); 
-        border-radius: 0 0 0 15px; /* Rounded bottom-left */
-        padding: 10px 20px; 
-        box-shadow: -2px 2px 10px rgba(0,0,0,0.8);
-        
-        display: flex; 
-        flex-direction: column; 
-        align-items: flex-end; 
-        pointer-events: auto;
-        z-index: 150;
-    }
-
-    .stat-row {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        margin-bottom: 2px;
-    }
-    
-    .ms-icon { font-size: 1.8vh; }
-
-    /* --- DRAGGABLE CURSORS --- */
-    /* Only apply on desktop to indicate the header is a handle */
-    @media (min-width: 769px) {
-        #p1-sheet .char-header, 
-        #leaderboard .leader-header { /* UPDATED SELECTOR */
-            cursor: move; 
-        }
-    }
-	
-	/* --- BOSS LEADERBOARD STYLES --- */
-    .leader-row.boss {
-        border: 1px solid #ef4444;
-        background: linear-gradient(90deg, rgba(20,0,0,0.9), rgba(60,0,0,0.8));
-    }
-    .leader-row.merchant {
-        border: 1px solid #a855f7;
-        background: linear-gradient(90deg, rgba(20,0,20,0.9), rgba(50,0,60,0.8));
-    }
-    .boss-icon { font-size: 1.2rem; margin-right: 5px; }
-	
-	/* --- DEBUG CONSOLE STYLES --- */
-    #debug-console {
-		position: fixed;
-		top: 10px;
-		left: 10px;
-		width: 300px;
-		max-width: 90vw; /* Safety for mobile screens */
-		background: rgba(0, 0, 0, 0.85);
-		border: 1px solid #0f0;
-		padding: 10px;
-		z-index: 10000;
-		border-radius: 4px;
-		box-shadow: 0 0 10px #000;
-	}
-
-    #console-input {
-        width: 100%;
-        background: #111;
-        border: none;
-        border-bottom: 1px solid #0f0;
-        color: #fff;
-        font-family: monospace;
-        padding: 5px;
-        outline: none;
-    }
-
-    /* Styles for the Debug Buttons inside Settings */
-    .debug-btn {
-        background: #333;
-        color: #fff;
-        border: 1px solid #555;
-        padding: 8px;
-        cursor: pointer;
-        text-align: left;
-        font-size: 0.8rem;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-    }
-    .debug-btn:hover {
-        background: #ef4444;
-        border-color: #fff;
-    }
-    .debug-btn span {
-        background: #000;
-        padding: 2px 5px;
-        border-radius: 4px;
-        font-size: 0.7rem;
-        color: #ef4444;
-    }
-	
-	/* --- DEBUG LOG OVERLAY --- */
-    #debug-log-overlay {
-        position: fixed;
-        bottom: 160px; /* Above controls */
-        left: 10px;
-        width: 300px;
-        height: 200px;
-        background: rgba(0, 0, 0, 0.85);
-        border: 1px solid #0f0;
-        z-index: 10000;
-        font-family: monospace;
-        font-size: 12px;
-        display: flex;
-        flex-direction: column;
-        pointer-events: none; /* Click through */
-    }
-
-    #debug-log-content {
-        flex-grow: 1;
-        overflow-y: auto;
-        padding: 5px;
-        color: #fff;
-        display: flex;
-        flex-direction: column-reverse; /* Newest at bottom */
-    }
-    
-    .debug-line { margin-bottom: 2px; border-bottom: 1px solid #333; }
-    .debug-line span { color: #0f0; margin-right: 5px; }
-	
-	/* --- DEBUG LOG COPY BUTTON --- */
-    #btn-copy-log {
-        background: #000;
-        color: #0f0;
-        border: 1px solid #0f0;
-        font-family: monospace;
-        font-size: 10px;
-        padding: 2px 8px;
-        cursor: pointer;
-        pointer-events: auto; /* CRITICAL: Enables clicking even though parent is pass-through */
-        text-transform: uppercase;
-        box-shadow: none;
-        border-radius: 2px;
-        height: auto;
-        width: auto;
-    }
-    
-    #btn-copy-log:hover {
-        background: #0f0;
-        color: #000;
-    }
-    
-    #btn-copy-log:active {
-        transform: translateY(1px);
-    }
-	
-	/* ================================================================
-   [FIX] CHARACTER SHEET UI OVERHAUL
-   ================================================================ */
-
-/* 1. Fix the "Box Behind the Window" - NOW INTERACTION SAFE */
-#char-detail-modal {
-    background-color: rgba(0, 0, 0, 0.7) !important; 
-    border: none !important;
-    box-shadow: none !important;
-    width: 100% !important;
-    height: 100% !important;
-    max-width: none !important;
-    max-height: none !important;
-    top: 0 !important;
-    left: 0 !important;
-    transform: none !important;
-    
-    /* CRITICAL FIX: Hide completely when not active so we can click buttons behind it */
-    display: none !important; 
-    pointer-events: none !important;
-    
-    align-items: center;
-    justify-content: center;
-    z-index: 5000 !important;
-}
-
-/* Only show and block clicks when the class 'active' is added via JS */
-#char-detail-modal.active {
-    display: flex !important;
-    pointer-events: auto !important;
-}
-
-/* Ensure sliders work by forcing pointer events on them */
-input[type="range"] {
-    pointer-events: auto !important;
-    position: relative;
-    z-index: 10;
-    cursor: pointer;
-}
-
-/* 2. The Actual Window (The Inner Card) */
-#char-detail-modal .modal-content {
-    background: linear-gradient(160deg, #1e293b 0%, #0f172a 100%);
-    border: 2px solid var(--gold-main);
-    box-shadow: 0 0 50px rgba(0, 0, 0, 0.8), inset 0 0 20px rgba(0,0,0,0.5);
-    border-radius: 16px;
-    width: 90%;
-    max-width: 450px; 
-    max-height: 85vh;
-    padding: 0;
-    position: relative;
-    overflow: hidden;
-    display: flex;
-    flex-direction: column;
-    animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-    pointer-events: auto; /* Ensure clicks work inside */
-}
-
-@keyframes popIn {
-    from { transform: scale(0.8); opacity: 0; }
-    to { transform: scale(1); opacity: 1; }
-}
-
-/* 3. Header Section (Portrait + Name) */
-.cs-header-bg {
-    background: linear-gradient(to right, rgba(0,0,0,0.8), rgba(0,0,0,0.4)), url('https://www.transparenttextures.com/patterns/dark-leather.png');
-    padding: 20px;
-    border-bottom: 2px solid var(--gold-dim);
-    display: flex;
-    align-items: center;
-    gap: 15px;
-    position: relative;
-}
-
-.cs-portrait {
-    width: 70px; 
-    height: 70px;
-    border-radius: 50%;
-    border: 3px solid var(--gold-main);
-    background-color: #000;
-    background-size: cover;
-    box-shadow: 0 0 15px var(--gold-dim);
-}
-
-.cs-info { display: flex; flex-direction: column; }
-.cs-name { font-family: var(--font-head); font-size: 1.6rem; color: var(--gold-glow); text-transform: uppercase; text-shadow: 0 2px 4px #000; line-height: 1; margin-bottom: 5px; }
-.cs-class { font-size: 0.9rem; color: #94a3b8; font-weight: bold; text-transform: uppercase; letter-spacing: 1px; }
-
-/* 4. Main Stats (STR / DEX / INT) */
-.cs-main-stats {
-    display: flex;
-    justify-content: space-evenly;
-    background: rgba(0,0,0,0.3);
-    padding: 15px 0;
-    border-bottom: 1px solid rgba(255,255,255,0.1);
-}
-
-.cs-stat-orb {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    width: 60px;
-}
-
-.cs-stat-val {
-    font-family: var(--font-head);
-    font-size: 1.8rem;
-    color: #fff;
-    font-weight: 900;
-    text-shadow: 0 0 10px var(--accent-blue);
-}
-
-.cs-stat-label {
-    font-size: 0.65rem;
-    color: var(--gold-main);
-    letter-spacing: 1px;
-    margin-top: -2px;
-}
-
-/* 5. Skills Section */
-.cs-skills { padding: 15px 20px; }
-.cs-skill-row {
-    display: flex;
-    align-items: center;
-    background: rgba(255, 255, 255, 0.03);
-    border: 1px solid rgba(255, 255, 255, 0.05);
-    padding: 8px;
-    border-radius: 8px;
-    margin-bottom: 8px;
-}
-
-.cs-skill-icon {
-    width: 36px; height: 36px;
-    border-radius: 6px;
-    border: 1px solid #555;
-    margin-right: 12px;
-    object-fit: cover;
-    background: #000;
-}
-
-.cs-skill-text { display: flex; flex-direction: column; }
-.cs-skill-name { font-weight: bold; color: #e2e8f0; font-size: 0.9rem; }
-.cs-skill-desc { font-size: 0.75rem; color: #94a3b8; font-style: italic; line-height: 1.1; }
-
-/* 6. Metrics Grid (Camps, etc) */
-.cs-metrics {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 8px;
-    padding: 0 20px 20px 20px;
-}
-
-.cs-metric-box {
-    background: rgba(0,0,0,0.4);
-    border-radius: 6px;
-    padding: 8px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    font-size: 0.8rem;
-    border: 1px solid #334155;
-}
-.cs-metric-lbl { color: #94a3b8; }
-.cs-metric-val { color: #fff; font-weight: bold; }
-
-/* Close Button Override */
-#char-detail-modal .close-x {
-    top: 15px;
-    right: 15px;
-    background: #ef4444;
-    border: 2px solid #fff;
-    box-shadow: 0 2px 5px #000;
-    z-index: 10;
-}
-
-/* ================================================================
-   [ADDITION] DEBUG LOG MINIMIZE STYLES
-   ================================================================ */
-
-/* Add transition for smooth minimizing */
-#debug-log-overlay {
-    transition: height 0.3s ease, width 0.3s ease;
-}
-
-/* Minimized State: Shrink height to just the header */
-#debug-log-overlay.minimized {
-    height: 38px !important; /* Height of just the header bar */
-    overflow: hidden;
-    border-bottom: none; /* Optional cleaner look */
-}
-
-/* Ensure the header catches clicks */
-.debug-header {
-    background: #000; 
-    color: #0f0; 
-    padding: 5px; 
-    font-weight: bold; 
-    border-bottom: 1px solid #0f0; 
-    display: flex; 
-    justify-content: space-between; 
-    align-items: center;
-    pointer-events: auto; /* CRITICAL: Allows clicking buttons */
-    height: 36px;
-    box-sizing: border-box;
-}
-
-/* Style for the new Minimize Button (Matches Copy Button) */
-#btn-min-log {
-    background: #000;
-    color: #0f0;
-    border: 1px solid #0f0;
-    font-family: monospace;
-    font-size: 14px; /* Slightly larger symbol */
-    padding: 0 8px;
-    line-height: 20px;
-    cursor: pointer;
-    pointer-events: auto;
-    box-shadow: none;
-    border-radius: 2px;
-    margin-left: 5px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-#btn-min-log:hover {
-    background: #0f0;
-    color: #000;
-}
 </style>
 </head>
 
