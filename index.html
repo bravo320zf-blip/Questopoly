@@ -1242,6 +1242,61 @@ input[type="range"] {
     box-shadow: 0 2px 5px #000;
     z-index: 10;
 }
+
+/* ================================================================
+   [ADDITION] DEBUG LOG MINIMIZE STYLES
+   ================================================================ */
+
+/* Add transition for smooth minimizing */
+#debug-log-overlay {
+    transition: height 0.3s ease, width 0.3s ease;
+}
+
+/* Minimized State: Shrink height to just the header */
+#debug-log-overlay.minimized {
+    height: 38px !important; /* Height of just the header bar */
+    overflow: hidden;
+    border-bottom: none; /* Optional cleaner look */
+}
+
+/* Ensure the header catches clicks */
+.debug-header {
+    background: #000; 
+    color: #0f0; 
+    padding: 5px; 
+    font-weight: bold; 
+    border-bottom: 1px solid #0f0; 
+    display: flex; 
+    justify-content: space-between; 
+    align-items: center;
+    pointer-events: auto; /* CRITICAL: Allows clicking buttons */
+    height: 36px;
+    box-sizing: border-box;
+}
+
+/* Style for the new Minimize Button (Matches Copy Button) */
+#btn-min-log {
+    background: #000;
+    color: #0f0;
+    border: 1px solid #0f0;
+    font-family: monospace;
+    font-size: 14px; /* Slightly larger symbol */
+    padding: 0 8px;
+    line-height: 20px;
+    cursor: pointer;
+    pointer-events: auto;
+    box-shadow: none;
+    border-radius: 2px;
+    margin-left: 5px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+#btn-min-log:hover {
+    background: #0f0;
+    color: #000;
+}
 </style>
 </head>
 
@@ -1620,9 +1675,14 @@ input[type="range"] {
 
 <!-- REAL-TIME DEBUG LOG -->
 <div id="debug-log-overlay" style="display:none;">
-    <div style="background:#000; color:#0f0; padding:5px; font-weight:bold; border-bottom:1px solid #0f0; display:flex; justify-content:space-between; align-items:center;">
+    <!-- Replaced inline style with class 'debug-header' -->
+    <div class="debug-header">
         <span>SYSTEM LOG</span>
-        <button id="btn-copy-log" onclick="copyDebugLog()">COPY</button>
+        <div style="display:flex; align-items:center;">
+            <button id="btn-copy-log" onclick="copyDebugLog()">COPY</button>
+            <!-- NEW MINIMIZE BUTTON -->
+            <button id="btn-min-log" onclick="toggleDebugLog()">_</button>
+        </div>
     </div>
     <div id="debug-log-content"></div>
 </div>
@@ -5866,6 +5926,26 @@ function forceTriggerEvent(index) {
     addLog(evData.desc, "log-rare");
     AUDIO.playSound('sfx_transition');
     updateHUD();
+}
+
+function toggleDebugLog() {
+    const overlay = document.getElementById('debug-log-overlay');
+    const btn = document.getElementById('btn-min-log');
+    
+    // Toggle the class
+    overlay.classList.toggle('minimized');
+    
+    // Change Button Icon based on state
+    if (overlay.classList.contains('minimized')) {
+        btn.innerText = "□"; // Square icon to represent "Maximize"
+        // Optional: Scroll log to bottom just in case when minimizing
+    } else {
+        btn.innerText = "_"; // Underscore to represent "Minimize"
+        
+        // Auto-scroll to bottom when maximizing so you see latest logs
+        const content = document.getElementById('debug-log-content');
+        if(content) content.scrollTop = 0; // Since it uses flex-reverse, 0 is bottom
+    }
 }
 
 function copyDebugLog() {
