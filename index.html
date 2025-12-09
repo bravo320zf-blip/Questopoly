@@ -1213,60 +1213,203 @@ function generateTreasureDeck() {
     const stats = ['str', 'str', 'str', 'str', 'int', 'int', 'dex', 'dex', 'dex', 'dex', 'int', 'int', 'dex', 'str'];
     const abilities = Object.keys(ABILITY_LIBRARY);
     
-    // Updated Pouch of Gold with Sound
-    for(let i=0; i<20; i++) deck.push({ 
+    // --- 1. GOLD & COINS ---
+    for(let i=0; i<15; i++) deck.push({ 
         id: `g${i}`, name: "Pouch of Gold", type: 'scroll', rarity: 'common', cost: 0, desc: "Gain 50 Gold", 
         fn: (p) => { 
             let amt = 50;
+            // Check Midas Passive/Active
             if (p.activeSkillId === 'midas' || p.passiveSkillId === 'midas' || ['head','body','main','off'].some(s => p.equipment[s] && p.equipment[s].ability && p.equipment[s].ability.name === "Midas Touch")) {
                 amt *= 2; 
                 addLog("Midas Touch! Gold doubled.", "log-gold");
             }
             p.gold += amt; 
-            
-            // --- AUDIO ---
             if(p.id === 0) AUDIO.playSound('sfx_gold');
-            
             addLog(`+${amt} Gold`, "log-gold"); 
             updateHUD(); 
         } 
     });
 
-    for(let i=0; i<20; i++) { const idx = i % itemNames.length; deck.push({ id: `c${i}`, name: `Old ${itemNames[idx]}`, type: 'equip', slot: slots[idx], bonus: {}, rarity: 'common', cost: 50 }); }
-    for(let i=0; i<20; i++) { const idx = i % itemNames.length; const b={}; b[stats[idx]]=1; deck.push({ id: `m${i}`, name: `Magic ${itemNames[idx]}`, type: 'equip', slot: slots[idx], bonus: b, rarity: 'rare', cost: 200 }); }
-    for(let i=0; i<20; i++) { const idx = i % itemNames.length; const b={}; b[stats[idx]]=2; const abil = ABILITY_LIBRARY[abilities[i % abilities.length]]; deck.push({ id: `r${i}`, name: `Ancient ${itemNames[idx]}`, type: 'equip', slot: slots[idx], bonus: b, rarity: 'epic', cost: 500, ability: { name: abil.name, type: abil.type || 'active', desc: abil.desc, fn: abil.fn } }); }
-    for(let i=0; i<10; i++) { const idx = i % itemNames.length; const b={}; b[stats[idx]]=3; const abil = ABILITY_LIBRARY[abilities[(i+10) % abilities.length]]; deck.push({ id: `l${i}`, name: `Legendary ${itemNames[idx]}`, type: 'equip', slot: slots[idx], bonus: b, rarity: 'legendary', cost: 1200, ability: { name: abil.name, type: abil.type || 'active', desc: abil.desc, fn: abil.fn } }); }
-    
-    deck.push({ id: 's1', name: "Town Portal", type: 'scroll', rarity: 'rare', cost: 100, desc: "Teleport to Inn", fn: ABILITY_LIBRARY.teleport.fn });
-    deck.push({ id: 's2', name: "Potion of Healing", type: 'scroll', rarity: 'common', cost: 50, desc: "Cure status", fn: ABILITY_LIBRARY.heal.fn });
-    deck.push({ id: 's3', name: "Sprint Scroll", type: 'scroll', rarity: 'common', cost: 50, desc: "Dash 3 spaces", fn: ABILITY_LIBRARY.dash.fn });
-    deck.push({ id: 's4', name: "Transmute Scroll", type: 'scroll', rarity: 'epic', cost: 300, desc: "Item to Gold", fn: ABILITY_LIBRARY.transmute.fn });
-    
-    // Updated Lucky Coin with Sound
-    for(let i=4; i<10; i++) deck.push({ 
-        id: `s${i}`, name: "Lucky Coin", type: 'scroll', rarity: 'common', cost: 50, desc: "Gain 20-100G", 
+    for(let i=0; i<8; i++) deck.push({ 
+        id: `lc${i}`, name: "Lucky Coin", type: 'scroll', rarity: 'common', cost: 50, desc: "Gain 20-100G", 
         fn: (p) => { 
             let r = Math.floor(Math.random()*6)+1; 
-            let amt = 0;
-            if(r > 3){ amt = 200; } else { amt = -50; } 
-            
-            if (amt > 0 && (p.activeSkillId === 'midas' || p.passiveSkillId === 'midas' || ['head','body','main','off'].some(s => p.equipment[s] && p.equipment[s].ability && p.equipment[s].ability.name === "Midas Touch"))) {
-                amt *= 2;
-                addLog("Midas Touch! Winnings doubled.", "log-gold");
-            }
+            let amt = (r > 3) ? 200 : -50; 
+            if (amt > 0 && (p.activeSkillId === 'midas' || p.passiveSkillId === 'midas')) amt *= 2;
 
             if(amt > 0) { 
                 p.gold += amt; 
                 if(p.id === 0) AUDIO.playSound('sfx_gold'); 
                 addLog(`Rolled ${r}: Won ${amt}G!`, "log-gold"); 
-            }
-            else { 
-                pay(p, 50); // pay() already handles sfx_gold logic
+            } else { 
+                pay(p, 50); 
                 addLog(`Rolled ${r}: Lost 50G.`, "log-fail"); 
             }
             updateHUD(); 
         } 
     });
+
+    // --- 2. EQUIPMENT REBALANCE ---
+    
+    // OLD (Common) -> Now +1 Stat
+    for(let i=0; i<20; i++) { 
+        const idx = i % itemNames.length; 
+        const b = {}; b[stats[idx]] = 1; // CHANGE: +1 Stat
+        deck.push({ id: `c${i}`, name: `Old ${itemNames[idx]}`, type: 'equip', slot: slots[idx], bonus: b, rarity: 'common', cost: 100 }); 
+    }
+
+    // MAGIC (Rare) -> Now +2 Stat
+    for(let i=0; i<20; i++) { 
+        const idx = i % itemNames.length; 
+        const b={}; b[stats[idx]] = 2; // CHANGE: +2 Stat
+        deck.push({ id: `m${i}`, name: `Magic ${itemNames[idx]}`, type: 'equip', slot: slots[idx], bonus: b, rarity: 'rare', cost: 300 }); 
+    }
+
+    // ANCIENT (Epic) -> Now +3 Stat + Ability
+    for(let i=0; i<20; i++) { 
+        const idx = i % itemNames.length; 
+        const b={}; b[stats[idx]] = 3; // CHANGE: +3 Stat
+        const abil = ABILITY_LIBRARY[abilities[i % abilities.length]]; 
+        deck.push({ id: `r${i}`, name: `Ancient ${itemNames[idx]}`, type: 'equip', slot: slots[idx], bonus: b, rarity: 'epic', cost: 800, ability: { name: abil.name, type: abil.type || 'active', desc: abil.desc, fn: abil.fn } }); 
+    }
+
+    // LEGENDARY -> Now +4 Stat + Ability
+    for(let i=0; i<10; i++) { 
+        const idx = i % itemNames.length; 
+        const b={}; b[stats[idx]] = 4; // CHANGE: +4 Stat
+        const abil = ABILITY_LIBRARY[abilities[(i+10) % abilities.length]]; 
+        deck.push({ id: `l${i}`, name: `Legendary ${itemNames[idx]}`, type: 'equip', slot: slots[idx], bonus: b, rarity: 'legendary', cost: 2000, ability: { name: abil.name, type: abil.type || 'active', desc: abil.desc, fn: abil.fn } }); 
+    }
+    
+    // --- 3. EXISTING CONSUMABLES ---
+    deck.push({ id: 's1', name: "Town Portal", type: 'scroll', rarity: 'rare', cost: 100, desc: "Teleport to Inn", fn: ABILITY_LIBRARY.teleport.fn });
+    deck.push({ id: 's3', name: "Sprint Scroll", type: 'scroll', rarity: 'common', cost: 50, desc: "Dash 3 spaces", fn: ABILITY_LIBRARY.dash.fn });
+    deck.push({ id: 's4', name: "Transmute Scroll", type: 'scroll', rarity: 'epic', cost: 300, desc: "Item to Gold", fn: ABILITY_LIBRARY.transmute.fn });
+
+    // --- 4. NEW CONSUMABLES (10 New Items) ---
+
+    // 1. Elixir of Strength (Permanent Stat Boost)
+    deck.push({ id: 'new_1', name: "Elixir of Strength", type: 'scroll', rarity: 'epic', cost: 500, desc: "Permanent +1 STR", 
+        fn: (p) => { p.stats.str++; addLog("Strength increased permanently!", "log-success"); updateHUD(); } 
+    });
+
+    // 2. Elixir of Speed (Permanent Stat Boost)
+    deck.push({ id: 'new_2', name: "Elixir of Speed", type: 'scroll', rarity: 'epic', cost: 500, desc: "Permanent +1 DEX", 
+        fn: (p) => { p.stats.dex++; addLog("Dexterity increased permanently!", "log-success"); updateHUD(); } 
+    });
+
+    // 3. Elixir of Wisdom (Permanent Stat Boost)
+    deck.push({ id: 'new_3', name: "Elixir of Wisdom", type: 'scroll', rarity: 'epic', cost: 500, desc: "Permanent +1 INT", 
+        fn: (p) => { p.stats.int++; addLog("Intelligence increased permanently!", "log-success"); updateHUD(); } 
+    });
+
+    // 4. Builder's Hammer (Instant Upgrade)
+    deck.push({ id: 'new_4', name: "Builder's Hammer", type: 'scroll', rarity: 'rare', cost: 300, desc: "Upgrade Camp to Tavern", 
+        fn: (p) => { 
+            const t = tiles[p.pos];
+            if(t.userData.owner === p.id && t.userData.buildingLevel === 1) {
+                capture(t, p, 2); 
+                addLog("Hammer used: Tavern Built!", "log-success");
+            } else {
+                addLog("Must be on your Camp to use.", "log-fail");
+                // Don't consume logic would require changing useSkill return values, assuming consumed for simplicity/balance or "fizzle"
+            }
+        } 
+    });
+
+    // 5. Mercenary Contract (Instant Guard)
+    deck.push({ id: 'new_5', name: "Mercenary Contract", type: 'scroll', rarity: 'rare', cost: 150, desc: "Add +1 Guard to Land", 
+        fn: (p) => { 
+            const t = tiles[p.pos];
+            if(t.userData.owner === p.id && t.userData.buildingLevel > 1) {
+                t.userData.guardCount = (t.userData.guardCount || 0) + 1;
+                p.metrics.guardsHired++;
+                addLog("Contract signed: Guard hired!", "log-success");
+                updateHUD();
+            } else {
+                addLog("Must be on your Tavern to use.", "log-fail");
+            }
+        } 
+    });
+
+    // 6. Thief's Glove (Steal Gold)
+    deck.push({ id: 'new_6', name: "Thief's Glove", type: 'scroll', rarity: 'rare', cost: 200, desc: "Steal 100G from random foe", 
+        fn: (p) => { 
+            const targets = players.filter(t => t.id !== p.id && !t.isDead && t.gold >= 10);
+            if(targets.length > 0) {
+                const victim = targets[Math.floor(Math.random() * targets.length)];
+                const amt = Math.min(100, victim.gold);
+                victim.gold -= amt;
+                p.gold += amt;
+                addLog(`Stole ${amt}G from ${victim.name}!`, "log-gold");
+                updateHUD();
+            } else {
+                addLog("No one to steal from.", "log-fail");
+            }
+        } 
+    });
+
+    // 7. Royal Pardon (Clear Status)
+    deck.push({ id: 'new_7', name: "Royal Pardon", type: 'scroll', rarity: 'rare', cost: 150, desc: "Escape Jail / Skip Turn", 
+        fn: (p) => { 
+            if(p.isSkipping) {
+                p.isSkipping = false;
+                addLog("Pardon granted! You are free.", "log-success");
+                // Note: If used during turn, effect applies next turn check
+            } else {
+                addLog("You aren't in trouble... yet.", "log-rare");
+            }
+        } 
+    });
+
+    // 8. Map to Riches (Teleport to Chest)
+    deck.push({ id: 'new_8', name: "Map to Riches", type: 'scroll', rarity: 'epic', cost: 400, desc: "Teleport to nearest Chest", 
+        fn: (p) => { 
+            const chests = tiles.filter(t => t.userData.info.type === 'chest');
+            if(chests.length > 0) {
+                const target = chests[Math.floor(Math.random() * chests.length)];
+                addLog("Following the map...", "log-epic");
+                
+                // Force move state
+                gameState = 'MOVING';
+                
+                // Teleport logic
+                const newPos = target.userData.id;
+                p.pos = newPos;
+                animateTeleport(p, target, () => { resolveLanding(p); });
+            } else {
+                addLog("The map is blank.", "log-fail");
+            }
+        } 
+    });
+
+    // 9. Investment Deed (Gold based on property)
+    deck.push({ id: 'new_9', name: "Investment Deed", type: 'scroll', rarity: 'rare', cost: 200, desc: "Gain 50G per Property owned", 
+        fn: (p) => { 
+            const count = tiles.filter(t => t.userData.owner === p.id).length;
+            const bonus = count * 50;
+            if(bonus > 0) {
+                p.gold += bonus;
+                addLog(`Investment paid out: +${bonus}G`, "log-gold");
+                if(p.id === 0) AUDIO.playSound('sfx_gold');
+                updateHUD();
+            } else {
+                addLog("You own no land to invest in.", "log-fail");
+            }
+        } 
+    });
+
+    // 10. Warp Stone (Chaos Teleport)
+    deck.push({ id: 'new_10', name: "Warp Stone", type: 'scroll', rarity: 'common', cost: 50, desc: "Teleport to RANDOM tile", 
+        fn: (p) => { 
+            const r = Math.floor(Math.random() * 40);
+            addLog("The stone hums chaotically...", "log-epic");
+            gameState = 'MOVING';
+            p.pos = r;
+            animateTeleport(p, tiles[r], () => { resolveLanding(p); });
+        } 
+    });
+
     return deck;
 }
 
@@ -1798,13 +1941,10 @@ let eventTurnCounter = 0; // Duration tracker
 
 // --- EVENT ENTITY HANDLERS (Visuals Only) ---
 function spawnEventEntity(data) {
-    // 1. Create Model (Visuals)
     const mesh = createDetailedBossMesh(data.modelType);
-    
-    // 2. Create a "Dummy" Player object
     const entityId = -1 * (Math.floor(Math.random() * 1000) + 10);
     
-    // NEW: Random Spawn Position (0-39)
+    // Random Spawn Position
     const startPos = Math.floor(Math.random() * 40);
 
     const entityPlayer = {
@@ -1814,8 +1954,12 @@ function spawnEventEntity(data) {
         isAi: true,       
         bossType: data.type, 
         color: '#a855f7',
-        pos: startPos, // Set random pos
+        pos: startPos, 
         mesh: mesh,
+        
+        // --- CHANGE: Infinite Gold ---
+        gold: 99999, 
+        
         stats: { str: 0, dex: 0, int: 0 }, 
         race: null, 
         class: null,
@@ -1825,7 +1969,6 @@ function spawnEventEntity(data) {
         history: []
     };
 
-    // Move Mesh to Start Pos immediately
     const t = tiles[startPos].position.clone();
     entityPlayer.mesh.position.set(t.x, 0, t.z);
 
@@ -1866,106 +2009,69 @@ function removeBossPlayer(bossPlayer) {
 }
 
 const MAP_EVENTS = [
-    // 1. THE ALCHEMIST (Consumables Only)
+    // 1. THE ALCHEMIST
     {
-        id: 'merch_alchemist', name: "Roaming Alchemist", type: 'merchant', duration: 10, modelType: 'merchant_purple',
-        desc: "Potions and Scrolls for the journey.",
+        id: 'merch_alchemist', name: "Roaming Alchemist", type: 'merchant', duration: 12, modelType: 'merchant_purple',
+        desc: "Potions and Scrolls.",
         onStart: () => { activeEvent.playerRef = spawnEventEntity(MAP_EVENTS[0]); },
         onEnd: () => { removeEventEntity(activeEvent.playerRef); },
-        onTurn: (me) => true, // Return true to say "I took my turn" logic inside processAiTurn
-        onLand: (p, me) => {
+        onTurn: (me) => true,
+        // UPDATED onLand: Accepts 'next' callback
+        onLand: (p, me, next) => {
             if(p.id === 0) { 
-                // Filter: Scrolls only, No Gold/Coins
-                const stock = DECK_TREASURE.filter(i => 
-                    i.type === 'scroll' && 
-                    !i.name.includes('Gold') && 
-                    !i.name.includes('Coin')
-                );
-                // Pick 3 random
+                const stock = DECK_TREASURE.filter(i => i.type === 'scroll' && !i.name.includes('Gold') && !i.name.includes('Coin'));
                 const items = [];
                 for(let k=0; k<3; k++) items.push(stock[Math.floor(Math.random()*stock.length)]);
-                openCustomShop(p, items, "Alchemist's Cart");
-            } else endStep();
+                // Pass 'next' to the shop function
+                openCustomShop(p, items, "Alchemist's Cart", next);
+            } else {
+                // AI simply ignores shop and proceeds to tile
+                if(next) next();
+            }
         }
     },
-    // 2. THE ARMORER (Defensive Gear)
+    // 2. THE ARMORER
     {
-        id: 'merch_armorer', name: "Iron Caravan", type: 'merchant', duration: 10, modelType: 'merchant_red',
+        id: 'merch_armorer', name: "Iron Caravan", type: 'merchant', duration: 12, modelType: 'merchant_red',
         desc: "Heavy armor and shields.",
         onStart: () => { activeEvent.playerRef = spawnEventEntity(MAP_EVENTS[1]); },
         onEnd: () => { removeEventEntity(activeEvent.playerRef); },
         onTurn: (me) => true,
-        onLand: (p, me) => {
+        onLand: (p, me, next) => {
             if(p.id === 0) {
-                // Filter: Head, Body, Offhand (Shields), No Gold
-                const stock = DECK_TREASURE.filter(i => 
-                    (i.slot === 'head' || i.slot === 'body' || i.slot === 'off') &&
-                    !i.name.includes('Gold')
-                );
+                const stock = DECK_TREASURE.filter(i => (i.slot === 'head' || i.slot === 'body' || i.slot === 'off') && !i.name.includes('Gold'));
                 const items = [];
                 for(let k=0; k<3; k++) items.push(stock[Math.floor(Math.random()*stock.length)]);
-                openCustomShop(p, items, "The Iron Caravan");
-            } else endStep();
+                openCustomShop(p, items, "The Iron Caravan", next);
+            } else {
+                if(next) next();
+            }
         }
     },
-    // 3. THE WEAPONSMITH (Offensive Gear)
+    // 3. THE WEAPONSMITH
     {
-        id: 'merch_weaponsmith', name: "Blade Peddler", type: 'merchant', duration: 10, modelType: 'merchant_red',
+        id: 'merch_weaponsmith', name: "Blade Peddler", type: 'merchant', duration: 12, modelType: 'merchant_red',
         desc: "Sharp steel for sale.",
         onStart: () => { activeEvent.playerRef = spawnEventEntity(MAP_EVENTS[2]); },
         onEnd: () => { removeEventEntity(activeEvent.playerRef); },
         onTurn: (me) => true,
-        onLand: (p, me) => {
+        onLand: (p, me, next) => {
             if(p.id === 0) {
-                // Filter: Main Hand Only
                 const stock = DECK_TREASURE.filter(i => i.slot === 'main' && !i.name.includes('Gold'));
                 const items = [];
                 for(let k=0; k<3; k++) items.push(stock[Math.floor(Math.random()*stock.length)]);
-                openCustomShop(p, items, "Blade Peddler");
-            } else endStep();
+                openCustomShop(p, items, "Blade Peddler", next);
+            } else {
+                if(next) next();
+            }
         }
     },
-    // --- WEATHER & GLOBALS (Preserved) ---
-    {
-        id: 'weather_blizzard', name: "Great Blizzard", type: 'weather', duration: 3,
-        desc: "Heavy snow slows everyone down (-1 Move).",
-        onStart: () => createParticleSystem('snow'),
-        onTurn: () => {}, 
-        onEnd: () => { removeParticles(); addLog(" The blizzard clears."); }
-    },
-    {
-        id: 'weather_goldrain', name: "Golden Rain", type: 'weather', duration: 1, 
-        desc: "Magical rain! Gain 10G per step taken.",
-        onStart: () => createParticleSystem('gold'),
-        onTurn: () => {},
-        onEnd: () => { removeParticles(); addLog(" The gold rain stops."); }
-    },
-    {
-        id: 'event_fog', name: "Dense Fog", type: 'weather', duration: 3,
-        desc: "Visibility reduced. Encounter requirements (Stats/TN) are hidden!",
-        onStart: () => transitionDayNight(true), 
-        onEnd: () => transitionDayNight(false)
-    },
-    {
-        id: 'event_market', name: "Market Boom", type: 'global', duration: 3,
-        desc: "All properties generate +50% Rent.",
-        onStart: () => addLog("Real estate prices skyrocket!", "log-success")
-    },
-    {
-        id: 'event_tax', name: "Royal Audit", type: 'global', duration: 1,
-        desc: "The King demands a tribute instantly.",
-        onStart: () => {
-            players.forEach(pl => { 
-                if(!pl.isDead && !pl.isEventEntity) { 
-                    const tax = Math.floor(pl.gold * 0.1);
-                    pl.gold -= tax;
-                    treasuryGold += tax;
-                }
-            });
-            addLog("Royal Audit: Everyone lost 10% Gold.", "log-fail");
-            updateHUD();
-        }
-    }
+    // ... (Keep existing Weather/Global events exactly as they were) ...
+    { id: 'weather_blizzard', name: "Great Blizzard", type: 'weather', duration: 3, desc: "Heavy snow slows everyone down (-1 Move).", onStart: () => createParticleSystem('snow'), onTurn: () => {}, onEnd: () => { removeParticles(); addLog(" The blizzard clears."); } },
+    { id: 'weather_goldrain', name: "Golden Rain", type: 'weather', duration: 1, desc: "Magical rain! Gain 10G per step taken.", onStart: () => createParticleSystem('gold'), onTurn: () => {}, onEnd: () => { removeParticles(); addLog(" The gold rain stops."); } },
+    { id: 'event_fog', name: "Dense Fog", type: 'weather', duration: 3, desc: "Visibility reduced. Encounter requirements (Stats/TN) are hidden!", onStart: () => transitionDayNight(true), onEnd: () => transitionDayNight(false) },
+    { id: 'event_market', name: "Market Boom", type: 'global', duration: 3, desc: "All properties generate +50% Rent.", onStart: () => addLog("Real estate prices skyrocket!", "log-success") },
+    { id: 'event_tax', name: "Royal Audit", type: 'global', duration: 1, desc: "The King demands a tribute instantly.", onStart: () => { players.forEach(pl => { if(!pl.isDead && !pl.isEventEntity) { const tax = Math.floor(pl.gold * 0.1); pl.gold -= tax; treasuryGold += tax; } }); addLog("Royal Audit: Everyone lost 10% Gold.", "log-fail"); updateHUD(); } }
 ];
 
 // --- EVENT VISUAL BUILDERS ---
@@ -2120,7 +2226,7 @@ function moveEntity(eventObj, steps) {
         .start();
 }
 
-function openCustomShop(p, items, title) {
+function openCustomShop(p, items, title, nextCallback) {
     const m = document.getElementById('card-modal');
     document.getElementById('enc-title').innerText = title;
     document.getElementById('enc-desc').innerText = "Hover/Tap to view info. Double-Tap to buy.";
@@ -2129,7 +2235,6 @@ function openCustomShop(p, items, title) {
     const l = document.getElementById('choice-list'); 
     l.innerHTML = '';
     
-    // Tracks the currently selected item for "Tap to view, Tap again to buy"
     let selectedItemUID = null;
 
     items.forEach(it => {
@@ -2140,14 +2245,12 @@ function openCustomShop(p, items, title) {
         b.style.alignItems = 'flex-start';
         b.style.gap = '2px';
         
-        // Item Name & Cost
         const headerDiv = document.createElement('div');
         headerDiv.style.display = 'flex';
         headerDiv.style.justifyContent = 'space-between';
         headerDiv.style.width = '100%';
         headerDiv.innerHTML = `<span style="font-weight:bold; color:${getRarityColor(it.rarity)}">${it.name}</span> <span style="color:var(--gold)">${it.cost}G</span>`;
         
-        // Slot/Type Info
         const subDiv = document.createElement('div');
         subDiv.style.fontSize = '0.75rem';
         subDiv.style.color = '#aaa';
@@ -2156,13 +2259,9 @@ function openCustomShop(p, items, title) {
         b.appendChild(headerDiv);
         b.appendChild(subDiv);
         
-        // --- INTERACTION LOGIC ---
-        
-        // 1. Tooltip on Hover (Desktop)
         b.onmouseenter = () => showTooltip(it);
         b.onmouseleave = hideTooltip;
 
-        // 2. Buy Logic Helper
         const attemptBuy = () => {
             if(p.gold >= it.cost) {
                 if(p.inventory.length >= 12) {
@@ -2173,7 +2272,7 @@ function openCustomShop(p, items, title) {
                 p.inventory.push(createItemInstance(it));
                 addLog(`Bought ${it.name}`, "log-success");
                 updateHUD();
-                b.remove(); // Remove item from shop after buy
+                b.remove(); 
                 hideTooltip();
                 selectedItemUID = null;
             } else {
@@ -2181,36 +2280,22 @@ function openCustomShop(p, items, title) {
             }
         };
 
-        // 3. Click Handler (Unified for Desktop/Mobile)
         b.onclick = (e) => {
-            // Prevent event bubbling if necessary
             e.stopPropagation();
-
-            // If this item is ALREADY selected, treat as second click -> Buy
-            if (selectedItemUID === it.id) {
-                attemptBuy();
-            } 
-            // If not selected, Select it + Show Tooltip
+            if (selectedItemUID === it.id) attemptBuy();
             else {
-                // Deselect others visually if needed (optional)
-                document.querySelectorAll('.choice-btn').forEach(btn => btn.style.borderColor = '#4a5568'); // Reset borders
-                b.style.borderColor = '#fbbf24'; // Gold border for selected
-                
+                document.querySelectorAll('.choice-btn').forEach(btn => btn.style.borderColor = '#4a5568'); 
+                b.style.borderColor = '#fbbf24'; 
                 selectedItemUID = it.id;
                 showTooltip(it);
             }
         };
         
-        // 4. Double Click (Desktop shortcut)
-        b.ondblclick = (e) => {
-            e.stopPropagation();
-            attemptBuy();
-        };
-
+        b.ondblclick = (e) => { e.stopPropagation(); attemptBuy(); };
         l.appendChild(b);
     });
     
-    // Add leave button
+    // --- LEAVE BUTTON ---
     let b = document.createElement('div'); 
     b.className = 'choice-btn';
     b.innerText = "Leave Shop";
@@ -2219,7 +2304,12 @@ function openCustomShop(p, items, title) {
     b.style.justifyContent = "center";
     b.onclick = () => {
         hideTooltip();
-        closeEnc();
+        
+        // Hide the shop modal purely visually
+        m.classList.remove('active');
+        
+        // Trigger the next phase (The Tile Encounter)
+        if (nextCallback) nextCallback();
     };
     l.appendChild(b);
     
@@ -2598,10 +2688,29 @@ function manageAiInventory(p) {
 
 function attemptAiAbilities(p, phase) {
     if (phase === 'pre-roll') {
-        if (p.isSkipping) { if (p.activeSkillId === 'heal_light' && !p.classSkillDepleted) useSkillAi(p, 0); checkItemSkills(p, ['heal', 'teleport']); }
-        if (!p.classSkillDepleted && Math.random() > 0.6) useSkillAi(p, 0); 
+        if (p.isSkipping) { 
+            // Try to heal status
+            if (p.activeSkillId === 'heal_light' && !p.classSkillDepleted) useSkillAi(p, 0); 
+            checkItemSkills(p, ['heal', 'teleport']);
+            return false; 
+        }
+        
+        // Check for Class Skill (Active)
+        if (!p.classSkillDepleted && Math.random() > 0.6) {
+            const skill = ABILITY_LIBRARY[p.activeSkillId];
+            // If the skill is a movement skill, we return TRUE to stop the standard roll
+            if (skill && (skill.name === 'Blink' || skill.name === 'Sprint' || skill.name === 'Teleport' || skill.name === 'Town Portal')) {
+                useSkillAi(p, 0); 
+                return true; // MOVEMENT OCCURRED
+            }
+            // Other non-movement skills (buffs, etc) just fire and continue
+            useSkillAi(p, 0); 
+        }
     }
+    // Combat phase logic remains...
     if (phase === 'combat') { checkItemSkills(p, ['might', 'focus', 'agility', 'fireball', 'smite']); }
+    
+    return false;
 }
 
 function checkItemSkills(p, skillKeys) {
@@ -2619,36 +2728,42 @@ function useSkillAi(p, slotIdx) {
 }
 
 // --- REGION 5: LOGIC (Turns, Move, Combat) ---
-function rollMove() { 
-    if(gameState!=='ROLL') return; 
-    
-    const p=players[turnIndex]; 
-    if(p.isDead) { endTurn(); return; }
-	
+function rollMove() {
+    if (gameState !== 'ROLL') return;
+
+    const p = players[turnIndex];
+    if (p.isDead) { endTurn(); return; }
+
     debugLog(`Start Turn: ${p.name}`);
-    
-    // Skip turn for Merchants/Event Entities
+
+    // --- MERCHANT SIMPLIFIED ROLL ---
     if (p.isEventEntity) {
-        endStep();
-        return;
+        // Simple 1d6 roll for merchants
+        const r = Math.floor(Math.random() * 6) + 1;
+        addLog(`${p.name} travels ${r} spaces.`);
+        
+        // Manually trigger move state
+        gameState = 'MOVING';
+        animateMove(p, r);
+        return; // EXIT FUNCTION EARLY
     }
 
-    if(turnIndex === 0) {
+    // --- STANDARD PLAYER LOGIC ---
+    if (turnIndex === 0) {
         turnCount++;
-        if(turnCount % 10 === 0) { 
-            isNight = !isNight; 
-            addLog(isNight ? "Night falls... Fog rolls in." : "Sunrise. The fog clears.", isNight ? "log-fail":"log-success");
-            transitionDayNight(isNight); 
+        if (turnCount % 10 === 0) {
+            isNight = !isNight;
+            addLog(isNight ? "Night falls... Fog rolls in." : "Sunrise. The fog clears.", isNight ? "log-fail" : "log-success");
+            transitionDayNight(isNight);
             AUDIO.playMusic(isNight);
         }
 
-        // --- DYNAMIC EVENT ROLL ---
         if (activeEvent) {
             activeEvent.turnsLeft--;
             if (activeEvent.data.onTurn) activeEvent.data.onTurn(activeEvent);
             if (activeEvent.turnsLeft <= 0) {
-                if(activeEvent.data.onEnd) activeEvent.data.onEnd();
-                if(activeEvent.mesh) scene.remove(activeEvent.mesh);
+                if (activeEvent.data.onEnd) activeEvent.data.onEnd();
+                if (activeEvent.mesh) scene.remove(activeEvent.mesh);
                 addLog(`${activeEvent.data.name} has ended.`, "log-rare");
                 activeEvent = null;
             }
@@ -2660,10 +2775,10 @@ function rollMove() {
         }
     }
 
-    p.abilityUsed=false; 
-    if(p.isSkipping){ p.isSkipping=false; addLog(p.name+" skips turn.","log-fail"); endStep(); return; } 
-    
-    // --- ACTIVE SKILL ROLL OVERRIDE ---
+    p.abilityUsed = false;
+    if (p.isSkipping) { p.isSkipping = false; addLog(p.name + " skips turn.", "log-fail"); endStep(); return; }
+
+    // Active Skill Override (e.g., Smite Movement Debuff)
     const active = ABILITY_LIBRARY[p.activeSkillId];
     if (active && active.onRoll) {
         const override = active.onRoll(p);
@@ -2675,11 +2790,10 @@ function rollMove() {
         }
     }
 
-    // 2. Roll 2d6 individually
     let d1 = Math.floor(Math.random() * 6) + 1;
     let d2 = Math.floor(Math.random() * 6) + 1;
 
-    // --- GAMBLER'S LUCK CHECK (Human Only) ---
+    // Gambler's Luck (Human Only)
     if (p.id === 0 && (d1 === 1 || d2 === 1)) {
         let skillSource = null;
         let skillType = '';
@@ -2687,7 +2801,7 @@ function rollMove() {
         if (ABILITY_LIBRARY[p.activeSkillId].name === "Gambler's Luck" && !p.classSkillDepleted) {
             skillSource = ABILITY_LIBRARY[p.activeSkillId]; skillType = 'class';
         } else {
-            ['head','body','main','off'].forEach(slot => {
+            ['head', 'body', 'main', 'off'].forEach(slot => {
                 const it = p.equipment[slot];
                 if (it && it.ability && it.ability.name === "Gambler's Luck" && !it.isDepleted) {
                     skillSource = it; skillType = 'equip';
@@ -2697,28 +2811,32 @@ function rollMove() {
 
         if (skillSource) {
             showModal(`Rolled: ${d1} & ${d2}`, "Use Gambler's Luck to reroll 1s?", [
-                { txt: "Keep Roll", act: () => { 
-                    document.getElementById('card-modal').classList.remove('active');
-                    finishRollLogic(p, d1 + d2);
-                }},
-                { txt: "Reroll 1s", act: () => { 
-                    document.getElementById('card-modal').classList.remove('active');
-                    if(skillType === 'class') p.classSkillDepleted = true;
-                    else if(skillType === 'equip') skillSource.isDepleted = true;
-                    updateHUD();
+                {
+                    txt: "Keep Roll", act: () => {
+                        document.getElementById('card-modal').classList.remove('active');
+                        finishRollLogic(p, d1 + d2);
+                    }
+                },
+                {
+                    txt: "Reroll 1s", act: () => {
+                        document.getElementById('card-modal').classList.remove('active');
+                        if (skillType === 'class') p.classSkillDepleted = true;
+                        else if (skillType === 'equip') skillSource.isDepleted = true;
+                        updateHUD();
 
-                    let logMsg = `Gambler's Luck: `;
-                    if(d1 === 1) { d1 = Math.floor(Math.random() * 6) + 1; logMsg += "d1 rerolled. "; }
-                    if(d2 === 1) { d2 = Math.floor(Math.random() * 6) + 1; logMsg += "d2 rerolled. "; }
-                    addLog(logMsg, "log-gold");
-                    finishRollLogic(p, d1 + d2);
-                }}
+                        let logMsg = `Gambler's Luck: `;
+                        if (d1 === 1) { d1 = Math.floor(Math.random() * 6) + 1; logMsg += "d1 rerolled. "; }
+                        if (d2 === 1) { d2 = Math.floor(Math.random() * 6) + 1; logMsg += "d2 rerolled. "; }
+                        addLog(logMsg, "log-gold");
+                        finishRollLogic(p, d1 + d2);
+                    }
+                }
             ]);
-            return; 
+            return;
         }
     }
 
-    addLog(`${p.name} rolled ${d1+d2}.`);
+    addLog(`${p.name} rolled ${d1 + d2}.`);
     if (p.id === 0) AUDIO.playSound('sfx_roll');
     finishRollLogic(p, d1 + d2);
 }
@@ -2820,21 +2938,21 @@ function endStep(){
     }
 }
 
-function endTurn(){
+function endTurn() {
     if (turnProcessing || gameState === 'MOVING') return;
     turnProcessing = true;
 
     const btnAction = document.getElementById('btn-action');
-    if(btnAction) {
+    if (btnAction) {
         btnAction.disabled = true;
         btnAction.innerText = "...";
     }
 
-    const prevP = players[turnIndex]; 
-    
+    const prevP = players[turnIndex];
+    // Only recalc stats for real players
     if (prevP && !prevP.isEventEntity && !prevP.isBoss) {
         recalcStats(prevP);
-        if(prevP.isAi) manageAiInventory(prevP); 
+        if (prevP.isAi) manageAiInventory(prevP);
         const props = tiles.filter(t => t.userData.owner === prevP.id).length;
         prevP.history.push({ turn: turnCount, gold: prevP.gold, props: props });
     }
@@ -2842,60 +2960,72 @@ function endTurn(){
     setTimeout(() => {
         let nextIndex = (turnIndex + 1) % players.length;
         let safetyCount = 0;
-        
-        // FIX: REMOVED '!players[nextIndex].isEventEntity' so merchants CAN take turns
-        while(players[nextIndex].isDead && safetyCount < players.length) {
+
+        // Skip DEAD players only. (Merchants/Bosses are alive, so they get picked)
+        while (players[nextIndex].isDead && safetyCount < players.length) {
             nextIndex = (nextIndex + 1) % players.length;
             safetyCount++;
         }
-        
+
         turnIndex = nextIndex;
-        gameState = 'ROLL'; 
+        gameState = 'ROLL';
         updateHUD();
         turnProcessing = false;
 
         const curP = players[turnIndex];
-        
-        if(curP.isDead) { endTurn(); return; }
 
-        // Start Next Turn Logic
-        if(curP.isAi) { 
+        if (curP.isDead) { endTurn(); return; }
+
+        if (curP.isAi) {
             zoomToPiece(curP);
-            setTimeout(() => {
-                // If Merchant, just roll immediately
-                if(curP.isEventEntity) {
-                    rollMove();
-                } else {
-                    attemptAiAbilities(curP, 'pre-roll'); 
-                    setTimeout(rollMove, 500); 
-                }
-            }, 1000);
+
+            // Merchant Logic: Immediate Move (No AI thinking needed)
+            if (curP.isEventEntity) {
+                setTimeout(rollMove, 800);
+            }
+            // Normal AI Logic
+            else {
+                setTimeout(() => {
+                    // Check if AI uses a movement skill (Blink/Sprint)
+                    // If it returns true, the AI moved via spell, so DO NOT roll dice.
+                    const didMove = attemptAiAbilities(curP, 'pre-roll');
+                    
+                    if (!didMove) {
+                        setTimeout(rollMove, 500);
+                    }
+                }, 1000);
+            }
         } else {
             addLog("Your Turn!");
-            zoomToPiece(curP); 
+            zoomToPiece(curP);
         }
-    }, 1200); 
+    }, 1200);
 }
 function resolveLanding(p) {
     debugLog(`Landed: ${p.name} at Tile ${p.pos}`);
 
-    // --- 1. MERCHANT COLLISION LOGIC ---
-    // If a player lands on the Merchant Entity
+    // --- CASE 1: THE MERCHANT IS MOVING ---
+    if (p.isEventEntity) {
+        // Merchant has finished moving. End their turn.
+        endStep();
+        return;
+    }
+
+    // --- CASE 2: PLAYER LANDS ON MERCHANT ---
     if (activeEvent && activeEvent.playerRef && activeEvent.data) {
         if (p.pos === activeEvent.playerRef.pos) {
-            activeEvent.data.onLand(p, activeEvent.playerRef);
-            return; // onLand handles logic (opening shop or ending turn)
+            activeEvent.data.onLand(p, activeEvent.playerRef, () => {
+                triggerTileEvent(p);
+            });
+            return; 
         }
     }
 
-    // --- 2. SKILL TRIGGERS (Standard Players) ---
-    // (Removed isBoss check since we removed boss logic)
+    // --- CASE 3: STANDARD LANDING ---
     const passive = ABILITY_LIBRARY[p.passiveSkillId];
     if (passive && passive.onLanding) passive.onLanding(p);
-
     const active = ABILITY_LIBRARY[p.activeSkillId];
     if (active && active.onLanding) active.onLanding(p);
-
     ['head', 'body', 'main', 'off'].forEach(slot => {
         const item = p.equipment[slot];
         if (item && item.ability) {
@@ -2904,7 +3034,6 @@ function resolveLanding(p) {
         }
     });
 
-    // --- 3. TRAP TRIGGER ---
     players.forEach(other => {
         if (other.id !== p.id && !other.isDead && other.pos === p.pos && !other.isEventEntity) {
             const trapPassive = ABILITY_LIBRARY[other.passiveSkillId];
@@ -2914,7 +3043,11 @@ function resolveLanding(p) {
         }
     });
 
-    // --- 4. HANDLE TURN FLOW ---
+    triggerTileEvent(p);
+}
+
+// --- NEW FUNCTION: SEPARATED TILE LOGIC ---
+function triggerTileEvent(p) {
     const t = tiles[p.pos]; 
     const i = t.userData.info;
     
@@ -2924,7 +3057,7 @@ function resolveLanding(p) {
         return; 
     }
     
-    // HUMAN UI
+    // HUMAN UI -> Show Arrival Card
     const m = document.getElementById('arrival-modal');
     if(m) {
         const imgEl = document.getElementById('arrival-image');
