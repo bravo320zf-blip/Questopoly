@@ -961,6 +961,111 @@
         background: linear-gradient(90deg, rgba(20,0,20,0.9), rgba(50,0,60,0.8));
     }
     .boss-icon { font-size: 1.2rem; margin-right: 5px; }
+	
+	/* --- DEBUG CONSOLE STYLES --- */
+    #debug-console {
+        position: fixed;
+        top: 10px;
+        left: 10px;
+        width: 300px;
+        background: rgba(0, 0, 0, 0.85);
+        border: 1px solid #0f0; /* Hacker Green style */
+        padding: 10px;
+        z-index: 10000; /* On top of everything */
+        border-radius: 4px;
+        box-shadow: 0 0 10px #000;
+    }
+
+    #console-input {
+        width: 100%;
+        background: #111;
+        border: none;
+        border-bottom: 1px solid #0f0;
+        color: #fff;
+        font-family: monospace;
+        padding: 5px;
+        outline: none;
+    }
+
+    /* Styles for the Debug Buttons inside Settings */
+    .debug-btn {
+        background: #333;
+        color: #fff;
+        border: 1px solid #555;
+        padding: 8px;
+        cursor: pointer;
+        text-align: left;
+        font-size: 0.8rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    .debug-btn:hover {
+        background: #ef4444;
+        border-color: #fff;
+    }
+    .debug-btn span {
+        background: #000;
+        padding: 2px 5px;
+        border-radius: 4px;
+        font-size: 0.7rem;
+        color: #ef4444;
+    }
+	
+	/* --- DEBUG LOG OVERLAY --- */
+    #debug-log-overlay {
+        position: fixed;
+        bottom: 160px; /* Above controls */
+        left: 10px;
+        width: 300px;
+        height: 200px;
+        background: rgba(0, 0, 0, 0.85);
+        border: 1px solid #0f0;
+        z-index: 10000;
+        font-family: monospace;
+        font-size: 12px;
+        display: flex;
+        flex-direction: column;
+        pointer-events: none; /* Click through */
+    }
+
+    #debug-log-content {
+        flex-grow: 1;
+        overflow-y: auto;
+        padding: 5px;
+        color: #fff;
+        display: flex;
+        flex-direction: column-reverse; /* Newest at bottom */
+    }
+    
+    .debug-line { margin-bottom: 2px; border-bottom: 1px solid #333; }
+    .debug-line span { color: #0f0; margin-right: 5px; }
+	
+	/* --- DEBUG LOG COPY BUTTON --- */
+    #btn-copy-log {
+        background: #000;
+        color: #0f0;
+        border: 1px solid #0f0;
+        font-family: monospace;
+        font-size: 10px;
+        padding: 2px 8px;
+        cursor: pointer;
+        pointer-events: auto; /* CRITICAL: Enables clicking even though parent is pass-through */
+        text-transform: uppercase;
+        box-shadow: none;
+        border-radius: 2px;
+        height: auto;
+        width: auto;
+    }
+    
+    #btn-copy-log:hover {
+        background: #0f0;
+        color: #000;
+    }
+    
+    #btn-copy-log:active {
+        transform: translateY(1px);
+    }
 </style>
 </head>
 
@@ -1181,19 +1286,31 @@
     </div>
 </div>
 
+<!-- SETTINGS MODAL -->
 <div id="settings-modal" class="modal-overlay">
-    <div class="modal-content" style="padding:20px;">
-        <div class="close-x" onclick="toggleSettingsModal()">×</div>
-        <h2 style="color:var(--gold-main); border-bottom:1px solid #333; padding-bottom:10px; margin-top:0;">SETTINGS</h2>
-        <div style="margin-bottom:20px;">
-            <label style="display:block; color:#aaa; margin-bottom:5px;">Music Volume</label>
-            <input type="range" min="0" max="1" step="0.1" value="0.4" style="width:100%" oninput="AUDIO.setBGM(this.value)">
+    <div class="modal-content" style="width: 400px; max-width: 90%;">
+        <button class="close-x" onclick="toggleSettingsModal()">×</button>
+        <h2 style="color:var(--gold-main); margin-top:0;">SETTINGS</h2>
+        
+        <!-- Existing Volume Controls -->
+        <div style="margin-bottom: 20px; text-align: left;">
+            <label style="color:#fff; display:block; margin-bottom:10px;">Music Volume</label>
+            <input type="range" id="vol-bgm" min="0" max="1" step="0.1" value="0.4" style="width:100%; cursor:pointer;" oninput="AUDIO.setBGM(this.value)">
         </div>
-        <div style="margin-bottom:20px;">
-            <label style="display:block; color:#aaa; margin-bottom:5px;">SFX Volume</label>
-            <input type="range" min="0" max="1" step="0.1" value="0.3" style="width:100%" oninput="AUDIO.setSFX(this.value)">
+        <div style="margin-bottom: 20px; text-align: left;">
+            <label style="color:#fff; display:block; margin-bottom:10px;">Sound Effects</label>
+            <input type="range" id="vol-sfx" min="0" max="1" step="0.1" value="0.3" style="width:100%; cursor:pointer;" oninput="AUDIO.setSFX(this.value)">
         </div>
-        <button class="choice-btn" style="width:100%; justify-content:center;" onclick="toggleSettingsModal()">CLOSE</button>
+
+        <!-- NEW: DEBUG SECTION (Hidden by default) -->
+        <div id="debug-controls" style="display:none; border-top: 1px solid #444; margin-top: 15px; padding-top: 10px; text-align:left;">
+            <h3 style="color:#ef4444; font-size: 1rem;">DEV TOOLS: EVENTS</h3>
+            <div id="debug-event-list" style="max-height: 200px; overflow-y: auto; display: grid; grid-template-columns: 1fr; gap: 5px;">
+                <!-- Buttons will be injected here via JS -->
+            </div>
+        </div>
+
+        <button class="choice-btn" style="width:100%; justify-content:center; margin-top:15px;" onclick="toggleSettingsModal()">Close</button>
     </div>
 </div>
 
@@ -1305,6 +1422,21 @@
         <div id="debt-prop-list" style="padding:10px; background:#111; max-height:200px; overflow-y:auto; margin-bottom:20px;"></div>
         <button id="btn-debt-done" class="choice-btn" style="width:100%; justify-content:center;" onclick="checkDebtCleared()" disabled>Pay & Continue</button>
     </div>
+</div>
+
+<!-- DEBUG CONSOLE -->
+<div id="debug-console" style="display:none;">
+    <div style="color:#0f0; font-family:monospace; font-size:14px; margin-bottom:5px;">> DEV CONSOLE</div>
+    <input type="text" id="console-input" placeholder="Type command..." autocomplete="off">
+</div>
+
+<!-- REAL-TIME DEBUG LOG -->
+<div id="debug-log-overlay" style="display:none;">
+    <div style="background:#000; color:#0f0; padding:5px; font-weight:bold; border-bottom:1px solid #0f0; display:flex; justify-content:space-between; align-items:center;">
+        <span>SYSTEM LOG</span>
+        <button id="btn-copy-log" onclick="copyDebugLog()">COPY</button>
+    </div>
+    <div id="debug-log-content"></div>
 </div>
 
 <!-- ================================================================
@@ -2006,6 +2138,24 @@ const AUDIO = {
         }
     }
 };
+
+function debugLog(msg) {
+    // Only log if the overlay is visible
+    const overlay = document.getElementById('debug-log-overlay');
+    if (overlay.style.display === 'none') return;
+    
+    const content = document.getElementById('debug-log-content');
+    const line = document.createElement('div');
+    line.className = 'debug-line';
+    
+    const time = new Date().toLocaleTimeString().split(' ')[0];
+    line.innerHTML = `<span>[${time}]</span> ${msg}`;
+    
+    // Add to top (since flex-direction is column-reverse)
+    content.insertBefore(line, content.firstChild);
+    console.log(`[GAME DEBUG] ${msg}`);
+}
+
 function updateCamera() {
     const width = window.innerWidth;
     const isMobileMode = document.body.classList.contains('force-mobile') || width <= 768;
@@ -2241,7 +2391,7 @@ function spawnBossAsPlayer(data) {
     // 1. Create Model
     const mesh = createDetailedBossMesh(data.modelType);
     
-    // 2. Generate unique ID
+    // 2. Generate unique ID (negative to avoid collision with real players)
     const bossId = -1 * (Math.floor(Math.random() * 1000) + 10);
     
     // 3. Create Player Object
@@ -2249,8 +2399,8 @@ function spawnBossAsPlayer(data) {
         id: bossId,
         name: data.name,
         
-        isBoss: true,     // It's a boss
-        isAi: true,       // CRITICAL FIX: It acts like an AI (automated)
+        isBoss: true,     
+        isAi: true,       
         
         bossType: data.type, 
         abilityReady: true, 
@@ -2266,11 +2416,22 @@ function spawnBossAsPlayer(data) {
         portrait: "", 
         onLand: data.onLand,
         onTurn: data.onTurn,
+        
+        // --- ADDED MISSING METRICS (Fixes the crash) ---
+        metrics: { 
+            spacesMoved: 0, 
+            successfulSieges: 0, 
+            guardsHired: 0 
+        },
+        
         history: []
     };
 
     // 4. Inject into Turn Order
-    const insertIdx = Math.floor(Math.random() * (players.length - 1)) + 1;
+    // Ensure we don't insert at index 0 (Human turn) or out of bounds
+    const maxIdx = Math.max(1, players.length);
+    const insertIdx = Math.floor(Math.random() * (maxIdx - 1)) + 1;
+    
     players.splice(insertIdx, 0, bossPlayer);
     
     addLog(`${data.name} has entered the realm!`, "log-epic");
@@ -2659,47 +2820,34 @@ function triggerRandomEvent() {
 }
 
 function processBossTurn(boss) {
-    // 1. Zoom Camera to the Boss
+    debugLog(`Boss Turn: ${boss.name}`);
     if(!isZoomed) zoomToPiece(boss);
 
-    // 2. Recharge Abilities if passing Start (Old Crooks Inn)
-    if (boss.pos === 0) {
-        boss.abilityReady = true;
-    }
+    if (boss.pos === 0) boss.abilityReady = true;
 
-    // 3. Check for Custom Turn Logic (e.g. Dragon Fly Ability)
-    // We look up the event definition in MAP_EVENTS that matches this boss's name
+    // Custom Logic
     const eventDef = MAP_EVENTS.find(e => e.name === boss.name);
-    
-    // If the event definition exists and has an onTurn function:
+    let specialMoveUsed = false;
     if (eventDef && eventDef.onTurn) {
-        // Execute the custom logic. 
-        // If it returns 'true', it means the boss performed a special action (like flying) 
-        // and we should skip the standard movement phase.
-        if (eventDef.onTurn(boss)) return; 
+        specialMoveUsed = eventDef.onTurn(boss);
     }
 
-    // 4. Standard Movement Logic (If no special ability was used)
+    if (specialMoveUsed) {
+        debugLog("Boss used Special Move");
+        return;
+    }
+
+    // Standard Move
     let moveRoll = 0;
-
-    // Determine speed based on Boss Name/Type
-    if (boss.name.includes("Dragon")) {
-        moveRoll = Math.floor(Math.random() * 4) + 2; // Random Speed: 2 to 5
-    } 
-    else if (boss.name.includes("Wraith")) {
-        moveRoll = 3; // Fast, consistent speed
-    } 
-    else if (boss.name.includes("Golem")) {
-        moveRoll = 1; // Very slow
-    } 
-    else {
-        // Merchants and any other generic entities
-        moveRoll = 2; 
-    }
+    const bName = boss.name || "";
+    if (bName.includes("Dragon") || bName.includes("Inferno")) moveRoll = Math.floor(Math.random() * 4) + 2; 
+    else if (bName.includes("Wraith") || bName.includes("Void")) moveRoll = 3; 
+    else if (bName.includes("Golem")) moveRoll = 1; 
+    else moveRoll = 2; 
 
     addLog(`${boss.name} moves ${moveRoll} spaces.`);
+    debugLog(`Boss Rolling: ${moveRoll}`);
     
-    // Set state and trigger standard animation
     gameState = 'MOVING'; 
     animateMove(boss, moveRoll);
 }
@@ -3030,9 +3178,23 @@ function spawnPlayer(id, n, r, c, actId, pasId, ai, col) {
 }
 
 function recalcStats(p) {
-    p.stats.str = p.race.stats.str; p.stats.dex = p.race.stats.dex; p.stats.int = p.race.stats.int;
-    const pas = ABILITY_LIBRARY[p.passiveSkillId]; if(pas && pas.effect) pas.effect(p.stats);
-    ['head', 'body', 'main', 'off'].forEach(slot => { const item = p.equipment[slot]; if(item && item.bonus) { const k = Object.keys(item.bonus)[0]; p.stats[k] += item.bonus[k]; } });
+    // FIX: Bosses don't have base race stats, so skip this part
+    if (p.isBoss) return;
+
+    p.stats.str = p.race.stats.str; 
+    p.stats.dex = p.race.stats.dex; 
+    p.stats.int = p.race.stats.int;
+    
+    const pas = ABILITY_LIBRARY[p.passiveSkillId]; 
+    if(pas && pas.effect) pas.effect(p.stats);
+    
+    ['head', 'body', 'main', 'off'].forEach(slot => { 
+        const item = p.equipment[slot]; 
+        if(item && item.bonus) { 
+            const k = Object.keys(item.bonus)[0]; 
+            p.stats[k] += item.bonus[k]; 
+        } 
+    });
 }
 
 function processTax(victim, amount) {
@@ -3110,6 +3272,8 @@ function rollMove() {
     
     const p=players[turnIndex]; 
     if(p.isDead) { endTurn(); return; }
+	
+	debugLog(`Start Turn: ${p.name}`);
 
     // --- NEW: BOSS TURN CHECK ---
     if (p.isBoss) {
@@ -3370,6 +3534,7 @@ function endTurn(){
     }, 1200); 
 }
 function resolveLanding(p) {
+debugLog(`Landed: ${p.name} at Tile ${p.pos}`);
     // --- 1. BOSS/MERCHANT COLLISION LOGIC ---
     
     // CASE A: Boss (p) lands on a Player (other)
@@ -3528,37 +3693,50 @@ function continueFromArrival() {
 }
 
 function processAiTurn(p, t, i) {
+    debugLog(`AI (${p.name}) processing tile: ${i.name} (${i.type})`);
+    
     // --- FASTER THINKING (600ms) ---
     setTimeout(() => {
         try {
-            // --- BOSS LOGIC OVERRIDE (CRITICAL FIX) ---
-            if (p.isBoss) {
-                // 1. Tile Destruction (Dragon)
-                if (activeEvent && activeEvent.data && activeEvent.data.onTileEffect) {
-                    activeEvent.data.onTileEffect(t);
-                }
-                
-                // 2. Force End Turn
-                endStep();
-                return; 
-            }
-            // ------------------------------------------
-
             // 1. Instant Events
-            if(i.type === 'tax') { processTax(p, 50); endStep(); return; } 
+            if(i.type === 'tax') { 
+                debugLog("AI paying tax");
+                processTax(p, 50); 
+                endStep(); return; 
+            } 
             if(i.type === 'park') { 
-                if(treasuryGold > 0){ p.gold += treasuryGold; addLog(`${p.name} wins the Treasury!`, "log-gold"); treasuryGold = 0; } 
+                debugLog("AI landed on Park");
+                if(treasuryGold > 0){ 
+                    p.gold += treasuryGold; 
+                    addLog(`${p.name} wins the Treasury!`, "log-gold"); 
+                    treasuryGold = 0; 
+                } 
                 endStep(); return; 
             } 
             if(i.type === 'goto') { 
-                if (p.passiveSkillId === 'smoke_bomb' || p.activeSkillId === 'smoke_bomb') { addLog(`${p.name} uses Skeleton Key!`, "log-epic"); } 
-                else { p.pos=10; p.mesh.position.copy(tiles[10].position); addLog(`${p.name} jailed.`, "log-fail"); p.isSkipping = true; } 
+                debugLog("AI sent to Dungeon");
+                if (p.passiveSkillId === 'smoke_bomb' || p.activeSkillId === 'smoke_bomb') { 
+                    addLog(`${p.name} uses Skeleton Key!`, "log-epic"); 
+                } else { 
+                    p.pos = 10; 
+                    p.mesh.position.copy(tiles[10].position); 
+                    addLog(`${p.name} jailed.`, "log-fail"); 
+                    p.isSkipping = true; 
+                } 
                 endStep(); return; 
             } 
+            if(i.type === 'jail') {
+                debugLog("AI visiting jail");
+                endStep(); return;
+            }
+
+            // 2. Chests / Loot
             if(i.type === 'chest') { 
+                debugLog("AI looting chest");
                 const card = DECK_TREASURE[Math.floor(Math.random() * DECK_TREASURE.length)]; 
                 p.inventory.push(createItemInstance(card)); 
                 addLog(`${p.name} found ${card.name}.`, "log-success"); 
+                
                 if (card.name === "Pouch of Gold" && p.passiveSkillId === 'alchemist_pas') { 
                     const extra = DECK_TREASURE[Math.floor(Math.random() * DECK_TREASURE.length)]; 
                     p.inventory.push(createItemInstance(extra)); 
@@ -3567,15 +3745,15 @@ function processAiTurn(p, t, i) {
                 endStep(); return; 
             }
 
-            // 2. Mystery / Teleport
+            // 3. Mystery / Teleport
             if (i.type === 'mystery') {
+                debugLog("AI Mystery Event");
                 addLog(`${p.name} explores...`, "log-rare");
                 const deck = isNight ? DECK_SKIRMISH : DECK_ENCOUNTER;
                 const card = deck[Math.floor(Math.random() * deck.length)];
                 
                 if (card.choices) {
                     let best = card.choices[0];
-                    // Fog Logic
                     if (activeEvent && activeEvent.data && activeEvent.data.id === 'event_fog') {
                         best = card.choices[Math.floor(Math.random() * card.choices.length)];
                     } 
@@ -3584,8 +3762,8 @@ function processAiTurn(p, t, i) {
                         const stat2 = p.stats[card.choices[1].stat] || 0;
                         if (stat2 > stat1) best = card.choices[1];
                     }
-
                     setTimeout(() => {
+                        debugLog(`AI Rolling Mystery: ${best.txt}`);
                         rollCombat(p, best.stat, best.tn, best.req || 1, t, 'teleport', false, best.val || 0, best.fail || 50, false);
                     }, 500);
                     return;
@@ -3594,19 +3772,34 @@ function processAiTurn(p, t, i) {
                 }
             }
 
-            // 3. Buy Empty Land
+            // 4. Empty Land (Buy)
             if(i.cost > 0 && t.userData.owner === null) { 
-                const safetyRatio = (p.class.id === 'rogue' || p.race.id === 'dragonborn') ? 1.2 : 2.0; 
+                debugLog("AI deciding to buy...");
+                
+                // FIX: Safely check class/race existence using Optional Chaining (?.)
+                const isRogue = p.class?.id === 'rogue';
+                const isDragonborn = p.race?.id === 'dragonborn';
+                const safetyRatio = (isRogue || isDragonborn) ? 1.2 : 2.0; 
+                
+                // Bosses act like players now. They have tons of gold, so they will buy everything.
                 if (p.gold >= i.cost * safetyRatio) { 
-                    capture(t, p, 1, () => { checkForBonusLoot(p); endStep(); }); 
+                    capture(t, p, 1, () => { 
+                        // Bosses don't get bonus loot rolls (keeps game faster)
+                        if(p.isBoss) endStep();
+                        else checkForBonusLoot(p); 
+                    }); 
                     return; 
                 } 
-                else { addLog(`${p.name} passes.`, "log-entry"); } 
-                endStep(); return; 
+                else { 
+                    addLog(`${p.name} passes.`, "log-entry"); 
+                    endStep();
+                    return;
+                } 
             } 
 
-            // 4. Enemy Land
+            // 5. Enemy Land (Siege or Pay)
             if(t.userData.owner !== null && t.userData.owner !== p.id) {
+                debugLog("AI on enemy land");
                 const enemyDefStat = t.userData.defendingStat || 'str'; 
                 const tn = i.tn || 3; 
                 const aiDicePool = p.stats[enemyDefStat] || 1; 
@@ -3617,29 +3810,41 @@ function processAiTurn(p, t, i) {
                 let willSiege = false; 
                 const failCost = (i.cost * 2) + ((t.userData.guardCount || 0) * 10);
                 
-                if (expectedWins >= requiredWins) willSiege = true; 
-                if (p.gold < i.cost) willSiege = true; 
-                if (failCost > p.gold && expectedWins < requiredWins + 0.5) willSiege = false;
+                // Bosses are aggressive
+                if (p.isBoss) willSiege = true;
+                else {
+                    if (expectedWins >= requiredWins) willSiege = true; 
+                    if (p.gold < i.cost) willSiege = true; 
+                    if (failCost > p.gold && expectedWins < requiredWins + 0.5) willSiege = false;
+                }
 
                 if (willSiege) { 
                     attemptAiAbilities(p, 'combat'); 
                     addLog(`${p.name} attacks!`, "log-accent"); 
-                    setTimeout(() => { rollCombat(p, enemyDefStat, tn, requiredWins, t, 'capture', false, 0, failCost, true); }, 500); 
+                    setTimeout(() => { 
+                        rollCombat(p, enemyDefStat, tn, requiredWins, t, 'capture', false, 0, failCost, true); 
+                    }, 500); 
                     return; 
                 } else { 
-                    pay(p, i.cost, players[t.userData.owner]); endStep(); return; 
+                    pay(p, i.cost, players[t.userData.owner]); 
+                    endStep(); 
+                    return; 
                 }
             }
 
-            // 5. Own Land
+            // 6. Own Land (Upgrade)
             if (t.userData.owner === p.id) { 
+                debugLog("AI on own land");
                 if (t.userData.buildingLevel === 1 && p.gold > i.cost * 3) { 
                     addLog(`${p.name} upgrades...`); 
                     const card = DECK_SKIRMISH[Math.floor(Math.random() * DECK_SKIRMISH.length)]; 
                     let bestChoice = card.choices[0];
                     if (card.choices[1]) {
-                        if (activeEvent && activeEvent.data && activeEvent.data.id === 'event_fog') bestChoice = card.choices[Math.floor(Math.random() * 2)];
-                        else if (card.choices[1].tn < card.choices[0].tn) bestChoice = card.choices[1];
+                        if (activeEvent && activeEvent.data && activeEvent.data.id === 'event_fog') {
+                            bestChoice = card.choices[Math.floor(Math.random() * 2)];
+                        } else {
+                            if (card.choices[1].tn < card.choices[0].tn) bestChoice = card.choices[1];
+                        }
                     }
                     rollCombat(p, bestChoice.stat, bestChoice.tn, bestChoice.req, t, 'upgrade', false, 0, 50, false); 
                     return; 
@@ -3650,18 +3855,34 @@ function processAiTurn(p, t, i) {
                     addLog(`${p.name} hired guard.`, "log-gold"); 
                     updateHUD(); 
                 } 
+                endStep();
+                return;
+            }
+            
+            // 7. CATCH ALL
+            debugLog("AI Catch-All (Shop/Other)");
+            
+            if (i.type === 'shop' && !p.isBoss) {
+                 if (p.gold > 500) {
+                     const potion = DECK_TREASURE.find(it => it.type === 'scroll' && it.name.includes('Healing'));
+                     if(potion) {
+                         p.inventory.push(createItemInstance(potion));
+                         p.gold -= potion.cost;
+                         addLog(`${p.name} bought supplies.`, "log-success");
+                     }
+                 }
             }
             
             endStep();
 
         } catch (err) {
             console.error("AI Error:", err);
+            debugLog("AI Error: " + err.message);
             addLog("AI glitched... passing turn.", "log-fail");
             endStep();
         }
     }, 600); 
 }
-
 function showEncounter(p, i, t, mode) {
     const originalMode = mode;
     const m = document.getElementById('card-modal'); 
@@ -4051,23 +4272,36 @@ function checkForBonusLoot(p) {
         // --- AI LOGIC: Instant Get ---
         if (p.isAi) {
             const card = DECK_TREASURE[Math.floor(Math.random() * DECK_TREASURE.length)];
-            // UPDATED
-            p.inventory.push(createItemInstance(card));
+            
+            // Add Item using Unique ID generator
+            p.inventory.push(createItemInstance(card)); 
+            
             addLog(`${p.name} found ${card.name}`, "log-success");
-            // ... alchemist logic ...
+            
+            // Check Alchemist Passive
+            if (card.name === "Pouch of Gold" && p.passiveSkillId === 'alchemist_pas') { 
+                const extra = DECK_TREASURE[Math.floor(Math.random() * DECK_TREASURE.length)]; 
+                p.inventory.push(createItemInstance(extra)); 
+                addLog(`Alchemist Bonus: Found ${extra.name}!`, "log-epic"); 
+            }
+            
+            // FIX: MUST END TURN HERE
+            endStep(); 
             return;
         }
         // -----------------------------
 
-        // Human Logic: Animation
+        // Human Logic: Animation -> Window -> CloseEnc -> EndStep
         setTimeout(() => { 
             drawCardAnim('treasure', () => showEncounter(p, null, null, 'loot')); 
         }, 500); 
+
     } else { 
         addLog(`Bonus Loot Roll: ${roll} (No Item)`, "log-fail"); 
         
-        // End the turn if it's the human player
-        if (p.id === 0) endStep(); 
+        // FIX: End Step for EVERYONE (Human or AI) if no loot is found
+        // Previously this only checked if (p.id === 0)
+        endStep(); 
     } 
 }
 function capture(t, p, lvl, callback) {
@@ -5197,6 +5431,151 @@ function togglePanelVisibility(id) {
         el.classList.remove('active');
         if(typeof AUDIO !== 'undefined') AUDIO.playSound('sfx_click');
     }
+}
+
+// ==========================================
+//   DEBUG CONSOLE LOGIC
+// ==========================================
+
+// 1. Listen for Backtick (`)
+document.addEventListener('keydown', function(e) {
+    if (e.key === '`') {
+        const consoleDiv = document.getElementById('debug-console');
+        const input = document.getElementById('console-input');
+        
+        if (consoleDiv.style.display === 'none') {
+            consoleDiv.style.display = 'block';
+            input.focus();
+        } else {
+            consoleDiv.style.display = 'none';
+        }
+        e.preventDefault(); // Prevent typing ` in the box
+    }
+});
+
+// 2. Handle Console Command
+document.getElementById('console-input').addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') {
+        const val = this.value.trim();
+        
+        if (val === "Testy") {
+            enableDebugMode();
+            this.value = "";
+            document.getElementById('debug-console').style.display = 'none';
+            // Open settings to show the user it worked
+            const settings = document.getElementById('settings-modal');
+            settings.style.display = 'flex';
+            AUDIO.playSound('sfx_gold'); // Success sound
+        } else {
+            // Optional: Handle other commands
+            this.value = "";
+            this.placeholder = "Unknown Command";
+            setTimeout(() => this.placeholder = "Type command...", 1000);
+        }
+    }
+});
+
+function enableDebugMode() {
+    const debugContainer = document.getElementById('debug-controls');
+    const list = document.getElementById('debug-event-list');
+    const logOverlay = document.getElementById('debug-log-overlay'); 
+    
+    // Reveal UI
+    debugContainer.style.display = 'block';
+    logOverlay.style.display = 'flex'; 
+    
+    list.innerHTML = ''; 
+
+    // Add "Force End Turn" Button (Emergency Fix)
+    const fixBtn = document.createElement('button');
+    fixBtn.className = 'debug-btn';
+    fixBtn.innerHTML = `EMERGENCY: FORCE END TURN <span>FIX</span>`;
+    fixBtn.style.borderColor = '#ef4444';
+    fixBtn.onclick = () => {
+        debugLog("Force Ending Turn...");
+        
+        // FIX: Break the Movement Lock
+        gameState = 'END'; 
+        turnProcessing = false;
+        
+        // Force Cleanup of any active events/modals
+        if (activeEvent && activeEvent.mesh) scene.remove(activeEvent.mesh);
+        document.getElementById('card-modal').classList.remove('active');
+        
+        endTurn();
+    };
+    list.appendChild(fixBtn);
+
+    // Loop through MAP_EVENTS
+    MAP_EVENTS.forEach((ev, index) => {
+        const btn = document.createElement('button');
+        btn.className = 'debug-btn';
+        btn.innerHTML = `${ev.name} <span>INPUT</span>`;
+        btn.onclick = () => {
+            forceTriggerEvent(index);
+            toggleSettingsModal(); 
+        };
+        list.appendChild(btn);
+    });
+    
+    debugLog("Debug Mode Enabled.");
+}
+
+// 3. Logic to Force a Specific Event (Modified triggerRandomEvent)
+function forceTriggerEvent(index) {
+    // A. Cleanup any existing event
+    if(activeEvent) {
+        if(activeEvent.data.onEnd) activeEvent.data.onEnd();
+        if(activeEvent.mesh) scene.remove(activeEvent.mesh);
+        if(activeEvent.playerRef) removeBossPlayer(activeEvent.playerRef);
+        activeEvent = null;
+    }
+
+    // B. Load specific event data
+    const evData = MAP_EVENTS[index];
+    
+    if (!evData) {
+        console.error("Invalid Event Index");
+        return;
+    }
+
+    // C. Initialize Logic (Mirrors triggerRandomEvent)
+    activeEvent = {
+        data: evData,
+        mesh: null, 
+        turnsLeft: evData.duration,
+        playerRef: null 
+    };
+
+    // D. Start the Event
+    if(evData.onStart) evData.onStart();
+
+    // E. Visual Feedback
+    addLog(`DEBUG: Force Started ${evData.name}`, "log-epic");
+    addLog(evData.desc, "log-rare");
+    AUDIO.playSound('sfx_transition');
+    updateHUD();
+}
+
+function copyDebugLog() {
+    const content = document.getElementById('debug-log-content');
+    if (!content) return;
+    
+    // Get text content (preserves newlines usually)
+    const text = content.innerText;
+    
+    navigator.clipboard.writeText(text).then(() => {
+        // Visual feedback
+        const btn = document.getElementById('btn-copy-log');
+        const originalText = btn.innerText;
+        btn.innerText = "COPIED!";
+        setTimeout(() => {
+            btn.innerText = originalText;
+        }, 1000);
+    }).catch(err => {
+        console.error('Failed to copy log:', err);
+        alert("Failed to copy log. Check console permissions.");
+    });
 }
 
 // Start Engine
