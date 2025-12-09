@@ -963,7 +963,7 @@
     .boss-icon { font-size: 1.2rem; margin-right: 5px; }
 	
 	/* --- DEBUG CONSOLE STYLES --- */
-	#debug-console {
+    #debug-console {
 		position: fixed;
 		top: 10px;
 		left: 10px;
@@ -976,6 +976,7 @@
 		border-radius: 4px;
 		box-shadow: 0 0 10px #000;
 	}
+
     #console-input {
         width: 100%;
         background: #111;
@@ -1067,8 +1068,8 @@
         transform: translateY(1px);
     }
 	
-/* ================================================================
-   [FIX] CHARACTER SHEET UI OVERHAUL (CORRECTED INTERACTION)
+	/* ================================================================
+   [FIX] CHARACTER SHEET UI OVERHAUL
    ================================================================ */
 
 /* 1. Fix the "Box Behind the Window" - NOW INTERACTION SAFE */
@@ -1130,7 +1131,117 @@ input[type="range"] {
     to { transform: scale(1); opacity: 1; }
 }
 
-/* ... The rest of the CSS (Header, Stats, Skills) remains exactly the same ... */
+/* 3. Header Section (Portrait + Name) */
+.cs-header-bg {
+    background: linear-gradient(to right, rgba(0,0,0,0.8), rgba(0,0,0,0.4)), url('https://www.transparenttextures.com/patterns/dark-leather.png');
+    padding: 20px;
+    border-bottom: 2px solid var(--gold-dim);
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    position: relative;
+}
+
+.cs-portrait {
+    width: 70px; 
+    height: 70px;
+    border-radius: 50%;
+    border: 3px solid var(--gold-main);
+    background-color: #000;
+    background-size: cover;
+    box-shadow: 0 0 15px var(--gold-dim);
+}
+
+.cs-info { display: flex; flex-direction: column; }
+.cs-name { font-family: var(--font-head); font-size: 1.6rem; color: var(--gold-glow); text-transform: uppercase; text-shadow: 0 2px 4px #000; line-height: 1; margin-bottom: 5px; }
+.cs-class { font-size: 0.9rem; color: #94a3b8; font-weight: bold; text-transform: uppercase; letter-spacing: 1px; }
+
+/* 4. Main Stats (STR / DEX / INT) */
+.cs-main-stats {
+    display: flex;
+    justify-content: space-evenly;
+    background: rgba(0,0,0,0.3);
+    padding: 15px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+}
+
+.cs-stat-orb {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 60px;
+}
+
+.cs-stat-val {
+    font-family: var(--font-head);
+    font-size: 1.8rem;
+    color: #fff;
+    font-weight: 900;
+    text-shadow: 0 0 10px var(--accent-blue);
+}
+
+.cs-stat-label {
+    font-size: 0.65rem;
+    color: var(--gold-main);
+    letter-spacing: 1px;
+    margin-top: -2px;
+}
+
+/* 5. Skills Section */
+.cs-skills { padding: 15px 20px; }
+.cs-skill-row {
+    display: flex;
+    align-items: center;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    padding: 8px;
+    border-radius: 8px;
+    margin-bottom: 8px;
+}
+
+.cs-skill-icon {
+    width: 36px; height: 36px;
+    border-radius: 6px;
+    border: 1px solid #555;
+    margin-right: 12px;
+    object-fit: cover;
+    background: #000;
+}
+
+.cs-skill-text { display: flex; flex-direction: column; }
+.cs-skill-name { font-weight: bold; color: #e2e8f0; font-size: 0.9rem; }
+.cs-skill-desc { font-size: 0.75rem; color: #94a3b8; font-style: italic; line-height: 1.1; }
+
+/* 6. Metrics Grid (Camps, etc) */
+.cs-metrics {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    padding: 0 20px 20px 20px;
+}
+
+.cs-metric-box {
+    background: rgba(0,0,0,0.4);
+    border-radius: 6px;
+    padding: 8px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.8rem;
+    border: 1px solid #334155;
+}
+.cs-metric-lbl { color: #94a3b8; }
+.cs-metric-val { color: #fff; font-weight: bold; }
+
+/* Close Button Override */
+#char-detail-modal .close-x {
+    top: 15px;
+    right: 15px;
+    background: #ef4444;
+    border: 2px solid #fff;
+    box-shadow: 0 2px 5px #000;
+    z-index: 10;
+}
 </style>
 </head>
 
@@ -1361,7 +1472,6 @@ input[type="range"] {
     </div>
 </div>
 
-<!-- SETTINGS MODAL -->
 <!-- SETTINGS MODAL -->
 <div id="settings-modal" class="modal-overlay">
     <div class="modal-content" style="width: 400px; max-width: 90%;">
@@ -5123,11 +5233,6 @@ function toggleHelpModal() {
         switchHelpTab('tab-basics');
     }
 }
-function toggleSettingsModal() { 
-    const m = document.getElementById('settings-modal'); 
-    // Toggle between Flex and None
-    m.style.display = (m.style.display === 'flex') ? 'none' : 'flex'; 
-}
 
 // --- SECRET DEBUG TRIGGER ---
 let secretTapCount = 0;
@@ -5166,6 +5271,11 @@ function handleSecretDebugTap() {
     }
 }
 
+function toggleSettingsModal() { 
+    const m = document.getElementById('settings-modal'); 
+    // Toggle between Flex and None
+    m.style.display = (m.style.display === 'flex') ? 'none' : 'flex'; 
+}
 function toggleUIMode(isForced) {
     if (isForced) {
         document.body.classList.add('force-mobile');
