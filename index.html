@@ -963,19 +963,19 @@
     .boss-icon { font-size: 1.2rem; margin-right: 5px; }
 	
 	/* --- DEBUG CONSOLE STYLES --- */
-    #debug-console {
-        position: fixed;
-        top: 10px;
-        left: 10px;
-        width: 300px;
-        background: rgba(0, 0, 0, 0.85);
-        border: 1px solid #0f0; /* Hacker Green style */
-        padding: 10px;
-        z-index: 10000; /* On top of everything */
-        border-radius: 4px;
-        box-shadow: 0 0 10px #000;
-    }
-
+	#debug-console {
+		position: fixed;
+		top: 10px;
+		left: 10px;
+		width: 300px;
+		max-width: 90vw; /* Safety for mobile screens */
+		background: rgba(0, 0, 0, 0.85);
+		border: 1px solid #0f0;
+		padding: 10px;
+		z-index: 10000;
+		border-radius: 4px;
+		box-shadow: 0 0 10px #000;
+	}
     #console-input {
         width: 100%;
         background: #111;
@@ -1362,10 +1362,13 @@ input[type="range"] {
 </div>
 
 <!-- SETTINGS MODAL -->
+<!-- SETTINGS MODAL -->
 <div id="settings-modal" class="modal-overlay">
     <div class="modal-content" style="width: 400px; max-width: 90%;">
         <button class="close-x" onclick="toggleSettingsModal()">×</button>
-        <h2 style="color:var(--gold-main); margin-top:0;">SETTINGS</h2>
+        
+        <!-- UPDATED LINE: Added onclick and cursor style -->
+        <h2 style="color:var(--gold-main); margin-top:0; cursor:pointer; user-select:none;" onclick="handleSecretDebugTap()">SETTINGS</h2>
         
         <!-- Existing Volume Controls -->
         <div style="margin-bottom: 20px; text-align: left;">
@@ -5125,6 +5128,44 @@ function toggleSettingsModal() {
     // Toggle between Flex and None
     m.style.display = (m.style.display === 'flex') ? 'none' : 'flex'; 
 }
+
+// --- SECRET DEBUG TRIGGER ---
+let secretTapCount = 0;
+let secretTapTimer = null;
+
+function handleSecretDebugTap() {
+    secretTapCount++;
+    
+    // Clear the timer so it doesn't reset while you are still tapping
+    clearTimeout(secretTapTimer);
+    
+    // Reset count if you stop tapping for more than 1 second
+    secretTapTimer = setTimeout(() => {
+        secretTapCount = 0;
+    }, 1000);
+
+    // If tapped 10 times...
+    if (secretTapCount >= 10) {
+        secretTapCount = 0; // Reset
+        
+        // 1. Close Settings to clear the screen
+        toggleSettingsModal();
+        
+        // 2. Open Debug Console
+        const consoleDiv = document.getElementById('debug-console');
+        const input = document.getElementById('console-input');
+        
+        consoleDiv.style.display = 'block';
+        input.value = '';
+        input.focus(); // Pops up keyboard on mobile
+        
+        // 3. Play sound confirmation
+        if(typeof AUDIO !== 'undefined') AUDIO.playSound('sfx_gold');
+        
+        addLog("Debug Console Accessed.", "log-rare");
+    }
+}
+
 function toggleUIMode(isForced) {
     if (isForced) {
         document.body.classList.add('force-mobile');
