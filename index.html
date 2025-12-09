@@ -1066,6 +1066,163 @@
     #btn-copy-log:active {
         transform: translateY(1px);
     }
+	
+	/* ================================================================
+   [FIX] CHARACTER SHEET UI OVERHAUL
+   ================================================================ */
+
+/* 1. Fix the "Box Behind the Window" (The Wrapper) */
+#char-detail-modal {
+    /* Make the outer wrapper a full-screen dimmer, NOT a box */
+    background-color: rgba(0, 0, 0, 0.7) !important; 
+    border: none !important;
+    box-shadow: none !important;
+    width: 100% !important;
+    height: 100% !important;
+    max-width: none !important;
+    max-height: none !important;
+    top: 0 !important;
+    left: 0 !important;
+    transform: none !important;
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+    z-index: 5000 !important;
+}
+
+/* 2. The Actual Window (The Inner Card) */
+#char-detail-modal .modal-content {
+    background: linear-gradient(160deg, #1e293b 0%, #0f172a 100%);
+    border: 2px solid var(--gold-main);
+    box-shadow: 0 0 50px rgba(0, 0, 0, 0.8), inset 0 0 20px rgba(0,0,0,0.5);
+    border-radius: 16px;
+    width: 90%;
+    max-width: 450px; /* Keep it focused */
+    max-height: 85vh;
+    padding: 0;
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+@keyframes popIn {
+    from { transform: scale(0.8); opacity: 0; }
+    to { transform: scale(1); opacity: 1; }
+}
+
+/* 3. Header Section (Portrait + Name) */
+.cs-header-bg {
+    background: linear-gradient(to right, rgba(0,0,0,0.8), rgba(0,0,0,0.4)), url('https://www.transparenttextures.com/patterns/dark-leather.png');
+    padding: 20px;
+    border-bottom: 2px solid var(--gold-dim);
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    position: relative;
+}
+
+.cs-portrait {
+    width: 70px; 
+    height: 70px;
+    border-radius: 50%;
+    border: 3px solid var(--gold-main);
+    background-color: #000;
+    background-size: cover;
+    box-shadow: 0 0 15px var(--gold-dim);
+}
+
+.cs-info { display: flex; flex-direction: column; }
+.cs-name { font-family: var(--font-head); font-size: 1.6rem; color: var(--gold-glow); text-transform: uppercase; text-shadow: 0 2px 4px #000; line-height: 1; margin-bottom: 5px; }
+.cs-class { font-size: 0.9rem; color: #94a3b8; font-weight: bold; text-transform: uppercase; letter-spacing: 1px; }
+
+/* 4. Main Stats (STR / DEX / INT) */
+.cs-main-stats {
+    display: flex;
+    justify-content: space-evenly;
+    background: rgba(0,0,0,0.3);
+    padding: 15px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+}
+
+.cs-stat-orb {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 60px;
+}
+
+.cs-stat-val {
+    font-family: var(--font-head);
+    font-size: 1.8rem;
+    color: #fff;
+    font-weight: 900;
+    text-shadow: 0 0 10px var(--accent-blue);
+}
+
+.cs-stat-label {
+    font-size: 0.65rem;
+    color: var(--gold-main);
+    letter-spacing: 1px;
+    margin-top: -2px;
+}
+
+/* 5. Skills Section */
+.cs-skills { padding: 15px 20px; }
+.cs-skill-row {
+    display: flex;
+    align-items: center;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    padding: 8px;
+    border-radius: 8px;
+    margin-bottom: 8px;
+}
+
+.cs-skill-icon {
+    width: 36px; height: 36px;
+    border-radius: 6px;
+    border: 1px solid #555;
+    margin-right: 12px;
+    object-fit: cover;
+    background: #000;
+}
+
+.cs-skill-text { display: flex; flex-direction: column; }
+.cs-skill-name { font-weight: bold; color: #e2e8f0; font-size: 0.9rem; }
+.cs-skill-desc { font-size: 0.75rem; color: #94a3b8; font-style: italic; line-height: 1.1; }
+
+/* 6. Metrics Grid (Camps, etc) */
+.cs-metrics {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    padding: 0 20px 20px 20px;
+}
+
+.cs-metric-box {
+    background: rgba(0,0,0,0.4);
+    border-radius: 6px;
+    padding: 8px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.8rem;
+    border: 1px solid #334155;
+}
+.cs-metric-lbl { color: #94a3b8; }
+.cs-metric-val { color: #fff; font-weight: bold; }
+
+/* Close Button Override */
+#char-detail-modal .close-x {
+    top: 15px;
+    right: 15px;
+    background: #ef4444;
+    border: 2px solid #fff;
+    box-shadow: 0 2px 5px #000;
+    z-index: 10;
+}
 </style>
 </head>
 
@@ -2397,60 +2554,60 @@ let eventTurnCounter = 0; // Duration tracker
 
 // --- EVENT DEFINITIONS ---
 
-function spawnBossAsPlayer(data) {
-    // 1. Create Model
+// --- EVENT ENTITY HANDLERS (Visuals Only) ---
+function spawnEventEntity(data) {
+    // 1. Create Model (Visuals)
     const mesh = createDetailedBossMesh(data.modelType);
     
-    // 2. Generate ID
-    const bossId = -1 * (Math.floor(Math.random() * 1000) + 10);
+    // 2. Create a "Dummy" Player object
+    const entityId = -1 * (Math.floor(Math.random() * 1000) + 10);
     
-    // 3. Determine HP based on ID
-    let hp = 3; // Default (Golem)
-    if (data.id === 'boss_dragon') hp = 5;
-    if (data.id === 'boss_wraith') hp = 4;
+    // NEW: Random Spawn Position (0-39)
+    const startPos = Math.floor(Math.random() * 40);
 
-    // 4. Create Player Object
-    const bossPlayer = {
-        id: bossId,
+    const entityPlayer = {
+        id: entityId,
         name: data.name,
-        
-        isBoss: true,     
+        isEventEntity: true, 
         isAi: true,       
-        
         bossType: data.type, 
-        
-        // --- NEW: HEALTH SYSTEM ---
-        hp: hp,
-        maxHp: hp,
-        // --------------------------
-
-        abilityReady: true, 
-        color: (data.type === 'boss') ? '#ef4444' : '#a855f7',
-        gold: 99999, 
-        pos: 0,
+        color: '#a855f7',
+        pos: startPos, // Set random pos
         mesh: mesh,
-        stats: { str: 10, dex: 10, int: 10 }, 
+        stats: { str: 0, dex: 0, int: 0 }, 
+        race: null, 
+        class: null,
         inventory: [],
         equipment: {},
-        activeSkillId: null,
-        passiveSkillId: null,
-        portrait: "", 
-        onLand: data.onLand,
-        onTurn: data.onTurn,
-        
         metrics: { spacesMoved: 0, successfulSieges: 0, guardsHired: 0 },
         history: []
     };
 
-    // 5. Inject
+    // Move Mesh to Start Pos immediately
+    const t = tiles[startPos].position.clone();
+    entityPlayer.mesh.position.set(t.x, 0, t.z);
+
     const maxIdx = Math.max(1, players.length);
-    const insertIdx = Math.floor(Math.random() * (maxIdx - 1)) + 1;
-    players.splice(insertIdx, 0, bossPlayer);
+    players.splice(maxIdx, 0, entityPlayer);
     
-    addLog(`${data.name} (HP: ${hp}) has entered!`, "log-epic");
+    addLog(`${data.name} has arrived at ${tiles[startPos].userData.info.name}!`, "log-epic");
     updateHUD(); 
     
-    return bossPlayer;
+    return entityPlayer;
+}
+
+function removeEventEntity(entityPlayer) {
+    if (!entityPlayer) return;
+    const idx = players.indexOf(entityPlayer);
+    if (idx > -1) {
+        players.splice(idx, 1);
+        if(entityPlayer.mesh) scene.remove(entityPlayer.mesh);
+        addLog(`${entityPlayer.name} has departed.`, "log-rare");
+        
+        // Adjust turn index if we removed someone before current turn
+        if (idx < turnIndex) turnIndex--;
+        updateHUD();
+    }
 }
 
 function removeBossPlayer(bossPlayer) {
@@ -2467,99 +2624,66 @@ function removeBossPlayer(bossPlayer) {
 }
 
 const MAP_EVENTS = [
-    // --- BOSSES ---
+    // 1. THE ALCHEMIST (Consumables Only)
     {
-        id: 'boss_dragon', name: "Inferno Dragon", type: 'boss', duration: 10, modelType: 'dragon',
-        desc: "A Dragon! It flies to player lands to burn them!",
-        onStart: () => { activeEvent.playerRef = spawnBossAsPlayer(MAP_EVENTS[0]); }, 
-        onEnd: () => { removeBossPlayer(activeEvent.playerRef); },
-        onTurn: (me) => {
-            if (me.abilityReady) {
-                const targets = tiles.filter(t => t.userData.owner !== null && t.userData.owner >= 0 && t.userData.buildingLevel > 0);
-                if (targets.length > 0) {
-                    const target = targets[Math.floor(Math.random() * targets.length)];
-                    addLog("Dragon flies to attack " + target.userData.info.name + "!", "log-fail");
-                    animateTeleport(me, target, () => {
-                        target.userData.buildingLevel = 0;
-                        target.userData.guardCount = 0;
-                        if(target.userData.prop) { target.remove(target.userData.prop); target.userData.prop=null; }
-                        addLog(`Dragon burned ${target.userData.info.name}!`, "log-fail");
-                        me.abilityReady = false; 
-                        me.pos = target.userData.id; 
-                        endStep(); 
-                    });
-                    return true; 
-                }
-            }
-            return false; 
-        },
-        onLand: (p, me) => {
-            // UPDATED: Uses 'boss_fight' mode
-            if(p.id === 0) showEncounter(p, {name: "Inferno Dragon", desc: `HP: ${me.hp}/${me.maxHp}. Slay it!`, choices:[{txt:"Attack (STR 6+)", stat:'str', tn:6, req:1, fail:50, mode:'boss_fight'}, {txt:"Flee", fail:50}]}, tiles[p.pos], 'skirmish');
-            else { 
-                if(Math.random()>0.4) rollCombat(p, 'str', 6, 1, tiles[p.pos], 'boss_fight', false, 0, 50, false);
-                else { addLog(p.name + " flees."); pay(p, 50); endStep(); }
-            }
-        }
-    },
-    {
-        id: 'boss_wraith', name: "Void Wraith", type: 'boss', duration: 10, modelType: 'wraith',
-        desc: "A fast-moving spirit that drains gold.",
-        onStart: () => { activeEvent.playerRef = spawnBossAsPlayer(MAP_EVENTS[1]); },
-        onEnd: () => { removeBossPlayer(activeEvent.playerRef); },
-        onTurn: (me) => false, 
-        onLand: (p, me) => {
-            // Wraith is unique: It damages YOU if you land on it, but you can attack IT if you want (via menu logic if implemented later)
-            // For now, keep the drain logic, but maybe allow an attack roll to prevent it?
-            // Let's keep it simple: Automatic Drain for now.
-            p.gold = Math.max(0, p.gold - 150);
-            addLog("Wraith drained 150G from " + p.name + "!", "log-fail");
-            updateHUD();
-            // Allow player to attack back?
-            // For simplicity in this engine, landing on wraith just hurts you.
-            if(p.isAi) endStep();
-        }
-    },
-    {
-        id: 'boss_golem', name: "Golden Golem", type: 'boss', duration: 10, modelType: 'golem',
-        desc: "Slow moving loot piñata.",
-        onStart: () => { activeEvent.playerRef = spawnBossAsPlayer(MAP_EVENTS[2]); },
-        onEnd: () => { removeBossPlayer(activeEvent.playerRef); },
-        onTurn: (me) => false, 
-        onLand: (p, me) => {
-            // UPDATED: Uses 'boss_fight' mode
-            if(p.id===0) showEncounter(p, {name: "Golden Golem", desc: `HP: ${me.hp}/${me.maxHp}. Smash it!`, choices:[{txt:"Smash (STR 5+)", stat:'str', tn:5, req:1, fail:20, mode:'boss_fight'}]}, tiles[p.pos], 'skirmish');
-            else rollCombat(p, 'str', 5, 1, tiles[p.pos], 'boss_fight', false, 0, 20, false);
-        }
-    },
-    // --- MERCHANTS (Keep as is) ---
-    {
-        id: 'merch_mystic', name: "Mystic Peddler", type: 'merchant', duration: 8, modelType: 'merchant_purple',
-        desc: "Selling rare scrolls.",
-        onStart: () => { activeEvent.playerRef = spawnBossAsPlayer(MAP_EVENTS[3]); },
-        onEnd: () => { removeBossPlayer(activeEvent.playerRef); },
-        onTurn: (me) => false,
+        id: 'merch_alchemist', name: "Roaming Alchemist", type: 'merchant', duration: 10, modelType: 'merchant_purple',
+        desc: "Potions and Scrolls for the journey.",
+        onStart: () => { activeEvent.playerRef = spawnEventEntity(MAP_EVENTS[0]); },
+        onEnd: () => { removeEventEntity(activeEvent.playerRef); },
+        onTurn: (me) => true, // Return true to say "I took my turn" logic inside processAiTurn
         onLand: (p, me) => {
             if(p.id === 0) { 
-                const scrollDeck = DECK_TREASURE.filter(i => i.type === 'scroll');
-                openCustomShop(p, [scrollDeck[0], scrollDeck[1], scrollDeck[2]], "Mystic Wares");
+                // Filter: Scrolls only, No Gold/Coins
+                const stock = DECK_TREASURE.filter(i => 
+                    i.type === 'scroll' && 
+                    !i.name.includes('Gold') && 
+                    !i.name.includes('Coin')
+                );
+                // Pick 3 random
+                const items = [];
+                for(let k=0; k<3; k++) items.push(stock[Math.floor(Math.random()*stock.length)]);
+                openCustomShop(p, items, "Alchemist's Cart");
             } else endStep();
         }
     },
+    // 2. THE ARMORER (Defensive Gear)
     {
-        id: 'merch_smith', name: "Traveling Smith", type: 'merchant', duration: 8, modelType: 'merchant_red',
-        desc: "Selling legendary gear.",
-        onStart: () => { activeEvent.playerRef = spawnBossAsPlayer(MAP_EVENTS[4]); },
-        onEnd: () => { removeBossPlayer(activeEvent.playerRef); },
-        onTurn: (me) => false,
+        id: 'merch_armorer', name: "Iron Caravan", type: 'merchant', duration: 10, modelType: 'merchant_red',
+        desc: "Heavy armor and shields.",
+        onStart: () => { activeEvent.playerRef = spawnEventEntity(MAP_EVENTS[1]); },
+        onEnd: () => { removeEventEntity(activeEvent.playerRef); },
+        onTurn: (me) => true,
         onLand: (p, me) => {
             if(p.id === 0) {
-                const gearDeck = DECK_TREASURE.filter(i => i.rarity === 'legendary');
-                openCustomShop(p, [gearDeck[0], gearDeck[1] || gearDeck[0]], "Legendary Forge");
+                // Filter: Head, Body, Offhand (Shields), No Gold
+                const stock = DECK_TREASURE.filter(i => 
+                    (i.slot === 'head' || i.slot === 'body' || i.slot === 'off') &&
+                    !i.name.includes('Gold')
+                );
+                const items = [];
+                for(let k=0; k<3; k++) items.push(stock[Math.floor(Math.random()*stock.length)]);
+                openCustomShop(p, items, "The Iron Caravan");
             } else endStep();
         }
     },
-    // --- WEATHER (Keep as is) ---
+    // 3. THE WEAPONSMITH (Offensive Gear)
+    {
+        id: 'merch_weaponsmith', name: "Blade Peddler", type: 'merchant', duration: 10, modelType: 'merchant_red',
+        desc: "Sharp steel for sale.",
+        onStart: () => { activeEvent.playerRef = spawnEventEntity(MAP_EVENTS[2]); },
+        onEnd: () => { removeEventEntity(activeEvent.playerRef); },
+        onTurn: (me) => true,
+        onLand: (p, me) => {
+            if(p.id === 0) {
+                // Filter: Main Hand Only
+                const stock = DECK_TREASURE.filter(i => i.slot === 'main' && !i.name.includes('Gold'));
+                const items = [];
+                for(let k=0; k<3; k++) items.push(stock[Math.floor(Math.random()*stock.length)]);
+                openCustomShop(p, items, "Blade Peddler");
+            } else endStep();
+        }
+    },
+    // --- WEATHER & GLOBALS (Preserved) ---
     {
         id: 'weather_blizzard', name: "Great Blizzard", type: 'weather', duration: 3,
         desc: "Heavy snow slows everyone down (-1 Move).",
@@ -2590,7 +2714,7 @@ const MAP_EVENTS = [
         desc: "The King demands a tribute instantly.",
         onStart: () => {
             players.forEach(pl => { 
-                if(!pl.isDead) { 
+                if(!pl.isDead && !pl.isEventEntity) { 
                     const tax = Math.floor(pl.gold * 0.1);
                     pl.gold -= tax;
                     treasuryGold += tax;
@@ -2606,119 +2730,10 @@ const MAP_EVENTS = [
 // --- ADVANCED MODEL BUILDER ---
 function createDetailedBossMesh(type) {
     const g = new THREE.Group();
-    let matBody, matTrim, matGlow;
+    let matBody;
 
-    if (type === 'dragon') {
-        // Materials
-        matBody = new THREE.MeshStandardMaterial({ color: 0x880000, roughness: 0.3, metalness: 0.2 }); // Dark Red
-        matTrim = new THREE.MeshStandardMaterial({ color: 0xffaa00, emissive: 0xff4400, emissiveIntensity: 0.2 }); // Orange Belly
-        
-        // Torso
-        const torso = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.6, 1.5, 8), matBody);
-        torso.position.y = 1;
-        torso.rotation.x = 0.2;
-        
-        // Neck & Head
-        const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.4, 0.8, 8), matBody);
-        neck.position.set(0, 1.8, 0.2);
-        neck.rotation.x = -0.3;
-        
-        const headGroup = new THREE.Group();
-        const headMain = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.4, 0.7), matBody);
-        const snout = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.2, 0.4), matBody);
-        snout.position.z = 0.5;
-        const horns = new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.4, 8), new THREE.MeshStandardMaterial({color:0x000000}));
-        horns.position.set(0.15, 0.3, -0.2);
-        horns.rotation.x = -0.5;
-        const horn2 = horns.clone(); horn2.position.x = -0.15;
-        
-        headGroup.add(headMain, snout, horns, horn2);
-        headGroup.position.set(0, 2.3, 0.4);
-        
-        // Wings (Complex shape)
-        const wingGeo = new THREE.BufferGeometry();
-        const wingVertices = new Float32Array([
-            0,0,0,  1.5,0.5,0.5,  0.5,0,-0.5, // Triangle 1
-            0,0,0,  1.5,0.5,0.5,  1.2,-0.5,0.2 // Triangle 2
-        ]);
-        wingGeo.setAttribute('position', new THREE.BufferAttribute(wingVertices, 3));
-        wingGeo.computeVertexNormals();
-        const matWing = new THREE.MeshStandardMaterial({ color: 0xaa0000, side: THREE.DoubleSide });
-        
-        const rWing = new THREE.Mesh(wingGeo, matWing);
-        rWing.position.set(0.2, 1.2, 0);
-        const lWing = rWing.clone();
-        lWing.rotation.y = Math.PI; // Mirror
-        lWing.position.x = -0.2;
-
-        // Tail
-        const tail = new THREE.Mesh(new THREE.ConeGeometry(0.2, 1.5, 8), matBody);
-        tail.position.set(0, 0.5, -0.8);
-        tail.rotation.x = -1.2;
-
-        g.add(torso, neck, headGroup, rWing, lWing, tail);
-    } 
-    else if (type === 'wraith') {
-        matBody = new THREE.MeshStandardMaterial({ color: 0x111111, transparent: true, opacity: 0.8 });
-        matGlow = new THREE.MeshStandardMaterial({ color: 0x00ffcc, emissive: 0x00ffcc, emissiveIntensity: 1, transparent:true, opacity:0.6 });
-
-        // Hood
-        const hood = new THREE.Mesh(new THREE.ConeGeometry(0.6, 1, 8, 1, true), matBody);
-        hood.position.y = 2.2;
-        
-        // Glowing Eyes (Inside Hood)
-        const eyes = new THREE.Mesh(new THREE.SphereGeometry(0.15), matGlow);
-        eyes.position.set(0, 2, 0.2);
-
-        // Tattered Robes (Stacked Cylinders)
-        const robeTop = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.6, 1.2, 8, 1, true), matBody);
-        robeTop.position.y = 1.5;
-        const robeBot = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.8, 1.5, 8, 1, true), matBody);
-        robeBot.position.y = 0.5;
-
-        // Scythe
-        const stick = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 2.5), new THREE.MeshStandardMaterial({color:0x5c4033}));
-        stick.position.set(0.6, 1.5, 0.2);
-        stick.rotation.x = 0.2;
-        stick.rotation.z = -0.1;
-        const blade = new THREE.Mesh(new THREE.TorusGeometry(0.4, 0.05, 4, 10, 2), new THREE.MeshStandardMaterial({color:0x888888, metalness:0.8}));
-        blade.position.set(0.6, 2.5, 0.4);
-        blade.rotation.z = 2;
-
-        g.add(hood, eyes, robeTop, robeBot, stick, blade);
-        
-        // Floating Animation Helper
-        g.userData.floatOffset = Math.random() * 100;
-    }
-    else if (type === 'golem') {
-        matBody = new THREE.MeshStandardMaterial({ color: 0xffd700, metalness: 0.6, roughness: 0.3 }); // Gold
-        const matJoint = new THREE.MeshStandardMaterial({ color: 0x444444 }); // Dark joints
-
-        // Blocky Body
-        const chest = new THREE.Mesh(new THREE.BoxGeometry(1.2, 1, 0.8), matBody);
-        chest.position.y = 1.5;
-        const waist = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.5, 0.6), matJoint);
-        waist.position.y = 0.9;
-        
-        // Head
-        const head = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.4, 0.6, 6), matBody);
-        head.position.y = 2.3;
-
-        // Arms (Big blocks)
-        const armL = new THREE.Mesh(new THREE.BoxGeometry(0.4, 1.2, 0.4), matBody);
-        armL.position.set(-0.8, 1.5, 0);
-        const armR = new THREE.Mesh(new THREE.BoxGeometry(0.4, 1.2, 0.4), matBody);
-        armR.position.set(0.8, 1.5, 0);
-
-        // Legs
-        const legL = new THREE.Mesh(new THREE.BoxGeometry(0.5, 1, 0.5), matBody);
-        legL.position.set(-0.4, 0.5, 0);
-        const legR = new THREE.Mesh(new THREE.BoxGeometry(0.5, 1, 0.5), matBody);
-        legR.position.set(0.4, 0.5, 0);
-
-        g.add(chest, waist, head, armL, armR, legL, legR);
-    }
-    else if (type.includes('merchant')) {
+    // Only Merchants remain
+    if (type.includes('merchant')) {
         const isMystic = type.includes('purple');
         matBody = new THREE.MeshStandardMaterial({ color: isMystic ? 0x6b21a8 : 0x991b1b }); // Purple or Red Robe
         
@@ -2730,12 +2745,12 @@ function createDetailedBossMesh(type) {
         const head = new THREE.Mesh(new THREE.SphereGeometry(0.35), new THREE.MeshStandardMaterial({color: 0xffccaa}));
         head.position.y = 1.9;
         
-        // Hat (Wizard style or Turban)
+        // Hat
         const hat = new THREE.Mesh(new THREE.ConeGeometry(0.5, 0.8, 8), matBody);
         hat.position.y = 2.3;
         hat.rotation.x = -0.2;
 
-        // Backpack (Huge!)
+        // Backpack
         const packGroup = new THREE.Group();
         const packMain = new THREE.Mesh(new THREE.BoxGeometry(1, 1.2, 0.8), new THREE.MeshStandardMaterial({color:0x5c4033}));
         const bedroll = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, 1.2), new THREE.MeshStandardMaterial({color:0xeee8aa}));
@@ -2746,6 +2761,12 @@ function createDetailedBossMesh(type) {
         packGroup.position.set(0, 1.2, -0.6);
         
         g.add(robe, head, hat, packGroup);
+    } 
+    // Fallback if something else is called (prevents crash)
+    else {
+        const fallback = new THREE.Mesh(new THREE.BoxGeometry(1,1,1), new THREE.MeshStandardMaterial({color: 0xff00ff}));
+        fallback.position.y = 1;
+        g.add(fallback);
     }
 
     g.position.copy(tiles[0].position);
@@ -2860,31 +2881,104 @@ function moveEntity(eventObj, steps) {
 function openCustomShop(p, items, title) {
     const m = document.getElementById('card-modal');
     document.getElementById('enc-title').innerText = title;
-    document.getElementById('enc-desc').innerText = "Rare goods for sale!";
-    const l = document.getElementById('choice-list'); l.innerHTML = '';
+    document.getElementById('enc-desc').innerText = "Hover/Tap to view info. Double-Tap to buy.";
+    document.getElementById('enc-header').className = 'card-header market';
     
+    const l = document.getElementById('choice-list'); 
+    l.innerHTML = '';
+    
+    // Tracks the currently selected item for "Tap to view, Tap again to buy"
+    let selectedItemUID = null;
+
     items.forEach(it => {
-        let b = document.createElement('div'); b.className = 'choice-btn';
-        b.innerText = `${it.name} (${it.cost}G)`;
-			b.onclick = () => {
+        let b = document.createElement('div'); 
+        b.className = 'choice-btn';
+        b.style.display = 'flex';
+        b.style.flexDirection = 'column';
+        b.style.alignItems = 'flex-start';
+        b.style.gap = '2px';
+        
+        // Item Name & Cost
+        const headerDiv = document.createElement('div');
+        headerDiv.style.display = 'flex';
+        headerDiv.style.justifyContent = 'space-between';
+        headerDiv.style.width = '100%';
+        headerDiv.innerHTML = `<span style="font-weight:bold; color:${getRarityColor(it.rarity)}">${it.name}</span> <span style="color:var(--gold)">${it.cost}G</span>`;
+        
+        // Slot/Type Info
+        const subDiv = document.createElement('div');
+        subDiv.style.fontSize = '0.75rem';
+        subDiv.style.color = '#aaa';
+        subDiv.innerText = it.type === 'scroll' ? "Scroll (Consumable)" : `Equip: ${it.slot ? it.slot.toUpperCase() : '?'}`;
+        
+        b.appendChild(headerDiv);
+        b.appendChild(subDiv);
+        
+        // --- INTERACTION LOGIC ---
+        
+        // 1. Tooltip on Hover (Desktop)
+        b.onmouseenter = () => showTooltip(it);
+        b.onmouseleave = hideTooltip;
+
+        // 2. Buy Logic Helper
+        const attemptBuy = () => {
             if(p.gold >= it.cost) {
+                if(p.inventory.length >= 12) {
+                    addLog("Inventory Full!", "log-fail");
+                    return;
+                }
                 p.gold -= it.cost;
-                // UPDATED
                 p.inventory.push(createItemInstance(it));
                 addLog(`Bought ${it.name}`, "log-success");
                 updateHUD();
-                b.remove(); 
+                b.remove(); // Remove item from shop after buy
+                hideTooltip();
+                selectedItemUID = null;
             } else {
                 addLog("Not enough Gold!", "log-fail");
             }
         };
+
+        // 3. Click Handler (Unified for Desktop/Mobile)
+        b.onclick = (e) => {
+            // Prevent event bubbling if necessary
+            e.stopPropagation();
+
+            // If this item is ALREADY selected, treat as second click -> Buy
+            if (selectedItemUID === it.id) {
+                attemptBuy();
+            } 
+            // If not selected, Select it + Show Tooltip
+            else {
+                // Deselect others visually if needed (optional)
+                document.querySelectorAll('.choice-btn').forEach(btn => btn.style.borderColor = '#4a5568'); // Reset borders
+                b.style.borderColor = '#fbbf24'; // Gold border for selected
+                
+                selectedItemUID = it.id;
+                showTooltip(it);
+            }
+        };
+        
+        // 4. Double Click (Desktop shortcut)
+        b.ondblclick = (e) => {
+            e.stopPropagation();
+            attemptBuy();
+        };
+
         l.appendChild(b);
     });
     
-    // Add close button
-    let b = document.createElement('div'); b.className = 'choice-btn';
-    b.innerText = "Leave";
-    b.onclick = closeEnc;
+    // Add leave button
+    let b = document.createElement('div'); 
+    b.className = 'choice-btn';
+    b.innerText = "Leave Shop";
+    b.style.marginTop = "15px";
+    b.style.textAlign = "center";
+    b.style.justifyContent = "center";
+    b.onclick = () => {
+        hideTooltip();
+        closeEnc();
+    };
     l.appendChild(b);
     
     m.classList.add('active');
@@ -3156,21 +3250,26 @@ function spawnPlayer(id, n, r, c, actId, pasId, ai, col) {
 }
 
 function recalcStats(p) {
-    // FIX: Bosses don't have base race stats, so skip this part
-    if (p.isBoss) return;
+    // FIX: If p is invalid, a Boss, or an Event Entity (Merchant), stop immediately.
+    if (!p || p.isBoss || p.isEventEntity || !p.race) return;
 
+    // Reset to base race stats
     p.stats.str = p.race.stats.str; 
     p.stats.dex = p.race.stats.dex; 
     p.stats.int = p.race.stats.int;
     
+    // Apply Passive Skill Bonuses
     const pas = ABILITY_LIBRARY[p.passiveSkillId]; 
     if(pas && pas.effect) pas.effect(p.stats);
     
+    // Apply Equipment Bonuses
     ['head', 'body', 'main', 'off'].forEach(slot => { 
         const item = p.equipment[slot]; 
         if(item && item.bonus) { 
             const k = Object.keys(item.bonus)[0]; 
-            p.stats[k] += item.bonus[k]; 
+            if (p.stats[k] !== undefined) {
+                p.stats[k] += item.bonus[k]; 
+            }
         } 
     });
 }
@@ -3284,13 +3383,14 @@ function rollMove() {
     const p=players[turnIndex]; 
     if(p.isDead) { endTurn(); return; }
 	
-	debugLog(`Start Turn: ${p.name}`);
-
-    // --- NEW: BOSS TURN CHECK ---
-    if (p.isBoss) {
-        processBossTurn(p);
-        return; 
+    debugLog(`Start Turn: ${p.name}`);
+    
+    // Skip turn for Merchants/Event Entities
+    if (p.isEventEntity) {
+        endStep();
+        return;
     }
+
     if(turnIndex === 0) {
         turnCount++;
         if(turnCount % 10 === 0) { 
@@ -3300,9 +3400,7 @@ function rollMove() {
             AUDIO.playMusic(isNight);
         }
 
-        // --- NEW: DYNAMIC EVENT ROLL ---
-        // Hidden 1d6 roll. If 6, start event.
-        // Also manage active event duration.
+        // --- DYNAMIC EVENT ROLL ---
         if (activeEvent) {
             activeEvent.turnsLeft--;
             if (activeEvent.data.onTurn) activeEvent.data.onTurn(activeEvent);
@@ -3318,26 +3416,24 @@ function rollMove() {
                 triggerRandomEvent();
             }
         }
-        // -------------------------------
     }
+
     p.abilityUsed=false; 
     if(p.isSkipping){ p.isSkipping=false; addLog(p.name+" skips turn.","log-fail"); endStep(); return; } 
     
-    // --- 1. ACTIVE SKILL ROLL OVERRIDE (e.g. Smite Debuff) ---
+    // --- ACTIVE SKILL ROLL OVERRIDE ---
     const active = ABILITY_LIBRARY[p.activeSkillId];
     if (active && active.onRoll) {
         const override = active.onRoll(p);
         if (override !== null) {
-            // If Smite returns a value, use it and skip 2d6/Gambler logic
             addLog(`${p.name} rolled ${override} (Debuff).`);
             if (p.id === 0) AUDIO.playSound('sfx_roll');
             finishRollLogic(p, override);
             return;
         }
     }
-    // ---------------------------------------------------------
 
-    // 2. Roll 2d6 individually to detect 1s
+    // 2. Roll 2d6 individually
     let d1 = Math.floor(Math.random() * 6) + 1;
     let d2 = Math.floor(Math.random() * 6) + 1;
 
@@ -3483,9 +3579,7 @@ function endStep(){
 }
 
 function endTurn(){
-    // Safety: Don't run if already switching or moving
     if (turnProcessing || gameState === 'MOVING') return;
-
     turnProcessing = true;
 
     const btnAction = document.getElementById('btn-action');
@@ -3494,48 +3588,44 @@ function endTurn(){
         btnAction.innerText = "...";
     }
 
-    // Process Previous Player
     const prevP = players[turnIndex]; 
-    recalcStats(prevP);
-    if(prevP.isAi) manageAiInventory(prevP); 
     
-    // History
-    const props = tiles.filter(t => t.userData.owner === prevP.id).length;
-    prevP.history.push({ turn: turnCount, gold: prevP.gold, props: props });
+    if (prevP && !prevP.isEventEntity && !prevP.isBoss) {
+        recalcStats(prevP);
+        if(prevP.isAi) manageAiInventory(prevP); 
+        const props = tiles.filter(t => t.userData.owner === prevP.id).length;
+        prevP.history.push({ turn: turnCount, gold: prevP.gold, props: props });
+    }
 
-    // --- FASTER DELAY (1.2 Seconds) ---
     setTimeout(() => {
-        // Calculate Next Player
         let nextIndex = (turnIndex + 1) % players.length;
         let safetyCount = 0;
         
+        // FIX: REMOVED '!players[nextIndex].isEventEntity' so merchants CAN take turns
         while(players[nextIndex].isDead && safetyCount < players.length) {
             nextIndex = (nextIndex + 1) % players.length;
             safetyCount++;
         }
         
-        // Apply Switch
         turnIndex = nextIndex;
         gameState = 'ROLL'; 
         updateHUD();
-        
-        // Release Lock
         turnProcessing = false;
 
         const curP = players[turnIndex];
-        if(curP.isDead) return;
+        
+        if(curP.isDead) { endTurn(); return; }
 
         // Start Next Turn Logic
-        if(curP.isAi || curP.isBoss) { 
+        if(curP.isAi) { 
             zoomToPiece(curP);
-            
-            // Wait just 1 second for zoom to finish before rolling
             setTimeout(() => {
-                if(curP.isBoss) {
-                    processBossTurn(curP);
+                // If Merchant, just roll immediately
+                if(curP.isEventEntity) {
+                    rollMove();
                 } else {
                     attemptAiAbilities(curP, 'pre-roll'); 
-                    setTimeout(rollMove, 500); // Quick roll
+                    setTimeout(rollMove, 500); 
                 }
             }, 1000);
         } else {
@@ -3545,72 +3635,49 @@ function endTurn(){
     }, 1200); 
 }
 function resolveLanding(p) {
-debugLog(`Landed: ${p.name} at Tile ${p.pos}`);
-    // --- 1. BOSS/MERCHANT COLLISION LOGIC ---
-    
-    // CASE A: Boss (p) lands on a Player (other)
-    if (p.isBoss) {
-        // Find if any player is on this tile
-        const victim = players.find(other => other.id !== p.id && !other.isDead && other.pos === p.pos);
-        if (victim) {
-            addLog(`${p.name} caught ${victim.name}!`, "log-fail");
-            
-            // Execute the Boss's "onLand" logic against the victim
-            // We look up the event definition to get the logic
-            if (activeEvent && activeEvent.data && activeEvent.data.onLand) {
-                // Note: onLand expects (player, boss). Here 'victim' is player, 'p' is boss.
-                activeEvent.data.onLand(victim, p);
-            }
-        }
-    }
-    
-    // CASE B: Player (p) lands on Boss (activeEvent.playerRef)
-    else if (activeEvent && activeEvent.playerRef && activeEvent.data) {
-        // If player is on same tile as boss
+    debugLog(`Landed: ${p.name} at Tile ${p.pos}`);
+
+    // --- 1. MERCHANT COLLISION LOGIC ---
+    // If a player lands on the Merchant Entity
+    if (activeEvent && activeEvent.playerRef && activeEvent.data) {
         if (p.pos === activeEvent.playerRef.pos) {
-            // Trigger interaction
             activeEvent.data.onLand(p, activeEvent.playerRef);
-            
-            // If it's a boss fight, STOP here (don't process the tile underneath)
-            if(activeEvent.data.type === 'boss') return; 
+            return; // onLand handles logic (opening shop or ending turn)
         }
     }
 
     // --- 2. SKILL TRIGGERS (Standard Players) ---
-    if (!p.isBoss) {
-        const passive = ABILITY_LIBRARY[p.passiveSkillId];
-        if (passive && passive.onLanding) passive.onLanding(p);
+    // (Removed isBoss check since we removed boss logic)
+    const passive = ABILITY_LIBRARY[p.passiveSkillId];
+    if (passive && passive.onLanding) passive.onLanding(p);
 
-        const active = ABILITY_LIBRARY[p.activeSkillId];
-        if (active && active.onLanding) active.onLanding(p);
+    const active = ABILITY_LIBRARY[p.activeSkillId];
+    if (active && active.onLanding) active.onLanding(p);
 
-        ['head', 'body', 'main', 'off'].forEach(slot => {
-            const item = p.equipment[slot];
-            if (item && item.ability) {
-                const libAbil = Object.values(ABILITY_LIBRARY).find(a => a.name === item.ability.name);
-                if (libAbil && libAbil.onLanding) libAbil.onLanding(p);
-            }
-        });
-    }
+    ['head', 'body', 'main', 'off'].forEach(slot => {
+        const item = p.equipment[slot];
+        if (item && item.ability) {
+            const libAbil = Object.values(ABILITY_LIBRARY).find(a => a.name === item.ability.name);
+            if (libAbil && libAbil.onLanding) libAbil.onLanding(p);
+        }
+    });
 
     // --- 3. TRAP TRIGGER ---
-    if (!p.isBoss) {
-        players.forEach(other => {
-            if (other.id !== p.id && !other.isDead && other.pos === p.pos && !other.isBoss) {
-                const trapPassive = ABILITY_LIBRARY[other.passiveSkillId];
-                if (trapPassive && trapPassive.onEnemyLanding) {
-                    trapPassive.onEnemyLanding(p, other);
-                }
+    players.forEach(other => {
+        if (other.id !== p.id && !other.isDead && other.pos === p.pos && !other.isEventEntity) {
+            const trapPassive = ABILITY_LIBRARY[other.passiveSkillId];
+            if (trapPassive && trapPassive.onEnemyLanding) {
+                trapPassive.onEnemyLanding(p, other);
             }
-        });
-    }
+        }
+    });
 
     // --- 4. HANDLE TURN FLOW ---
     const t = tiles[p.pos]; 
     const i = t.userData.info;
     
-    // AI and BOSSES go to processAiTurn to decide what to do (or just end turn)
-    if(p.isAi || p.isBoss) { 
+    // AI goes to processAiTurn
+    if(p.isAi) { 
         processAiTurn(p, t, i); 
         return; 
     }
@@ -3706,29 +3773,29 @@ function continueFromArrival() {
 function processAiTurn(p, t, i) {
     debugLog(`AI (${p.name}) processing tile: ${i.name} (${i.type})`);
     
-    // --- FASTER THINKING (600ms) ---
     setTimeout(() => {
         try {
-            // --- BOSS LOGIC OVERRIDE (Must be at the top) ---
-            if (p.isBoss) {
-                // 1. Tile Destruction (Dragon)
-                if (activeEvent && activeEvent.data && activeEvent.data.onTileEffect) {
-                    activeEvent.data.onTileEffect(t);
+            // --- NEW: MERCHANT LOGIC ---
+            // Merchants just wander. They don't interact with the board.
+            if (p.isEventEntity) {
+                // Check if they landed on the Human Player
+                const human = players[0];
+                if (human.pos === p.pos) {
+                    // Trigger the shop for the human
+                    // (The logic for this is actually in resolveLanding, but we can double check here)
                 }
-                // 2. Force End Turn
-                endStep();
-                return; 
+                endStep(); // Just end the turn
+                return;
             }
-            // ------------------------------------------------
+            // ---------------------------
 
-            // 1. Instant Events
+            // ... (Rest of existing AI logic for normal players remains below) ...
+            
             if(i.type === 'tax') { 
-                debugLog("AI paying tax");
                 processTax(p, 50); 
                 endStep(); return; 
             } 
             if(i.type === 'park') { 
-                debugLog("AI landed on Park");
                 if(treasuryGold > 0){ 
                     p.gold += treasuryGold; 
                     addLog(`${p.name} wins the Treasury!`, "log-gold"); 
@@ -3736,8 +3803,8 @@ function processAiTurn(p, t, i) {
                 } 
                 endStep(); return; 
             } 
-            if(i.type === 'goto') { 
-                debugLog("AI sent to Dungeon");
+            // ... (Keep the rest of your existing processAiTurn logic here) ...
+             if(i.type === 'goto') { 
                 if (p.passiveSkillId === 'smoke_bomb' || p.activeSkillId === 'smoke_bomb') { 
                     addLog(`${p.name} uses Skeleton Key!`, "log-epic"); 
                 } else { 
@@ -3749,20 +3816,12 @@ function processAiTurn(p, t, i) {
                 endStep(); return; 
             } 
             if(i.type === 'jail') {
-                debugLog("AI visiting jail");
                 endStep(); return;
             }
-
-            // 2. Chests / Loot
             if(i.type === 'chest') { 
-                debugLog("AI looting chest");
                 const card = DECK_TREASURE[Math.floor(Math.random() * DECK_TREASURE.length)]; 
-                
-                // Use createItemInstance
                 p.inventory.push(createItemInstance(card)); 
-                
                 addLog(`${p.name} found ${card.name}.`, "log-success"); 
-                
                 if (card.name === "Pouch of Gold" && p.passiveSkillId === 'alchemist_pas') { 
                     const extra = DECK_TREASURE[Math.floor(Math.random() * DECK_TREASURE.length)]; 
                     p.inventory.push(createItemInstance(extra)); 
@@ -3770,15 +3829,12 @@ function processAiTurn(p, t, i) {
                 } 
                 endStep(); return; 
             }
-
-            // 3. Mystery / Teleport
-            if (i.type === 'mystery') {
-                debugLog("AI Mystery Event");
+             if (i.type === 'mystery') {
                 addLog(`${p.name} explores...`, "log-rare");
                 const deck = isNight ? DECK_SKIRMISH : DECK_ENCOUNTER;
-                const card = deck[Math.floor(Math.random() * deck.length)];
+                const card = deck[Math.floor(Math.random() * deck.length)] || DECK_ENCOUNTER[0];
                 
-                if (card.choices) {
+                if (card && card.choices) {
                     let best = card.choices[0];
                     if (activeEvent && activeEvent.data && activeEvent.data.id === 'event_fog') {
                         best = card.choices[Math.floor(Math.random() * card.choices.length)];
@@ -3789,7 +3845,6 @@ function processAiTurn(p, t, i) {
                         if (stat2 > stat1) best = card.choices[1];
                     }
                     setTimeout(() => {
-                        debugLog(`AI Rolling Mystery: ${best.txt}`);
                         rollCombat(p, best.stat, best.tn, best.req || 1, t, 'teleport', false, best.val || 0, best.fail || 50, false);
                     }, 500);
                     return;
@@ -3797,28 +3852,19 @@ function processAiTurn(p, t, i) {
                     endStep(); return;
                 }
             }
-
-            // 4. Empty Land (Buy)
             if(i.cost > 0 && t.userData.owner === null) { 
-                debugLog("AI deciding to buy...");
                 const isRogue = p.class?.id === 'rogue';
                 const isDragonborn = p.race?.id === 'dragonborn';
                 const safetyRatio = (isRogue || isDragonborn) ? 1.2 : 2.0; 
-                
                 if (p.gold >= i.cost * safetyRatio) { 
-                    capture(t, p, 1, () => { checkForBonusLoot(p); endStep(); }); 
+                    capture(t, p, 1, () => { checkForBonusLoot(p); }); 
                     return; 
-                } 
-                else { 
+                } else { 
                     addLog(`${p.name} passes.`, "log-entry"); 
-                    endStep();
-                    return;
+                    endStep(); return;
                 } 
             } 
-
-            // 5. Enemy Land (Siege or Pay)
             if(t.userData.owner !== null && t.userData.owner !== p.id) {
-                debugLog("AI on enemy land");
                 const enemyDefStat = t.userData.defendingStat || 'str'; 
                 const tn = i.tn || 3; 
                 const aiDicePool = p.stats[enemyDefStat] || 1; 
@@ -3841,15 +3887,13 @@ function processAiTurn(p, t, i) {
                     }, 500); 
                     return; 
                 } else { 
-                    pay(p, i.cost, players[t.userData.owner]); 
-                    endStep(); 
-                    return; 
+                    const landOwner = players.find(pl => pl.id === t.userData.owner);
+                    if (landOwner) pay(p, i.cost, landOwner); 
+                    else pay(p, i.cost); 
+                    endStep(); return; 
                 }
             }
-
-            // 6. Own Land (Upgrade)
-            if (t.userData.owner === p.id) { 
-                debugLog("AI on own land");
+             if (t.userData.owner === p.id) { 
                 if (t.userData.buildingLevel === 1 && p.gold > i.cost * 3) { 
                     addLog(`${p.name} upgrades...`); 
                     const card = DECK_SKIRMISH[Math.floor(Math.random() * DECK_SKIRMISH.length)]; 
@@ -3870,28 +3914,14 @@ function processAiTurn(p, t, i) {
                     addLog(`${p.name} hired guard.`, "log-gold"); 
                     updateHUD(); 
                 } 
-                endStep();
-                return;
+                endStep(); return;
             }
             
-            // 7. CATCH ALL
-            debugLog("AI Catch-All");
-            if (i.type === 'shop') {
-                 if (p.gold > 500) {
-                     const potion = DECK_TREASURE.find(it => it.type === 'scroll' && it.name.includes('Healing'));
-                     if(potion) {
-                         p.inventory.push(createItemInstance(potion));
-                         p.gold -= potion.cost;
-                         addLog(`${p.name} bought supplies.`, "log-success");
-                     }
-                 }
-            }
             endStep();
 
         } catch (err) {
             console.error("AI Error:", err);
-            debugLog("AI Error: " + err.message);
-            addLog("AI glitched... passing turn.", "log-fail");
+            debugLog("AI Crash recovered: " + err.message);
             endStep();
         }
     }, 600); 
@@ -4190,94 +4220,52 @@ function rollCombat(p, stat, tn, req, t, mode, penalty, rewardVal, failCost, isS
         setTimeout(() => {
             let autoClose = true;
             
-            // --- SUCCESS ---
-            if(wins >= req) { 
-                addLog(`Success! (${wins} wins)`, "log-success"); 
-                if (p.id === 0) AUDIO.playSound('sfx_win');
-                
-                // Trigger Passives
-                if (mode === 'capture' || mode === 'upgrade' || isSiege) { 
-                    const passive = ABILITY_LIBRARY[p.passiveSkillId]; 
-                    if (passive && passive.onCombatVictory) passive.onCombatVictory(p); 
-                }
-                const lootCallback = () => checkForBonusLoot(p);
+ // --- SUCCESS ---
+if(wins >= req) { 
+    addLog(`Success! (${wins} wins)`, "log-success"); 
+    if (p.id === 0) AUDIO.playSound('sfx_win');
+    
+    // Trigger Passives
+    if (mode === 'capture' || mode === 'upgrade' || isSiege) { 
+        const passive = ABILITY_LIBRARY[p.passiveSkillId]; 
+        if (passive && passive.onCombatVictory) passive.onCombatVictory(p); 
+    }
+    const lootCallback = () => checkForBonusLoot(p);
 
-                // --- BOSS FIGHT LOGIC ---
-                if (mode === 'boss_fight') {
-                    // 1. Get the boss
-                    const boss = activeEvent.playerRef;
-                    
-                    if (boss) {
-                        // 2. Deal Damage
-                        boss.hp -= 1;
-                        addLog(`${boss.name} takes damage! (${boss.hp}/${boss.maxHp})`, "log-accent");
-                        // Use click sound as hit sound if specific sfx missing
-                        AUDIO.playSound('sfx_click'); 
-                        
-                        // 3. Check Death
-                        if (boss.hp <= 0) {
-                            addLog(`${boss.name} DEFEATED!`, "log-epic");
-                            
-                            // Massive Loot Reward
-                            p.gold += 500;
-                            const card = DECK_TREASURE.find(i => i.rarity === 'legendary') || DECK_TREASURE[0];
-                            // Create unique instance
-                            p.inventory.push(createItemInstance(card));
-                            
-                            addLog(`Reward: 500G + ${card.name}`, "log-gold");
-                            
-                            // Remove Boss
-                            removeBossPlayer(boss);
-                            activeEvent = null; 
-                        }
-                    }
-                    
-                    // Keep window open for human to see result
-                    if(p.id === 0) autoClose = false;
-                }
-
-                // --- TELEPORT LOGIC ---
-                else if (mode === 'teleport') {
-                    addLog("The portal opens... Teleporting!", "log-epic");
-                    
-                    // CRITICAL FIX: Lock state so turn doesn't end while flying
-                    gameState = 'MOVING';
-                    autoClose = false; 
-
-                    const newPos = Math.floor(Math.random() * 40);
-                    p.pos = newPos;
-                    const targetTile = tiles[newPos];
-                    
-                    animateTeleport(p, targetTile, () => { 
-                        // Once arrived, trigger logic for the NEW tile
-                        resolveLanding(p); 
-                    });
-                }
-                // --- SIEGE LOGIC ---
-                else if(isSiege) { 
-                    let guards = t.userData.guardCount || 0; 
-                    if (guards > 0) { 
-                        t.userData.guardCount--; 
-                        addLog(`Guard Defeated! (${t.userData.guardCount} remaining)`, "log-success"); 
-                    } 
-                    else { 
-                        capture(t, p, 1, lootCallback); 
-                        if(p.id === 0) autoClose = false; // Let human see victory
-                    } 
-                    p.metrics.successfulSieges++;
-                } 
-                // --- CAPTURE/UPGRADE ---
-                else if(mode === 'capture') { 
-                    capture(t, p, 1, lootCallback); 
-                    if(rewardVal > 0) { p.gold += rewardVal; addLog(`Bonus: +${rewardVal}G`, "log-gold"); } 
-                    if(p.id === 0) autoClose = false; 
-                }
-                else if(mode === 'upgrade') { 
-                    capture(t, p, 2, lootCallback); 
-                    if(p.id === 0) autoClose = false; 
-                }
-
-            } 
+    // --- TELEPORT LOGIC ---
+    if (mode === 'teleport') {
+        addLog("The portal opens... Teleporting!", "log-epic");
+        gameState = 'MOVING';
+        autoClose = false; 
+        const newPos = Math.floor(Math.random() * 40);
+        p.pos = newPos;
+        const targetTile = tiles[newPos];
+        animateTeleport(p, targetTile, () => { resolveLanding(p); });
+    }
+    // --- SIEGE LOGIC ---
+    else if(isSiege) { 
+        let guards = t.userData.guardCount || 0; 
+        if (guards > 0) { 
+            t.userData.guardCount--; 
+            addLog(`Guard Defeated! (${t.userData.guardCount} remaining)`, "log-success"); 
+        } 
+        else { 
+            capture(t, p, 1, lootCallback); 
+            if(p.id === 0) autoClose = false; 
+        } 
+        p.metrics.successfulSieges++;
+    } 
+    // --- CAPTURE/UPGRADE ---
+    else if(mode === 'capture') { 
+        capture(t, p, 1, lootCallback); 
+        if(rewardVal > 0) { p.gold += rewardVal; addLog(`Bonus: +${rewardVal}G`, "log-gold"); } 
+        if(p.id === 0) autoClose = false; 
+    }
+    else if(mode === 'upgrade') { 
+        capture(t, p, 2, lootCallback); 
+        if(p.id === 0) autoClose = false; 
+    }
+} 
             // --- FAILURE ---
             else { 
                 addLog("Failure!", "log-fail"); 
@@ -4996,120 +4984,162 @@ function togglePanel(id) { const panel = document.getElementById(id); if(!panel)
 function toggleCreatorPortrait() { const el = document.getElementById('creator-portrait-frame'); const btn = document.getElementById('btn-min-portrait'); if(!el || !btn) return; el.classList.toggle('minimized'); btn.innerText = el.classList.contains('minimized') ? "+" : "-"; }
 function showModal(t,d,o){ const m=document.getElementById('card-modal'); setT('enc-title',t); setT('card-desc',d); const l=document.getElementById('choice-list'); l.innerHTML=''; document.getElementById('dice-result').innerHTML=''; o.forEach(x=>{ let b=document.createElement('div'); b.className='choice-btn'; b.innerText=x.txt; b.onclick=()=>{m.classList.remove('active');x.act();}; l.appendChild(b); }); m.classList.add('active'); }
 function openCharDetail(id) { 
-    // FIX: Look up player by ID property, not array index
+    // Find player safely
     const p = players.find(pl => pl.id === id); 
-    
     if(!p) return; 
-    
-    // --- BOSS CARD ---
-    if (p.isBoss) {
-        setT('cd-header', p.name);
-        setT('cd-sub', p.bossType === 'boss' ? "Raid Boss" : "Traveling Merchant");
-        
-        // Show HP if Boss
-        if(p.bossType === 'boss') {
-             // Use IDs directly
-             setT('cd-str', p.hp);    setT('cd-lbl-str', "HP");
-             setT('cd-dex', p.maxHp); setT('cd-lbl-dex', "MAX");
-             setT('cd-int', p.stats.str); setT('cd-lbl-int', "ATK");
-        } else {
-             // Merchant stats irrelevant
-             setT('cd-str', "-"); setT('cd-lbl-str', "-");
-             setT('cd-dex', "-"); setT('cd-lbl-dex', "-");
-             setT('cd-int', "-"); setT('cd-lbl-int', "-");
-        }
-    } 
-    // --- PLAYER CARD ---
-    else {
-        setT('cd-header', p.name); 
-        // Safe check for race/class
-        const raceName = p.race ? p.race.name : "Unknown";
-        const className = p.class ? p.class.name : "Unknown";
-        setT('cd-sub', raceName + " " + className); 
-        
-        setT('cd-str', p.stats.str); setT('cd-lbl-str', "STR");
-        setT('cd-dex', p.stats.dex); setT('cd-lbl-dex', "DEX");
-        setT('cd-int', p.stats.int); setT('cd-lbl-int', "INT");
-    }
 
-    // --- NEW STATS INJECTION ---
-    const camps = tiles.filter(t => t.userData.owner === p.id && t.userData.buildingLevel === 1).length;
-    const taverns = tiles.filter(t => t.userData.owner === p.id && t.userData.buildingLevel === 2).length;
-    const totalGuards = tiles.filter(t => t.userData.owner === p.id).reduce((sum, t) => sum + (t.userData.guardCount || 0), 0);
+    // --- 1. BUILD HEADER & STATS ---
+    let name = p.name;
+    let subtitle = "";
+    let str=0, dex=0, int=0;
     
-    let statsHtml = `
-        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:15px; font-size:0.9rem; color:#ccc;">
-            <div class="stat-row"><span>⛺ Campsites:</span> <b style="color:#fff">${camps}</b></div>
-            <div class="stat-row"><span>🍺 Taverns:</span> <b style="color:#fff">${taverns}</b></div>
-            <div class="stat-row"><span>🛡️ Guards Active:</span> <b style="color:#fff">${totalGuards}</b></div>
-            <div class="stat-row"><span>🛡️ Total Hired:</span> <b style="color:#fff">${p.metrics.guardsHired}</b></div>
-            <div class="stat-row"><span>⚔️ Sieges Won:</span> <b style="color:#fff">${p.metrics.successfulSieges}</b></div>
-            <div class="stat-row"><span>👣 Spaces Moved:</span> <b style="color:#fff">${p.metrics.spacesMoved}</b></div>
+    if (p.isBoss) {
+        subtitle = (p.bossType === 'boss') ? "Raid Boss" : "Traveling Merchant";
+        if(p.bossType === 'boss') {
+            str = p.hp; dex = p.maxHp; int = p.stats.str; // Repurpose stats for boss UI
+        }
+    } else {
+        subtitle = (p.race ? p.race.name : "Unknown") + " " + (p.class ? p.class.name : "Class");
+        str = p.stats.str;
+        dex = p.stats.dex;
+        int = p.stats.int;
+    }
+    
+    // Portrait Logic
+    let portraitStyle = p.portrait ? `background-image: url('${p.portrait}');` : `background-color: ${p.color};`;
+
+    // --- 2. BUILD HTML STRUCTURE ---
+    const modalBody = document.querySelector('#char-detail-modal .modal-content');
+    
+    // Close Button is already there, we just replace the inner content container
+    // We will clear the existing .card-body and rebuild it
+    let bodyContainer = document.querySelector('#char-detail-modal .card-body');
+    if(!bodyContainer) {
+        // Fallback if structure is different
+        bodyContainer = document.createElement('div');
+        bodyContainer.className = 'card-body';
+        modalBody.appendChild(bodyContainer);
+    }
+    
+    // Clear old content
+    bodyContainer.innerHTML = '';
+    
+    // REMOVE padding from container so header hits edges
+    bodyContainer.style.padding = '0';
+    bodyContainer.style.background = 'transparent';
+
+    // A. HEADER
+    const headerHtml = `
+        <div class="cs-header-bg">
+            <div class="cs-portrait" style="${portraitStyle}"></div>
+            <div class="cs-info">
+                <div class="cs-name">${name}</div>
+                <div class="cs-class">${subtitle}</div>
+            </div>
+            <div class="close-x" onclick="closeCharDetail()">×</div>
         </div>
     `;
-    
-    // Inject stats safely
-    const extraStatsEl = document.getElementById('cd-extra-stats');
-    if (extraStatsEl) extraStatsEl.innerHTML = statsHtml;
 
-    // --- PORTRAIT ---
-    const portraitEl = document.getElementById('cd-portrait'); 
-    if (portraitEl) {
-        if (p.portrait) {
-            portraitEl.style.backgroundImage = `url('${p.portrait}')`; 
-            portraitEl.style.backgroundColor = '#000';
-        } else {
-            portraitEl.style.backgroundImage = 'none';
-            portraitEl.style.backgroundColor = p.color;
-        }
+    // B. STATS ROW
+    // If it's a merchant (no stats), hide this row
+    let statsHtml = '';
+    if (!p.isBoss || p.bossType === 'boss') {
+        const lbl1 = p.isBoss ? "HP" : "STR";
+        const lbl2 = p.isBoss ? "MAX" : "DEX";
+        const lbl3 = p.isBoss ? "ATK" : "INT";
+        
+        statsHtml = `
+            <div class="cs-main-stats">
+                <div class="cs-stat-orb"><span class="cs-stat-val" style="color:#ef4444">${str}</span><span class="cs-stat-label">${lbl1}</span></div>
+                <div class="cs-stat-orb"><span class="cs-stat-val" style="color:#10b981">${dex}</span><span class="cs-stat-label">${lbl2}</span></div>
+                <div class="cs-stat-orb"><span class="cs-stat-val" style="color:#3b82f6">${int}</span><span class="cs-stat-label">${lbl3}</span></div>
+            </div>
+        `;
     }
+
+    // C. SKILLS
+    const act = ABILITY_LIBRARY[p.activeSkillId];
+    const pas = ABILITY_LIBRARY[p.passiveSkillId];
     
-    // --- SKILLS ---
-    const act = ABILITY_LIBRARY[p.activeSkillId]; 
-    const pas = ABILITY_LIBRARY[p.passiveSkillId]; 
-    
-    const buildAbilityHTML = (skill) => {
-        if (!skill) return '-';
-        const imgTag = (skill.img && skill.img !== "") ? `<img src="${skill.img}" style="width:40px;height:40px;border:1px solid #666;margin-right:10px;vertical-align:middle;border-radius:4px;object-fit:cover;background:#000;">` : '';
-        return `<div style="display:flex;align-items:center;">${imgTag}<span style="font-weight:bold;font-size:1.1rem;">${skill.name}</span></div>`;
+    const buildSkillRow = (lbl, skill, color) => {
+        if(!skill) return '';
+        const img = skill.img ? `<img src="${skill.img}" class="cs-skill-icon">` : `<div class="cs-skill-icon" style="background:${color}"></div>`;
+        return `
+            <div class="cs-skill-row">
+                ${img}
+                <div class="cs-skill-text">
+                    <span class="cs-skill-name" style="color:${color}">${lbl}: ${skill.name}</span>
+                    <span class="cs-skill-desc">${skill.desc}</span>
+                </div>
+            </div>
+        `;
     };
 
-    const actEl = document.getElementById('cd-active'); if(actEl) actEl.innerHTML = buildAbilityHTML(act); setT('cd-active-desc', act ? act.desc : ''); 
-    const pasEl = document.getElementById('cd-passive'); if(pasEl) pasEl.innerHTML = buildAbilityHTML(pas); setT('cd-passive-desc', pas ? pas.desc : ''); 
-    
-    // --- INVENTORY ---
-    const invSection = document.getElementById('cd-inventory-section'); 
-    const hiddenMsg = document.getElementById('cd-hidden-msg'); 
-    
-    // Only show inventory for Player 0 (You)
-    if (p.id === 0) { 
-        if(invSection) invSection.style.display = 'block'; 
-        if(hiddenMsg) hiddenMsg.style.display = 'none'; 
-        ['head','body','main','off'].forEach(slot => { 
-            const item = p.equipment[slot]; 
-            const el = document.getElementById('cd-slot-'+slot); 
-            if(el) { 
-                el.innerHTML = item ? item.name : slot.toUpperCase(); 
-                el.className = 'equip-slot' + (item ? ' filled' : ''); 
-                if(item) { el.onmouseenter = () => showTooltip(item); el.onmouseleave = hideTooltip; } else { el.onmouseenter = null; } 
-            } 
-        }); 
-        const grid = document.getElementById('cd-inv-grid'); 
-        if(grid) { 
-            grid.innerHTML = ''; 
-            p.inventory.forEach(item => { 
-                let d = document.createElement('div'); d.className = 'inv-slot'; d.innerText = item.name; d.classList.add('rarity-' + item.rarity); 
-                d.onmouseenter = () => showTooltip(item); d.onmouseleave = hideTooltip; grid.appendChild(d); 
-            }); 
-            for(let i=p.inventory.length; i<12; i++) { let d = document.createElement('div'); d.className = 'inv-slot'; grid.appendChild(d); } 
-        } 
-    } else { 
-        if(invSection) invSection.style.display = 'none'; 
-        if(hiddenMsg) hiddenMsg.style.display = 'block'; 
-    } 
-    
-    const modal = document.getElementById('char-detail-modal'); 
-    if(modal) modal.classList.add('active'); 
+    const skillsHtml = `
+        <div class="cs-skills">
+            ${buildSkillRow('Active', act, '#fbbf24')}
+            ${buildSkillRow('Passive', pas, '#a855f7')}
+        </div>
+    `;
+
+    // D. METRICS
+    let metricsHtml = '';
+    if (!p.isBoss && !p.isEventEntity) {
+        const camps = tiles.filter(t => t.userData.owner === p.id && t.userData.buildingLevel === 1).length;
+        const taverns = tiles.filter(t => t.userData.owner === p.id && t.userData.buildingLevel === 2).length;
+        const guards = p.metrics.guardsHired || 0;
+        const sieges = p.metrics.successfulSieges || 0;
+        
+        metricsHtml = `
+            <div class="cs-metrics">
+                <div class="cs-metric-box"><span class="cs-metric-lbl">⛺ Camps</span><span class="cs-metric-val">${camps}</span></div>
+                <div class="cs-metric-box"><span class="cs-metric-lbl">🍺 Taverns</span><span class="cs-metric-val">${taverns}</span></div>
+                <div class="cs-metric-box"><span class="cs-metric-lbl">🛡️ Hired</span><span class="cs-metric-val">${guards}</span></div>
+                <div class="cs-metric-box"><span class="cs-metric-lbl">⚔️ Wins</span><span class="cs-metric-val">${sieges}</span></div>
+            </div>
+        `;
+    }
+
+    // E. INVENTORY (Human Only)
+    let invHtml = '';
+    if (p.id === 0) {
+        invHtml = `<div style="padding: 0 20px 20px 20px;">
+            <div style="font-size:0.8rem; color:#aaa; margin-bottom:5px; text-transform:uppercase;">Inventory</div>
+            <div id="cd-inv-grid-new" class="inv-grid" style="max-height:150px;"></div>
+        </div>`;
+    }
+
+    // COMBINE
+    bodyContainer.innerHTML = headerHtml + statsHtml + skillsHtml + metricsHtml + invHtml;
+
+    // --- 3. POPULATE INVENTORY GRID (Post-HTML insertion) ---
+    if (p.id === 0) {
+        const grid = document.getElementById('cd-inv-grid-new');
+        if(grid) {
+            p.inventory.forEach(item => {
+                let d = document.createElement('div');
+                d.className = 'inv-slot rarity-' + (item.rarity || 'common');
+                d.innerText = item.name;
+                d.style.fontSize = '0.65rem';
+                d.onclick = () => showTooltip(item);
+                grid.appendChild(d);
+            });
+            // Fill empty slots
+            for(let i=p.inventory.length; i<12; i++) {
+                let d = document.createElement('div'); d.className = 'inv-slot'; grid.appendChild(d);
+            }
+        }
+    }
+
+    // Show Modal
+    const modal = document.getElementById('char-detail-modal');
+    if(modal) {
+        modal.classList.add('active');
+        // Ensure we remove the close-x from the outer wrapper if it existed in old HTML, 
+        // because we added it inside the header now.
+        const oldClose = modal.querySelector(':scope > .close-x');
+        if(oldClose) oldClose.style.display = 'none';
+    }
 }
 //if(invSection) invSection.style.display = 'block'; if(hiddenMsg) hiddenMsg.style.display = 'none'; ['head','body','main','off'].forEach(slot => { const item = p.equipment[slot]; const el = document.getElementById('cd-slot-'+slot); if(el) { el.innerHTML = item ? item.name : slot.toUpperCase(); el.className = 'equip-slot' + (item ? ' filled' : ''); if(item) { el.onmouseenter = () => showTooltip(item); el.onmouseleave = hideTooltip; } else { el.onmouseenter = null; } } }); const grid = document.getElementById('cd-inv-grid'); if(grid) { grid.innerHTML = ''; p.inventory.forEach(item => { let d = document.createElement('div'); d.className = 'inv-slot'; d.innerText = item.name; d.classList.add('rarity-' + item.rarity); d.onmouseenter = () => showTooltip(item); d.onmouseleave = hideTooltip; grid.appendChild(d); }); for(let i=p.inventory.length; i<12; i++) { let d = document.createElement('div'); d.className = 'inv-slot'; grid.appendChild(d); } } } else { if(invSection) invSection.style.display = 'none'; if(hiddenMsg) hiddenMsg.style.display = 'block'; } const modal = document.getElementById('char-detail-modal'); if(modal) modal.classList.add('active'); }
 function closeCharDetail() { document.getElementById('char-detail-modal').classList.remove('active'); hideTooltip(); }
