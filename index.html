@@ -50,6 +50,7 @@
         overflow: hidden; 
     }
 
+    /* DESKTOP DEFAULT: Centered Square Aspect Ratio */
     #board-anchor {
         position: absolute; top: 50%; left: 50%; 
         transform: translate(-50%, -50%);
@@ -93,7 +94,9 @@
         box-shadow: 0 2px 5px rgba(0,0,0,0.5); pointer-events: auto;
     }
 
-    /* --- 4. HUD WIDGETS --- */
+    /* --- 4. HUD WIDGETS (Relative to Container) --- */
+    
+    /* These use negative margins on Desktop to hang "outside" the board */
     #turn-widget {
         position: absolute; top: -8%; left: 50%; transform: translate(-50%, 0);
         width: 60%; padding-top: 1vmin;
@@ -246,65 +249,30 @@
     .help-section { display: none; padding: 20px; overflow-y: auto; text-align: left; color: #ccc; line-height: 1.5; }
     .help-section.active { display: block; }
 
-    /* --- 8. RESTORED ENCOUNTER/SKIRMISH CARD STYLES --- */
-    /* Force specific positioning for the Arrival and Encounter Modals to match logic */
+    /* --- 8. ENCOUNTER/SKIRMISH CARD STYLES --- */
     #arrival-modal, #card-modal {
-        position: fixed !important;
-        top: 50% !important;
-        left: 50% !important;
+        position: fixed !important; top: 50% !important; left: 50% !important;
         transform: translate(-50%, -50%) scale(0.9) !important;
-        
-        /* Ensure visibility states */
-        opacity: 0 !important;
-        pointer-events: none !important;
-        z-index: -1 !important; /* Hide behind everything when inactive */
-        display: flex !important;
-        flex-direction: column !important;
-        
-        /* Sizing Constraints */
-        max-height: 90vh !important;
-        max-width: 600px !important;
-        width: 95% !important;
-        
-        /* Reset styles */
-        margin: 0 !important;
-        transition: opacity 0.2s ease, transform 0.2s ease !important;
-        background: transparent !important;
-        border: none !important;
-        box-shadow: none !important;
+        opacity: 0 !important; pointer-events: none !important; z-index: -1 !important;
+        display: flex !important; flex-direction: column !important;
+        max-height: 90vh !important; max-width: 600px !important; width: 95% !important;
+        margin: 0 !important; transition: opacity 0.2s ease, transform 0.2s ease !important;
+        background: transparent !important; border: none !important; box-shadow: none !important;
     }
-
-    /* Active State */
     #arrival-modal.active, #card-modal.active {
-        opacity: 1 !important;
-        pointer-events: auto !important;
-        z-index: 2000 !important; /* On top of everything */
+        opacity: 1 !important; pointer-events: auto !important; z-index: 2000 !important;
         transform: translate(-50%, -50%) scale(1) !important;
     }
-
-    /* Invisible Container Fix for Card Modal content styling */
-    #card-modal .card-header,
-    #card-modal .card-body {
-        pointer-events: auto !important;
-        background: #1a1a1a !important; /* Dark background for text */
-        width: 100%;
-        box-shadow: 0 10px 40px #000;
-        position: relative;
+    #card-modal .card-header, #card-modal .card-body {
+        pointer-events: auto !important; background: #1a1a1a !important; width: 100%; box-shadow: 0 10px 40px #000; position: relative;
     }
     #card-modal .card-header {
-        border: 2px solid var(--gold-dim);
-        border-bottom: 2px solid #000;
-        border-radius: 12px 12px 0 0;
-        padding: 15px; text-align: center; color: #fff; font-size: 1.4rem; font-weight: 900;
-        text-shadow: 0 2px 0 rgba(0,0,0,0.5);
+        border: 2px solid var(--gold-dim); border-bottom: 2px solid #000; border-radius: 12px 12px 0 0;
+        padding: 15px; text-align: center; color: #fff; font-size: 1.4rem; font-weight: 900; text-shadow: 0 2px 0 rgba(0,0,0,0.5);
     }
     #card-modal .card-body {
-        border: 2px solid var(--gold-dim);
-        border-top: none;
-        border-radius: 0 0 12px 12px;
-        padding: 20px; text-align: center;
+        border: 2px solid var(--gold-dim); border-top: none; border-radius: 0 0 12px 12px; padding: 20px; text-align: center;
     }
-    
     .card-header.skirmish { background: #991b1b !important; } 
     .card-header.loot { background: #065f46 !important; } 
     .card-header.market { background: #713f12 !important; }
@@ -314,13 +282,11 @@
     .mini-die.win { background: var(--accent-green); border-color: #fff; } 
     .mini-die.lose { background: var(--accent-red); }
 
-    /* Arrival Modal Specifics */
     .card-border { background: #111; border: 4px solid #fff; border-radius: 12px; overflow: hidden; box-shadow: 0 0 50px #000; display: flex; flex-direction: column; max-height: 90vh; pointer-events: auto; width: 100%; }
     #arrival-image { display: block; width: 100%; height: auto; max-height: 50vh; object-fit: contain; background: #000; border-bottom: 2px solid #fff; }
     #arrival-modal button.primary { background: linear-gradient(to bottom, #fbbf24, #d97706); border: 2px solid #78350f; color: #000; font-family: 'Cinzel', serif; font-weight: 900; font-size: 1.5rem; padding: 15px 0; width: 100%; margin-top: 15px; border-radius: 8px; cursor: pointer; pointer-events: auto; }
 
-    /* --- 9. CHARACTER SHEET (NEW OVERHAUL) --- */
-    /* Wrapper (Fixed position full screen dimmer) */
+    /* --- 9. CHARACTER SHEET --- */
     #char-detail-modal {
         position: fixed !important; top: 0 !important; left: 0 !important; right: 0 !important; bottom: 0 !important;
         width: 100vw !important; height: 100vh !important;
@@ -330,8 +296,6 @@
         transform: none !important; margin: 0 !important; pointer-events: none !important;
     }
     #char-detail-modal.active { display: flex !important; pointer-events: auto !important; }
-
-    /* The Card Content */
     #char-detail-modal .modal-content {
         position: relative !important; top: auto !important; left: auto !important; transform: none !important; margin: auto !important;
         background: linear-gradient(160deg, #1e293b 0%, #0f172a 100%);
@@ -342,7 +306,6 @@
     }
     @keyframes popIn { from { transform: scale(0.9); opacity: 0; } to { transform: scale(1); opacity: 1; } }
 
-    /* Character Sheet Internals */
     .cs-header-bg { background: linear-gradient(to right, rgba(0,0,0,0.8), rgba(0,0,0,0.4)), url('https://www.transparenttextures.com/patterns/dark-leather.png'); padding: 15px; border-bottom: 2px solid var(--gold-dim); display: flex; align-items: center; gap: 15px; position: relative; flex-shrink: 0; }
     .cs-portrait { width: 60px; height: 60px; min-width: 60px; border-radius: 50%; border: 2px solid var(--gold-main); background-color: #000; background-size: cover; box-shadow: 0 0 10px var(--gold-dim); }
     .cs-info { display: flex; flex-direction: column; }
@@ -384,7 +347,14 @@
         width: 100%; 
         max-width: 900px;
     }
-    .skill-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-bottom: 30px; width: 100%; }
+    .skill-grid { 
+        display: grid; 
+        grid-template-columns: repeat(3, 1fr); 
+        gap: 15px; 
+        margin-bottom: 30px; 
+        width: 100%; 
+        max-width: 900px;
+    }
     .color-grid { display: flex; gap: 15px; justify-content: center; margin-top: 10px; }
     .color-opt { width: 50px; height: 50px; border-radius: 50%; border: 3px solid #000; cursor: pointer; transition: 0.2s; }
     .color-opt:hover, .color-opt.selected { transform: scale(1.2); border-color: white; box-shadow: 0 0 15px var(--gold-main); }
@@ -428,13 +398,8 @@
         text-align: center; 
         box-shadow: 0 4px 10px rgba(0,0,0,0.3); 
         transition: all 0.2s;
-        
-        /* Flex Column for Vertical Stacking */
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: flex-start;
-        min-height: 180px; /* Ensure uniform height */
+        display: flex; flex-direction: column; align-items: center; justify-content: flex-start;
+        min-height: 180px;
     }
     .skill-card:hover { 
         border-color: var(--gold-glow); 
@@ -504,44 +469,115 @@
     #context-menu { position: absolute; display: none; flex-direction: column; background: #222; border: 1px solid var(--gold-main); z-index: 1000; border-radius: 4px; pointer-events: auto; }
     .ctx-item { padding: 10px 15px; cursor: pointer; border-bottom: 1px solid #333; color: #eee; } .ctx-item:hover { background: var(--gold-dim); }
 
-    /* --- 12. MOBILE & RESPONSIVE --- */
+    /* --- 12. MOBILE & RESPONSIVE (EDGE-TO-EDGE FIX) --- */
     @media (max-width: 1600px) {
-        /* Hide Desktop Sidebars */
         #p1-sheet, #leaderboard { display: none !important; }
-        
-        /* Sidebar Popups when active */
         #p1-sheet.active, #leaderboard.active {
             display: flex !important; position: fixed; top: 50%; left: 50%;
             transform: translate(-50%, -50%); width: 80vw; max-width: 400px; height: 70vh;
             z-index: 4000 !important; background: rgba(15, 23, 42, 0.98); border: 2px solid var(--gold-main);
         }
-        
-        /* Show toggle buttons */
         .mobile-toggle-btn { display: flex !important; }
     }
 
     @media (max-width: 1000px) {
         .sel-grid { grid-template-columns: repeat(2, 1fr); }
-    .skill-grid { grid-template-columns: repeat(2, 1fr); }
+        .skill-grid { grid-template-columns: repeat(2, 1fr); }
         .input-group input { width: 100%; } 
         #splash-screen h1, #create-screen h1 { font-size: 4rem; }
         #creator-portrait-frame { width: 120px; height: 120px; right: 10px; top: 10px; transform: none; border-width: 2px; }
-		.skill-card { min-height: 200px; }
+        .skill-card { min-height: 200px; }
     }
 
+/* --- MOBILE FULL SCREEN UI --- */
     @media only screen and (max-width: 768px) {
-        #hud-toggles { top: auto; bottom: 150px; right: 10px; }
-        
-        #mystats-widget {
-            top: -7% !important; right: -7% !important; left: auto !important; 
-            padding: 5px 10px !important; border-radius: 10px !important;
-            background: rgba(15, 23, 42, 0.95) !important; min-width: auto !important; border-width: 1px !important;
+        /* Expand the Container to Full Screen */
+        #board-anchor {
+            width: 100vw !important;
+            height: 100vh !important;
+            max-width: none !important;
+            max-height: none !important;
+            transform: none !important; 
+            top: 0 !important;
+            left: 0 !important;
         }
-        #mystats-widget .ms-icon { font-size: 4vmin !important; }
-        #mystats-widget .treasury-amount { font-size: 3.5vmin !important; }
-        #mystats-widget .treasury-label { font-size: 2vmin !important; margin-top: 2px !important; }
+
+        /* Expand the Inner Zone */
+        #inner-zone {
+            top: 0 !important;
+            left: 0 !important;
+            width: 100% !important;
+            height: 100% !important;
+        }
+
+        /* RE-POSITION WIDGETS TO SCREEN EDGES */
         
-        #treasury-widget { top: -7% !important; left: -7% !important; padding: 5px 10px !important; }
+        /* Top Left - Treasury */
+        #treasury-widget {
+            top: 10px !important;
+            left: 10px !important;
+            padding: 5px 10px !important;
+        }
+
+        /* Top Center - Turn */
+        #turn-widget {
+            top: 10px !important;
+            width: 90% !important;
+        }
+
+        /* Top Right - Stats */
+        #mystats-widget {
+            top: 10px !important;
+            right: 10px !important;
+            left: auto !important;
+            min-width: auto !important;
+            padding: 5px 10px !important;
+        }
+
+        /* Below Top Widgets - Log */
+        #adventure-log-widget {
+            top: 80px !important; 
+            width: 90% !important;
+            height: 15vh !important;
+        }
+
+        /* Bottom Center - Skill Bar (Attached to bottom edge) */
+        #skill-bar-container {
+            bottom: 5px !important; /* Hug bottom */
+            width: 98% !important; /* Full width */
+            height: 16vh !important; /* Fixed height for consistent layout */
+            align-items: flex-end !important;
+        }
+        
+        /* Action Button (Centered inside the Skill Bar) */
+        #btn-action-container {
+             bottom: 15px !important; /* Sits inside the bar */
+             /* Use vh for size so it matches the bar height, not screen width */
+             width: 17vh !important; 
+             height: 17vh !important;
+             left: 50% !important;
+             transform: translateX(-50%) !important;
+             z-index: 3001 !important; /* Ensure it sits on top of bar border */
+        }
+        
+        /* Fix Button Font Size for Mobile */
+        #btn-action {
+            font-size: 2.5vh !important;
+        }
+
+        /* Utility Buttons (Moved UP above the Skill Bar) */
+        #utility-stack {
+            bottom: 22% !important; /* Clears the 16vh skill bar + gap */
+            right: 10px !important;
+            gap: 15px !important;
+        }
+        
+        /* HUD Open Buttons (Same position as Utility stack) */
+        #hud-toggles {
+            bottom: 22% !important;
+            right: 10px !important;
+            top: auto !important;
+        }
     }
 </style>
 </head>
@@ -1164,7 +1200,16 @@ const ABILITY_LIBRARY = {
     second_wind: { name: "Second Wind", desc: "Gain 150 Gold immediately.", fn: (p) => { p.gold+=150; addLog("Second Wind: +150G", "log-gold"); updateHUD(); return true; }, img: "https://static.wixstatic.com/media/b16479_3a036a923c5945778d3b8393634892b1~mv2.jpeg" },
     shield_bash: { name: "Shield Bash", desc: "Stun a random enemy (Skip Next Turn).", fn: (p) => { const targets=players.filter(t=>t.id!==p.id&&!t.isDead); if(targets.length){const t=targets[Math.floor(Math.random()*targets.length)]; t.isSkipping=true; addLog(`Shield Bash stunned ${t.name}!`, "log-epic"); return true;} return false; }, img: "https://static.wixstatic.com/media/b16479_d1f5ad06cfd64c688e68edd726ff65ae~mv2.jpg" },
     rally: { name: "Rally", desc: "Gain +2 to all Stats for this turn.", fn: (p) => { p.stats.str+=2; p.stats.dex+=2; p.stats.int+=2; addLog("Rally: All stats boosted!", "log-success"); updateHUD(); return true; }, img: "https://static.wixstatic.com/media/b16479_362057d2967143caacaea96b6def582f~mv2.jpg" },
-    siege_breaker: { name: "Siege Breaker", desc: "Destroy a random enemy Guard immediately.", fn: (p) => { const guarded=tiles.filter(t=>t.userData.owner!==null && t.userData.owner!==p.id && t.userData.guardCount>0); if(guarded.length){const t=guarded[Math.floor(Math.random()*guarded.length)]; t.userData.guardCount--; addLog(`Siege Breaker: Killed guard at ${t.userData.info.name}!`, "log-epic"); return true;} addLog("No guards found.", "log-fail"); return false; }, img: "https://static.wixstatic.com/media/b16479_c9d827929fe5405d869c8cc75834b5dd~mv2.jpg" },
+    // Inside ABILITY_LIBRARY -> FIGHTER SKILLS
+    siege_breaker: { 
+        name: "Siege Breaker", 
+        desc: "Enemy Land: Roll 1d6 to kill Guards/Downgrade/Destroy. If destroyed, trigger Encounter.", 
+        // Logic handled in showEncounter, but we keep a dummy fn here to prevent crashes if clicked from bar
+        fn: (p) => { addLog("Use this skill when landing on Enemy Land.", "log-rare"); return false; }, 
+        img: "https://static.wixstatic.com/media/b16479_c9d827929fe5405d869c8cc75834b5dd~mv2.jpg" 
+    },
+
+
 
     veteran: { name: "Veteran", desc: "Permanent +1 STR.", type:'passive', effect:(s)=>{s.str+=1;}, img: "https://static.wixstatic.com/media/b16479_9418e25969754a69a13b825cc2e70bbf~mv2.jpeg" },
     iron_skin: { name: "Iron Skin", desc: "Reduce all gold penalties by 20G.", type:'passive', img: "https://static.wixstatic.com/media/b16479_c3d88e0d6986494d914fd12047d258ca~mv2.jpeg" },
@@ -3579,7 +3624,6 @@ function processAiTurn(p, t, i) {
     }, 600); 
 }
 function showEncounter(p, i, t, mode) {
-    // ... (Keep existing code for Loot/Shop/Mystery setup) ...
     const originalMode = mode;
     const m = document.getElementById('card-modal'); 
     const l = document.getElementById('choice-list'); 
@@ -3587,44 +3631,77 @@ function showEncounter(p, i, t, mode) {
     document.getElementById('dice-result').innerHTML = ''; 
     document.getElementById('market-sell-area').style.display = 'none';
 
-    // ... (Keep card drawing logic) ...
+    // 1. Draw Card Logic
     let card;
-    if (mode === 'loot') { card = DECK_TREASURE[Math.floor(Math.random() * DECK_TREASURE.length)]; }
-    else if (mode === 'mystery_event') { 
-        const isFoggy = (activeEvent && activeEvent.data && activeEvent.data.id === 'event_fog');
-        card = (isNight || isFoggy) ? DECK_SKIRMISH[Math.floor(Math.random() * DECK_SKIRMISH.length)] : DECK_ENCOUNTER[Math.floor(Math.random() * DECK_ENCOUNTER.length)];
+    if (mode === 'loot') {
+        card = DECK_TREASURE[Math.floor(Math.random() * DECK_TREASURE.length)]; 
     }
-    else if (mode === 'skirmish' || mode === 'wild_skirmish' || mode === 'upgrade') { card = DECK_SKIRMISH[Math.floor(Math.random() * DECK_SKIRMISH.length)]; }
-    else { card = DECK_ENCOUNTER[Math.floor(Math.random() * DECK_ENCOUNTER.length)]; }
+    else if (mode === 'mystery_event') {
+        const isFoggy = (activeEvent && activeEvent.data && activeEvent.data.id === 'event_fog');
+        if (isNight || isFoggy) {
+            card = DECK_SKIRMISH[Math.floor(Math.random() * DECK_SKIRMISH.length)];
+        } else {
+            card = DECK_ENCOUNTER[Math.floor(Math.random() * DECK_ENCOUNTER.length)];
+        }
+    }
+    else if (mode === 'skirmish' || mode === 'wild_skirmish' || mode === 'upgrade') {
+        card = DECK_SKIRMISH[Math.floor(Math.random() * DECK_SKIRMISH.length)]; 
+    }
+    else {
+        card = DECK_ENCOUNTER[Math.floor(Math.random() * DECK_ENCOUNTER.length)];
+    }
     
-    // ... (Keep override logic and header setup) ...
+    // 2. Overrides
     if (card.type === 'shop') mode = 'shop'; 
-    if (card.type === 'loot') { mode = 'loot'; if(!card.cost) card = DECK_TREASURE[Math.floor(Math.random() * DECK_TREASURE.length)]; }
+    if (card.type === 'loot') { 
+        mode = 'loot'; 
+        if(!card.cost) card = DECK_TREASURE[Math.floor(Math.random() * DECK_TREASURE.length)]; 
+    }
     
-    let title = card.name; let cls = 'card-header'; 
-    if (mode.includes('skirmish') || mode === 'upgrade') { cls += ' skirmish'; title += " (SKIRMISH)"; } 
-    else if (mode === 'loot') { cls += ' loot'; } else if (mode === 'shop') { cls += ' market'; }
-    setT('enc-title', title); document.getElementById('enc-header').className = cls;
+    // 3. Header Styling
+    let title = card.name; 
+    let cls = 'card-header'; 
+    if (mode.includes('skirmish') || mode === 'upgrade' || (mode === 'mystery_event' && isNight)) { 
+        cls += ' skirmish'; title += " (SKIRMISH)"; 
+    } 
+    else if (mode === 'loot') { cls += ' loot'; } 
+    else if (mode === 'shop') { cls += ' market'; }
+    
+    setT('enc-title', title); 
+    document.getElementById('enc-header').className = cls;
     
     let desc = card.desc || "Event occurs."; 
     let opts = [];
 
-    // ... (Keep Loot/Shop Logic) ...
-    if (mode === 'loot') {
-         // ... (Keep existing Loot logic) ...
-         opts = [{ txt: "Keep", act: () => { p.inventory.push(createItemInstance(card)); addLog("Gained " + card.name, "log-success"); updateHUD(); closeEnc(); }}];
-    }
-    else if (mode === 'shop' || i.type === 'start') {
-         // ... (Keep existing Shop logic) ...
-         // (Shortened for brevity, use your existing shop block here)
-         openCustomShop(p, [], "Merchant", () => {
+    // --- A. LOOT ---
+    if (mode === 'loot') { 
+        desc = `You found: ${card.name} (${card.rarity || 'Common'})`; 
+        if (p.inventory.length >= 12) {
+             opts = [{ txt: "Inventory Full (Discard)", act: () => { addLog("Inventory full.", "log-fail"); updateHUD(); closeEnc(); }}];
+        } else {
+            opts = [{ txt: "Keep", act: () => { 
+                p.inventory.push(createItemInstance(card)); 
+                addLog("Gained " + card.name, "log-success"); 
+                if (card.name === "Pouch of Gold" && p.passiveSkillId === 'alchemist_pas') {
+                    addLog("Alchemist: Transmuting extra loot...", "log-epic");
+                    updateHUD(); 
+                    setTimeout(() => { drawCardAnim('treasure', () => showEncounter(p, null, null, 'loot')); }, 500);
+                    return; 
+                }
+                updateHUD(); closeEnc(); 
+            }}]; 
+        }
+    } 
+    // --- B. SHOP ---
+    else if (mode === 'shop' || i.type === 'start') { 
+        openCustomShop(p, [], "Merchant", () => {
              const isCombatMode = (originalMode === 'wild' || originalMode === 'wild_skirmish');
              if (isCombatMode) drawCardAnim('normal', () => showEncounter(p, i, t, originalMode));
              else closeEnc();
-         });
-         return; // Use openCustomShop instead of building manually
-    }
-    // C. COMBAT / EVENTS
+        });
+        return; 
+    } 
+    // --- C. WILD / SKIRMISH / UPGRADE ---
     else if (mode === 'wild' || mode === 'wild_skirmish' || mode === 'skirmish' || mode === 'upgrade' || mode === 'mystery_event') { 
         if (card.choices) { 
             card.choices.forEach(c => { 
@@ -3633,12 +3710,12 @@ function showEncounter(p, i, t, mode) {
                 let useMode = (originalMode === 'mystery_event') ? 'teleport' : (originalMode === 'upgrade' ? 'upgrade' : c.mode);
                 opts.push({ txt: btnTxt, stat: c.stat, tn: c.tn, req: c.req || 1, mode: useMode, val: c.val || 0, failCost: c.fail || 50 }); 
             }); 
-            
-            // --- PACIFIST BUTTON ---
+
+            // PACIFIST OPTION
             if (p.passiveSkillId === 'pacifist') {
                 opts.push({ txt: "★ Flee (Pacifist +30G)", act: () => {
                     p.gold += 30;
-                    p.pacifistBuff = true; // Apply temp buff
+                    p.pacifistBuff = true; 
                     addLog("Pacifist Flee: +30G and Stats Boosted!", "log-success");
                     updateHUD();
                     closeEnc();
@@ -3651,15 +3728,105 @@ function showEncounter(p, i, t, mode) {
             opts = [{ txt: `Pay ${card.cost}G`, act: () => { processTax(p, card.cost); closeEnc(); }}]; 
         } 
     } 
-    // ... (Keep Enemy Land logic) ...
-    else if (mode === 'enemy') {
-         // ... (Use existing Enemy logic) ...
-         let rentCost = (i.cost * ((t.userData.buildingLevel > 1) ? 2 : 1)) + ((t.userData.guardCount||0) * 20);
-         opts = [ { txt: `Pay Rent ${rentCost}G`, act: () => { pay(p, rentCost, players[t.userData.owner]); closeEnc(); } }, { txt: `Siege`, stat: t.userData.defendingStat||'str', tn: i.tn||3, req: 1, mode: 'capture', isSiege: true, failCost: i.cost*2 } ];
+    // --- D. ENEMY LAND ---
+    else if (mode === 'enemy') { 
+        let guards = t.userData.guardCount || 0; 
+        let defStat = t.userData.defendingStat || 'str'; 
+        let tn = i.tn || 3; let req = i.req || 1; 
+        
+        let rentMultiplier = (t.userData.buildingLevel > 1) ? 2 : 1;
+        let rentCost = (i.cost * rentMultiplier) + (guards * 20);
+        let failCost = (i.cost * 2) + (guards * 10); 
+
+        desc = `Owned by ${players[t.userData.owner].name}. Defending Stat: ${defStat.toUpperCase()}. Guards: ${guards}.`; 
+        
+        opts = [ 
+            { txt: `Pay Rent ${rentCost}G`, act: () => { pay(p, rentCost, players[t.userData.owner]); closeEnc(); } }, 
+            { txt: `Siege (${defStat.toUpperCase()} ${tn}+) | Risk: -${failCost}G`, stat: defStat, tn: tn, req: req, mode: 'capture', penalty: false, failCost: failCost, isSiege: true } 
+        ]; 
+
+        // --- SIEGE BREAKER (Fighter) ---
+        if (p.activeSkillId === 'siege_breaker' && !p.classSkillDepleted) {
+            opts.unshift({ 
+                txt: "★ Siege Breaker (Roll 1d6 Destruction)", 
+                act: () => {
+                    p.classSkillDepleted = true;
+                    updateHUD();
+
+                    const dmg = Math.floor(Math.random() * 6) + 1;
+                    addLog(`Siege Breaker: Rolled ${dmg} damage!`, "log-epic");
+                    if (p.id === 0) AUDIO.playSound('sfx_hit');
+
+                    // 1. Kill Guards
+                    let currentGuards = t.userData.guardCount || 0;
+                    let removed = Math.min(currentGuards, dmg);
+                    t.userData.guardCount = Math.max(0, currentGuards - removed);
+                    
+                    if (removed > 0) addLog(`Killed ${removed} Guards!`, "log-fail");
+                    
+                    // 2. Logic: If NO guards remain (either killed all, or there were none)
+                    if (t.userData.guardCount === 0) {
+                        // Refresh Visuals first (if guards removed)
+                        if (removed > 0 && t.userData.buildingLevel > 1) {
+                            // Update guard visuals without changing level yet
+                            capture(t, players[t.userData.owner], t.userData.buildingLevel, () => {});
+                        }
+
+                        // Check Level Down
+                        if (t.userData.buildingLevel === 2) {
+                            // Downgrade Tavern -> Camp
+                            addLog("Tavern smashed to rubble! (Downgraded)", "log-fail");
+                            // Capture with same owner, but level 1
+                            capture(t, players[t.userData.owner], 1, () => {
+                                // After animation, reopen options (rent cheaper now)
+                                setTimeout(() => showEncounter(p, i, t, 'enemy'), 500); 
+                            });
+                        } else {
+                            // Destroy Camp -> Neutral
+                            addLog("Campsite Destroyed! Land is unclaimed.", "log-epic");
+                            t.userData.owner = null;
+                            t.userData.buildingLevel = 0;
+                            t.userData.guardCount = 0;
+                            if (t.userData.prop) { t.remove(t.userData.prop); t.userData.prop = null; }
+                            
+                            // Close UI, then Trigger new Wild Encounter
+                            m.classList.remove('active');
+                            setTimeout(() => {
+                                const deckType = isNight ? 'skirmish' : 'normal';
+                                drawCardAnim(deckType, () => showEncounter(p, i, t, 'wild'));
+                            }, 1000);
+                        }
+                    } else {
+                        // Guards Survived
+                        addLog(`${t.userData.guardCount} Guards remain.`, "log-entry");
+                        // Refresh visual to show reduced guard count
+                        capture(t, players[t.userData.owner], t.userData.buildingLevel, () => {
+                             // Reopen menu with updated guard count/rent
+                             setTimeout(() => showEncounter(p, i, t, 'enemy'), 500);
+                        });
+                    }
+                } 
+            });
+        }
+        
+        // --- SILVER TONGUE ---
+        const silverTongueItem = ['head','body','main','off'].map(s => p.equipment[s]).find(it => it && it.ability && it.ability.name === "Silver Tongue" && !it.isDepleted);
+        if (silverTongueItem) { 
+            opts.unshift({ txt: `★ Use Silver Tongue (INT 6+)`, act: () => { 
+                silverTongueItem.isDepleted = true; updateHUD(); addLog("Used Silver Tongue!", "log-epic"); 
+                rollCombat(p, 'int', 6, 1, t, 'capture', false, 0, 50, false); 
+            } }); 
+        }
+    } 
+    // E. BOSS FIGHT
+    else if (mode === 'boss_fight') {
+        const boss = activeEvent.playerRef;
+        if(boss) desc = `Boss: ${boss.name} (HP: ${boss.hp}/${boss.maxHp})`;
+        if(!card.choices) opts = [{ txt: "Continue", act: closeEnc }];
     }
-    else { opts = [{ txt: "Continue", act: closeEnc }]; }
-    
-    // ... (Keep Silver Tongue) ...
+    else { 
+        opts = [{ txt: "Continue", act: closeEnc }]; 
+    }
     
     const descEl = document.getElementById('enc-desc'); if(descEl) descEl.innerText = desc;
     opts.forEach(o => { 
