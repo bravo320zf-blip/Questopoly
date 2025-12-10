@@ -1208,10 +1208,13 @@ const ABILITY_LIBRARY = {
         fn: (p) => { addLog("Use this skill when landing on Enemy Land.", "log-rare"); return false; }, 
         img: "https://static.wixstatic.com/media/b16479_c9d827929fe5405d869c8cc75834b5dd~mv2.jpg" 
     },
-
-
-
-    veteran: { name: "Veteran", desc: "Permanent +1 STR.", type:'passive', effect:(s)=>{s.str+=1;}, img: "https://static.wixstatic.com/media/b16479_9418e25969754a69a13b825cc2e70bbf~mv2.jpeg" },
+    veteran: { 
+        name: "Veteran", 
+        desc: "Permanent +1 STR. 20% Discount at Merchants.", 
+        type: 'passive', 
+        effect: (s) => { s.str += 1; }, 
+        img: "https://static.wixstatic.com/media/b16479_9418e25969754a69a13b825cc2e70bbf~mv2.jpeg" 
+    },
     iron_skin: { name: "Iron Skin", desc: "Reduce all gold penalties by 20G.", type:'passive', img: "https://static.wixstatic.com/media/b16479_c3d88e0d6986494d914fd12047d258ca~mv2.jpeg" },
     executioner: { name: "Executioner", desc: "Rolling a 6 in combat counts as 2 Successes.", type:'passive', img: "https://static.wixstatic.com/media/b16479_cee24d678cfa47568f5f632c40743626~mv2.jpeg" },
     conqueror: { name: "Conqueror", desc: "Gain 20G every time you capture a location.", type:'passive', onCapture:(p)=>{p.gold+=20; addLog("Conqueror: +20G", "log-gold");}, img: "https://static.wixstatic.com/media/b16479_9df1c28aa03e4660ab1943532691d406~mv2.jpg" },
@@ -2461,6 +2464,19 @@ function openCustomShop(p, items, title, nextCallback) {
     
     let selectedItemUID = null;
 
+    // --- DISCOUNT LOGIC ---
+    const getDiscountedPrice = (baseCost) => {
+        let cost = baseCost;
+        if (p.passiveSkillId === 'veteran') {
+            cost = Math.floor(cost * 0.8); // 20% Off
+        }
+        if (p.passiveSkillId === 'haggler') {
+            cost = Math.floor(cost * 0.75); // 25% Off
+        }
+        // If both, they stack multiplicatively (approx 40% total)
+        return Math.max(0, cost);
+    };
+
     items.forEach(it => {
         let b = document.createElement('div'); 
         b.className = 'choice-btn';
@@ -2469,11 +2485,19 @@ function openCustomShop(p, items, title, nextCallback) {
         b.style.alignItems = 'flex-start';
         b.style.gap = '2px';
         
+        const finalCost = getDiscountedPrice(it.cost);
+        
+        // Show discount visual if price is different
+        let costHtml = `<span style="color:var(--gold)">${finalCost}G</span>`;
+        if (finalCost < it.cost) {
+            costHtml = `<span style="text-decoration:line-through; color:#666; font-size:0.8em; margin-right:5px;">${it.cost}G</span> ` + costHtml;
+        }
+
         const headerDiv = document.createElement('div');
         headerDiv.style.display = 'flex';
         headerDiv.style.justifyContent = 'space-between';
         headerDiv.style.width = '100%';
-        headerDiv.innerHTML = `<span style="font-weight:bold; color:${getRarityColor(it.rarity)}">${it.name}</span> <span style="color:var(--gold)">${it.cost}G</span>`;
+        headerDiv.innerHTML = `<span style="font-weight:bold; color:${getRarityColor(it.rarity)}">${it.name}</span> <div>${costHtml}</div>`;
         
         const subDiv = document.createElement('div');
         subDiv.style.fontSize = '0.75rem';
@@ -2487,14 +2511,14 @@ function openCustomShop(p, items, title, nextCallback) {
         b.onmouseleave = hideTooltip;
 
         const attemptBuy = () => {
-            if(p.gold >= it.cost) {
+            if(p.gold >= finalCost) {
                 if(p.inventory.length >= 12) {
                     addLog("Inventory Full!", "log-fail");
                     return;
                 }
-                p.gold -= it.cost;
+                p.gold -= finalCost;
                 p.inventory.push(createItemInstance(it));
-                addLog(`Bought ${it.name}`, "log-success");
+                addLog(`Bought ${it.name} for ${finalCost}G.`, "log-success");
                 updateHUD();
                 b.remove(); 
                 hideTooltip();
@@ -2528,11 +2552,7 @@ function openCustomShop(p, items, title, nextCallback) {
     b.style.justifyContent = "center";
     b.onclick = () => {
         hideTooltip();
-        
-        // Hide the shop modal purely visually
         m.classList.remove('active');
-        
-        // Trigger the next phase (The Tile Encounter)
         if (nextCallback) nextCallback();
     };
     l.appendChild(b);
