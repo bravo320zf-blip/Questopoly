@@ -1041,6 +1041,67 @@
         font-size: 1rem;
     }
 }
+
+/* --- MOBILE PROFILE & MAP ADJUSTMENTS --- */
+@media only screen and (max-width: 900px) {
+    
+    /* 1. Game Room Map Swapping */
+    #desktop-map-view { display: none !important; }
+    #mobile-map-btn { display: flex !important; }
+    
+    /* Allow chat to expand since map is gone */
+    .room-info-panel { height: auto !important; flex: 1; } 
+    .map-container-wrapper { padding: 5px !important; }
+
+    /* 2. Profile Modal Responsiveness */
+    #profile-modal .modal-content {
+        width: 95% !important;
+        height: 90vh !important; /* Full height */
+        max-height: none !important;
+        overflow-y: auto !important; /* Enable scrolling */
+        display: block !important; /* Fix flex issues in scrollable container */
+    }
+
+    /* Stack Profile Layout Vertically */
+    .profile-layout {
+        flex-direction: column !important;
+        gap: 15px !important;
+    }
+
+    /* Center the Avatar section */
+    .profile-left {
+        width: 100% !important;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        border-bottom: 1px solid #333;
+        padding-bottom: 15px;
+        margin-bottom: 10px;
+    }
+    
+    /* Inputs full width */
+    .profile-right {
+        width: 100% !important;
+    }
+
+    /* Adjust Friend List height in profile */
+    #profile-friends-list {
+        max-height: 200px !important; /* Limit height so it doesn't push off screen */
+    }
+    
+    /* Make the Password Button bigger/easier to tap */
+    #profile-modal button[onclick*="changePassword"] {
+        position: relative !important;
+        top: auto !important;
+        right: auto !important;
+        width: 100%;
+        margin-top: 10px;
+        padding: 10px;
+        border: 1px solid #444 !important;
+        background: rgba(0,0,0,0.3) !important;
+        border-radius: 4px;
+    }
+}
 </style>
 </head>
 
@@ -1121,6 +1182,22 @@
             <div style="padding:10px; text-align:center; border-bottom:1px solid #444;">
                 <img src="https://static.wixstatic.com/media/b16479_5caac3525f59406d8ff175695ef11cb1~mv2.jpg" style="width:80%; border:2px solid var(--gold-dim); margin-bottom:5px;">
                 <div style="color:var(--gold-main); font-weight:bold;">Kingdom Map</div>
+				<div class="map-container-wrapper" style="padding:10px; border-bottom:1px solid #444;">
+    <!-- Desktop View: Shows Image -->
+    <div id="desktop-map-view">
+        <img src="https://static.wixstatic.com/media/b16479_5caac3525f59406d8ff175695ef11cb1~mv2.jpg" style="width:80%; border:2px solid var(--gold-dim); margin-bottom:5px;">
+        <div style="color:var(--gold-main); font-weight:bold;">Kingdom Map</div>
+    </div>
+
+    <!-- Mobile View: Shows Button -->
+    <button id="mobile-map-btn" class="choice-btn" style="display:none; width:100%; text-align:center; justify-content:center;" onclick="document.getElementById('map-modal').style.display='flex'">🗺 View Kingdom Map</button>
+
+    <!-- Password Input (Keep this here) -->
+    <div id="host-settings-area" style="padding-top:10px; display:none;">
+        <label style="font-size:0.8rem; color:#aaa;">Game Password (Optional)</label>
+        <input type="text" class="chat-input" placeholder="No Password" style="background:rgba(0,0,0,0.3); border:1px solid #555; width:100%;" onchange="ROOM.setPassword(this.value)">
+    </div>
+</div>
 				<!-- Password Input for Host -->
 <div id="host-settings-area" style="padding:10px; border-bottom:1px solid #444; display:none;">
     <label style="font-size:0.8rem; color:#aaa;">Game Password (Optional)</label>
@@ -1659,6 +1736,14 @@
     <div class="ctx-item" onclick="FRIENDS.actionMessage()">Message</div>
     <div class="ctx-item" onclick="FRIENDS.actionInvite()">Invite to Game</div>
     <div class="ctx-item" onclick="FRIENDS.actionRemove()" style="color:#ef4444;">Remove Friend</div>
+</div>
+
+<!-- MAP VIEW MODAL -->
+<div id="map-modal" class="modal-overlay" onclick="this.style.display='none'" style="z-index: 5000;">
+    <div class="modal-content" style="background: transparent; border: none; box-shadow: none; width: 95%; max-width: 800px; pointer-events: none;">
+        <img src="https://static.wixstatic.com/media/b16479_5caac3525f59406d8ff175695ef11cb1~mv2.jpg" style="width:100%; border: 3px solid var(--gold-main); border-radius: 12px; pointer-events: auto;">
+        <button class="choice-btn" style="margin-top: 10px; pointer-events: auto; justify-content: center;">Close Map</button>
+    </div>
 </div>
 
 <!-- ================================================================
@@ -7616,3 +7701,4 @@ init();
 </script>
 </body>
 </html>
+
