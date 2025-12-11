@@ -617,8 +617,16 @@
 .auth-link { color: #aaa; text-decoration: underline; cursor: pointer; font-size: 0.8rem; margin-top: 15px; display: block; }
 
 .lobby-list { 
-    width: 100%; height: 300px; background: rgba(0,0,0,0.5); 
-    border: 1px solid #444; margin: 20px 0; overflow-y: auto; text-align: left; 
+    width: 100%; 
+    /* Remove fixed height, use flex to fill available space */
+    flex-grow: 1; 
+    height: 100%; 
+    min-height: 200px;
+    background: rgba(0,0,0,0.5); 
+    border: 1px solid #444; 
+    margin: 10px 0; 
+    overflow-y: auto; 
+    text-align: left; 
 }
 .lobby-item { padding: 10px; border-bottom: 1px solid #333; display: flex; justify-content: space-between; cursor: pointer; }
 .lobby-item:hover { background: rgba(255,255,255,0.1); }
@@ -884,6 +892,155 @@
 
 /* Dropdown Context Menu for Friends */
 .friend-dropdown { display: none; position: absolute; background: #222; border: 1px solid var(--gold-main); z-index: 7000; flex-direction: column; }
+
+/* --- MOBILE LOBBY ADJUSTMENTS --- */
+@media only screen and (max-width: 900px) {
+    /* Switch to Vertical Stack */
+    .lobby-layout {
+        flex-direction: column;
+        width: 98% !important;
+        height: 96vh !important;
+        gap: 10px;
+        margin-top: 10px;
+    }
+
+    /* Top Section: Game List */
+    .lobby-left {
+        flex: 1; /* Takes 50% height */
+        min-height: 40%;
+        max-height: 50%;
+        display: flex;
+        flex-direction: column;
+    }
+
+    /* Bottom Section: Chat */
+    .lobby-right {
+        flex: 1; /* Takes remaining height */
+        min-height: 40%;
+        display: flex;
+        flex-direction: column;
+        margin-bottom: 5px;
+    }
+
+    /* Fix Lists to Scroll properly */
+    .lobby-list, .chat-box {
+        flex-grow: 1 !important;
+        height: auto !important; /* Override fixed height */
+        max-height: none !important;
+        overflow-y: auto;
+    }
+
+    /* Adjust Inputs for Touch */
+    .chat-input, .lobby-search, .auth-input {
+        font-size: 16px; /* Prevents iOS zoom on focus */
+        padding: 12px;
+    }
+    
+    .chat-send, .auth-btn {
+        padding: 12px;
+    }
+
+    /* Header Adjustments */
+    .lobby-left h1 {
+        font-size: 1.5rem !important;
+    }
+    
+    .lobby-profile-btn {
+        width: 35px;
+        height: 35px;
+    }
+}
+
+/* --- MOBILE GAME ROOM ADJUSTMENTS --- */
+@media only screen and (max-width: 900px) {
+    /* 1. Switch Grid to Vertical Flex Column */
+    .room-container {
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+        width: 100%;
+        max-width: none;
+        padding: 5px;
+        gap: 5px;
+    }
+
+    /* 2. Top Section: Player Slots (Flexible Height) */
+    .room-slots-panel {
+        flex: 1; /* Grows to fill available space */
+        overflow-y: auto; /* Scroll if too many slots fit */
+        min-height: 0; /* Crucial for nested flex scrolling */
+        padding: 5px;
+        gap: 8px;
+    }
+
+    /* Compact Player Slot Cards */
+    .player-slot {
+        height: auto;
+        min-height: 70px;
+        padding: 10px;
+    }
+    .slot-avatar {
+        width: 50px;
+        height: 50px;
+        border-radius: 8px;
+    }
+    .slot-name {
+        font-size: 1rem;
+    }
+    .slot-meta {
+        font-size: 0.7rem;
+    }
+    /* Hide the kick/remove buttons' text on very small screens if needed, 
+       or keep them as is since they are just "X" usually */
+
+    /* 3. Middle Section: Map & Chat */
+    .room-info-panel {
+        height: 35vh; /* Fixed height for chat area */
+        flex-shrink: 0; /* Don't shrink below this */
+        display: flex;
+        flex-direction: column;
+    }
+    
+    /* Shrink the Map Image to save space */
+    .room-info-panel img {
+        height: 40px; 
+        width: auto;
+        object-fit: contain;
+        margin: 2px auto;
+    }
+    .room-info-panel > div:first-child {
+        padding: 5px; /* Reduce padding around map/title */
+    }
+
+    /* Ensure Chat fills the remaining info panel space */
+    #room-chat-box {
+        flex-grow: 1;
+        min-height: 0;
+    }
+
+    /* 4. Bottom Section: Actions/Buttons */
+    .room-actions {
+        flex-shrink: 0;
+        display: flex;
+        flex-direction: column; /* Stack the two button rows */
+        gap: 8px;
+        padding: 10px;
+    }
+    
+    /* Make button rows full width */
+    .room-actions > div {
+        display: flex;
+        width: 100%;
+        gap: 8px;
+    }
+    
+    /* Make buttons huge and tappable */
+    .room-actions button {
+        flex: 1; /* Stretch to fill row */
+        padding: 15px;
+        font-size: 1rem;
+    }
+}
 </style>
 </head>
 
@@ -929,7 +1086,7 @@
     </div>
     <button class="auth-btn btn-login" style="width:100%; margin-bottom:10px;" onclick="createGameLogic()">Create Game</button>
     
-    <div id="lobby-list" class="lobby-list" style="flex-grow:1; height:auto; margin:0;">
+    <div id="lobby-list" class="lobby-list">
         <div style="padding:20px; text-align:center; color:#666;">Loading games...</div>
     </div>
     <button class="auth-btn btn-reg" onclick="LOBBY.exit()">Back to Main Menu</button>
