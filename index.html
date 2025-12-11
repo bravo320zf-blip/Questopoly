@@ -897,43 +897,51 @@
 @media only screen and (max-width: 900px) {
     /* Switch to Vertical Stack */
     .lobby-layout {
+        display: flex;
         flex-direction: column;
-        width: 98% !important;
-        height: 96vh !important;
-        gap: 10px;
-        margin-top: 10px;
+        height: 100vh !important; /* Force viewport height */
+        max-height: 100vh;
+        width: 100% !important;
+        margin: 0 !important;
+        gap: 0;
     }
 
     /* Top Section: Game List */
-    .lobby-left {
-        flex: 1; /* Takes 50% height */
-        min-height: 40%;
-        max-height: 50%;
+   .lobby-left {
+        flex: 1; /* Takes top half */
         display: flex;
         flex-direction: column;
+        padding: 10px;
+        min-height: 50%;
     }
+
 
     /* Bottom Section: Chat */
     .lobby-right {
-        flex: 1; /* Takes remaining height */
-        min-height: 40%;
+        flex: 1; /* Takes bottom half */
         display: flex;
         flex-direction: column;
-        margin-bottom: 5px;
+        padding: 10px;
+        border-top: 2px solid var(--gold-dim);
     }
 
     /* Fix Lists to Scroll properly */
-    .lobby-list, .chat-box {
-        flex-grow: 1 !important;
-        height: auto !important; /* Override fixed height */
-        max-height: none !important;
+    #lobby-list {
+        flex-grow: 1;
         overflow-y: auto;
+        min-height: 0; /* Important for flex scrolling */
+        margin-bottom: 10px;
     }
 
     /* Adjust Inputs for Touch */
     .chat-input, .lobby-search, .auth-input {
         font-size: 16px; /* Prevents iOS zoom on focus */
         padding: 12px;
+    }
+	
+	.lobby-left button.auth-btn.btn-reg {
+        flex-shrink: 0; /* Prevent button from shrinking */
+        margin-top: auto; /* Push to bottom */
     }
     
     .chat-send, .auth-btn {
@@ -1101,6 +1109,27 @@
         background: rgba(0,0,0,0.3) !important;
         border-radius: 4px;
     }
+}
+
+/* --- FRIEND REQUESTS --- */
+.request-item {
+    background: rgba(234, 179, 8, 0.1); /* Gold tint */
+    border: 1px solid var(--gold-main);
+    padding: 8px; margin-bottom: 5px;
+    display: flex; justify-content: space-between; align-items: center;
+    border-radius: 4px;
+}
+.req-actions { display: flex; gap: 5px; }
+.req-btn { padding: 4px 8px; font-size: 0.7rem; cursor: pointer; border: none; border-radius: 3px; font-weight: bold; }
+
+/* Notification Badge on Profile Button */
+.notify-badge {
+    position: absolute; top: -5px; right: -5px;
+    width: 20px; height: 20px; background: #ef4444;
+    border-radius: 50%; border: 2px solid #fff;
+    color: #fff; font-size: 12px; font-weight: bold;
+    display: flex; align-items: center; justify-content: center;
+    z-index: 700;
 }
 </style>
 </head>
@@ -1669,41 +1698,66 @@
 <!-- PROFILE MODAL -->
 <div id="profile-modal" class="modal-overlay">
     <div class="modal-content" style="width: 500px;">
+        <!-- Header / Close / Password -->
         <div class="close-x" onclick="document.getElementById('profile-modal').style.display='none'">×</div>
         <div style="position:absolute; top:15px; left:15px; font-weight:bold; color:var(--gold-main);">PROFILE</div>
         <button style="position:absolute; top:10px; right:50px; background:transparent; border:none; color:#aaa; cursor:pointer;" onclick="PROFILE.changePassword()">⚙ Password</button>
         
+        <!-- Main Body -->
         <div style="padding:20px; margin-top:30px;">
+            
+            <!-- Top Section: Avatar & Details -->
             <div class="profile-layout">
+                <!-- Left Column: Avatar Display & Save -->
                 <div class="profile-left">
                     <div id="prof-avatar-display" class="profile-avatar-lg"></div>
                     <button class="choice-btn" style="padding:5px; font-size:0.7rem; width:100%;" onclick="PROFILE.save()">Save Profile</button>
                 </div>
-<!-- Inside id="profile-modal" -> class="profile-right" -->
-<div class="profile-right">
-    <!-- NEW DISPLAY NAME FIELD -->
-    <div style="margin-bottom:10px;">
-        <div class="profile-label">Display Name</div>
-        <input type="text" id="prof-display-name" class="auth-input" style="padding:8px; margin:0; border-color:var(--gold-main);" placeholder="Enter Name">
-    </div>
 
-    <!-- Existing Fields -->
-    <div>
-        <div class="profile-label">Avatar URL</div>
-        <input type="text" id="prof-avatar-input" class="auth-input" style="padding:5px; margin:0;" placeholder="Image URL">
-    </div>
-    <div style="margin-top:10px;">
-        <div class="profile-label">About Me</div>
-        <textarea id="prof-about" class="profile-textarea" placeholder="Tell us your legend..."></textarea>
-    </div>
-</div>
+                <!-- Right Column: Inputs -->
+                <div class="profile-right">
+                    <!-- Static Account Name (Email) -->
+                    <div style="margin-bottom:5px;">
+                        <div class="profile-label">Account</div>
+                        <div id="prof-username" style="font-weight:bold; font-size:0.9rem; color:#888;">-</div>
+                    </div>
+
+                    <!-- NEW: Display Name Field -->
+                    <div style="margin-bottom:10px;">
+                        <div class="profile-label">Display Name</div>
+                        <input type="text" id="prof-display-name" class="auth-input" style="padding:8px; margin:0; border-color:var(--gold-main);" placeholder="Enter Name">
+                    </div>
+
+                    <!-- Avatar URL Input -->
+                    <div style="margin-bottom:10px;">
+                        <div class="profile-label">Avatar URL</div>
+                        <input type="text" id="prof-avatar-input" class="auth-input" style="padding:5px; margin:0;" placeholder="https://example.com/image.png">
+                    </div>
+
+                    <!-- About Me -->
+                    <div>
+                        <div class="profile-label">About Me</div>
+                        <textarea id="prof-about" class="profile-textarea" placeholder="Tell us your legend..."></textarea>
+                    </div>
+                </div>
             </div>
             
+            <!-- Bottom Section: Friends -->
             <div style="margin-top:20px; border-top:1px solid #444; padding-top:10px;">
+                
+                <!-- Pending Friend Requests (Hidden by default, shown via JS) -->
+                <div id="pending-requests-container" style="display:none; margin-bottom:15px;">
+                    <div style="color:var(--gold-glow); font-size:0.8rem; margin-bottom:5px; font-weight:bold;">PENDING REQUESTS</div>
+                    <div id="pending-requests-list"></div>
+                </div>
+                
+                <!-- Friends List Header -->
                 <div style="display:flex; justify-content:space-between; align-items:center;">
                     <span style="color:var(--gold-main);">FRIENDS LIST</span>
                     <button class="choice-btn" style="padding:5px 10px; width:auto; margin:0;" onclick="FRIENDS.showAddModal()">+ Add Friend</button>
                 </div>
+
+                <!-- Friends List Container -->
                 <div id="profile-friends-list" class="friend-list"></div>
             </div>
         </div>
@@ -1877,6 +1931,7 @@ const AUTH = {
                 }
                 
                 document.getElementById('auth-screen').style.display = 'none';
+				FRIENDS.checkNotifications();
                 
                 // Existing Logic...
                 if(window.triggerGameMenu) window.triggerGameMenu();
@@ -2001,39 +2056,54 @@ const PROFILE = {
 let selectedFriendUid = null;
 
 const FRIENDS = {
+    // 1. Show Add Modal
     showAddModal: function() {
         document.getElementById('add-friend-modal').style.display = 'flex';
     },
+
+    // 2. Send Request (Instead of instant add)
     addFriend: function() {
         const email = document.getElementById('friend-email-input').value.trim();
         if(!email) return;
         
-        // Find user by email (Inefficient but works for small scale without admin SDK)
-        // Note: For production, you need an index on 'email' in Firebase Rules
+        // Find user by email
         db.ref('users').orderByChild('email').equalTo(email).once('value').then(snap => {
             if(snap.exists()) {
-                const uid = Object.keys(snap.val())[0];
-                if(uid === currentUser.uid) { alert("You cannot add yourself."); return; }
+                const targetUid = Object.keys(snap.val())[0];
+                if(targetUid === currentUser.uid) { alert("You cannot add yourself."); return; }
                 
-                db.ref(`users/${currentUser.uid}/friends/${uid}`).set(true);
-                alert("Friend Added!");
-                document.getElementById('add-friend-modal').style.display = 'none';
-                this.renderList('profile-friends-list');
+                // Check if already friends
+                db.ref(`users/${currentUser.uid}/friends/${targetUid}`).once('value').then(fSnap => {
+                    if(fSnap.exists()) {
+                        alert("Already friends!");
+                    } else {
+                        // Send Request to Target's Inbox
+                        const myName = currentUser.email.split('@')[0]; // Or displayName if available
+                        db.ref(`users/${targetUid}/friend_requests/${currentUser.uid}`).set({
+                            name: myName,
+                            email: currentUser.email
+                        });
+                        alert("Friend Request Sent!");
+                        document.getElementById('add-friend-modal').style.display = 'none';
+                    }
+                });
             } else {
                 alert("User not found.");
             }
         });
     },
-    removeFriend: function(uid) {
-        if(confirm("Remove this friend?")) {
-            db.ref(`users/${currentUser.uid}/friends/${uid}`).remove();
-            this.renderList('profile-friends-list');
-        }
-    },
+
+    // 3. Render Friends & Requests
     renderList: function(containerId, isInviteMode = false) {
         const list = document.getElementById(containerId);
         list.innerHTML = 'Loading...';
         
+        // A. Handle Requests first (Only if in Profile Mode)
+        if(!isInviteMode) {
+            this.renderRequests();
+        }
+
+        // B. Handle Actual Friends
         db.ref(`users/${currentUser.uid}/friends`).once('value').then(snap => {
             const friends = snap.val();
             list.innerHTML = '';
@@ -2043,19 +2113,21 @@ const FRIENDS = {
             Object.keys(friends).forEach(uid => {
                 db.ref(`users/${uid}`).once('value').then(uSnap => {
                     const uData = uSnap.val();
+                    if(!uData) return; // Cleanup deleted users
+                    
                     const isOnline = (uData.status === 'online');
                     
                     const div = document.createElement('div');
                     div.className = 'friend-item';
                     
-                    // Avatar or Initials
                     let avatarStyle = uData.avatar ? `background-image:url('${uData.avatar}')` : `background-color:#444`;
+                    const dName = uData.displayName || uData.name || "Unknown";
                     
                     div.innerHTML = `
                         <div class="friend-info">
                             <div class="friend-avatar" style="${avatarStyle}"></div>
                             <div>
-                                <div style="font-weight:bold; color:var(--gold-main)">${uData.name}</div>
+                                <div style="font-weight:bold; color:var(--gold-main)">${dName}</div>
                                 <div style="font-size:0.7rem; color:#aaa;">${isOnline ? 'Online' : 'Offline'}</div>
                             </div>
                         </div>
@@ -2064,7 +2136,7 @@ const FRIENDS = {
                     
                     if(isInviteMode) {
                         div.onclick = () => {
-                            ROOM.sendInvite(uid, uData.name);
+                            ROOM.sendInvite(uid, dName);
                             document.getElementById('invite-modal').style.display='none';
                         };
                     } else {
@@ -2076,30 +2148,113 @@ const FRIENDS = {
             });
         });
     },
+
+    renderRequests: function() {
+        const container = document.getElementById('pending-requests-container');
+        const list = document.getElementById('pending-requests-list');
+        
+        db.ref(`users/${currentUser.uid}/friend_requests`).once('value').then(snap => {
+            if(!snap.exists()) {
+                container.style.display = 'none';
+                return;
+            }
+            
+            container.style.display = 'block';
+            list.innerHTML = '';
+            
+            const reqs = snap.val();
+            Object.keys(reqs).forEach(uid => {
+                const req = reqs[uid];
+                const div = document.createElement('div');
+                div.className = 'request-item';
+                div.innerHTML = `
+                    <span>${req.name}</span>
+                    <div class="req-actions">
+                        <button class="req-btn" style="background:#10b981; color:#fff;" onclick="FRIENDS.acceptRequest('${uid}')">✔</button>
+                        <button class="req-btn" style="background:#ef4444; color:#fff;" onclick="FRIENDS.denyRequest('${uid}')">✖</button>
+                    </div>
+                `;
+                list.appendChild(div);
+            });
+        });
+    },
+
+    acceptRequest: function(uid) {
+        // Add to My List
+        db.ref(`users/${currentUser.uid}/friends/${uid}`).set(true);
+        // Add to Their List
+        db.ref(`users/${uid}/friends/${currentUser.uid}`).set(true);
+        // Remove Request
+        this.denyRequest(uid); // Reusing deny to clear the request node
+    },
+
+    denyRequest: function(uid) {
+        db.ref(`users/${currentUser.uid}/friend_requests/${uid}`).remove().then(() => {
+            this.renderList('profile-friends-list'); // Refresh
+            this.checkNotifications(); // Update badge
+        });
+    },
+
+    // Check for badges (Red dot)
+    checkNotifications: function() {
+        if(!currentUser) return;
+        db.ref(`users/${currentUser.uid}/friend_requests`).on('value', snap => {
+            const count = snap.numChildren();
+            const badge = document.getElementById('req-badge');
+            
+            // Logic to add badge to the profile button
+            // We need to inject the badge HTML if it doesn't exist
+            const profBtns = [document.getElementById('start-profile-btn'), document.getElementById('lobby-profile-btn')];
+            
+            profBtns.forEach(btn => {
+                if(!btn) return;
+                let b = btn.querySelector('.notify-badge');
+                if(count > 0) {
+                    if(!b) {
+                        b = document.createElement('div');
+                        b.className = 'notify-badge';
+                        btn.appendChild(b);
+                    }
+                    b.innerText = count;
+                    b.style.display = 'flex';
+                } else {
+                    if(b) b.style.display = 'none';
+                }
+            });
+            
+            // Also notify via Alert if a new one comes in? 
+            // (Optional, stick to badge for cleaner UI)
+        });
+    },
+
     openMenu: function(e, uid) {
         selectedFriendUid = uid;
         const menu = document.getElementById('friend-context-menu');
         menu.style.left = e.clientX + 'px';
         menu.style.top = e.clientY + 'px';
         menu.style.display = 'flex';
-        
-        // Close menu on next click
         setTimeout(() => document.addEventListener('click', () => menu.style.display='none', {once:true}), 100);
     },
-    actionMessage: function() {
-        alert("Messaging coming soon!"); // Placeholder
-    },
+    actionMessage: function() { alert("Messaging coming soon!"); },
     actionInvite: function() {
         if(!gameId || document.getElementById('gameroom-screen').style.display === 'none') {
             alert("You must be in a game room to invite.");
             return;
         }
-        // Simplified: Just invite to current slot? Or general invite?
-        // Let's assume general invite logic handled in ROOM
-        alert("Invite sent! (Simulated)"); 
+        // Logic handled via ROOM invite, this is just a context menu trigger
+        // We'd need to know the friend's name here to do it cleanly, 
+        // simplified: Just alert user to use the slot dropdown for now.
+        alert("Please use the 'Invite Friend' option in an empty slot dropdown.");
     },
     actionRemove: function() {
         if(selectedFriendUid) this.removeFriend(selectedFriendUid);
+    },
+    removeFriend: function(uid) {
+        if(confirm("Remove this friend?")) {
+            db.ref(`users/${currentUser.uid}/friends/${uid}`).remove();
+            db.ref(`users/${uid}/friends/${currentUser.uid}`).remove(); // Remove from both
+            this.renderList('profile-friends-list');
+        }
     }
 };
 
@@ -2491,15 +2646,42 @@ const ROOM = {
         }
     },
 
-    setSlot: function(slotIdx, type) {
+// Inside const ROOM = { ... }
+
+setSlot: function(slotIdx, type) {
         let update = { type: type };
+        
+        // Remove legacy player data if clearing slot
         if (type === 'open' || type === 'closed') {
              db.ref(`games/${gameId}/players/${slotIdx}`).remove();
         }
+        
+        // --- UPDATED AI GENERATION ---
         if(type === 'ai') {
-            update = { type: 'ai', name: "Bot " + slotIdx, color: '#888', ready: true };
+            // 1. Pick a Color not currently used in slots
+            const usedColors = [];
+            for(let i=0; i<4; i++) {
+                if(currentRoomData.slots && currentRoomData.slots[i] && currentRoomData.slots[i].color) {
+                    usedColors.push(currentRoomData.slots[i].color);
+                }
+            }
+            const availableColors = PLAYER_COLORS.filter(c => !usedColors.includes(c));
+            const aiColor = availableColors.length > 0 ? availableColors[0] : '#888';
+
+            // 2. Pick Random Name
+            const aiName = NPC_NAMES[Math.floor(Math.random() * NPC_NAMES.length)];
+
+            update = { 
+                type: 'ai', 
+                name: aiName, 
+                color: aiColor, 
+                ready: true 
+            };
+            
+            // Update legacy players node so startGame knows an AI exists there
             db.ref(`games/${gameId}/players/${slotIdx}`).set({ id: slotIdx, uid: 'AI_'+slotIdx }); 
         } 
+
         db.ref(`games/${gameId}/slots/${slotIdx}`).set(update);
     },
 
@@ -7282,63 +7464,79 @@ function startGame() {
     document.getElementById('create-screen').style.display='none';
     const name = document.getElementById('char-name-input').value || "Hero";
 
-// --- MULTIPLAYER STARTUP ---
+    // --- MULTIPLAYER STARTUP ---
     if(isMultiplayer && db && gameId) {
         
-        // The game has already started via ROOM.startGame(), we just need to load data
+        // 1. Save My Hero Data to DB (Ensures latest display name/avatar is used)
+        const pData = {
+            id: myPlayerId, name: name, race: selRace, class: selClass,
+            activeSkillId: selActiveId, passiveSkillId: selPassiveId, color: selColor,
+            ready: true
+        };
+        db.ref(`games/${gameId}/players/${myPlayerId}`).update(pData);
         
-        // Loop through all players in DB and spawn them locally
-        // Note: We use the 'slots' data now for cleaner visual, or 'players' legacy
-        // Let's stick to 'players' which we kept synced in ROOM.saveCharacter
+        addLog("Waiting for other players...", "log-gold");
         
-        // We need a one-time fetch here because on('value') handles the sync
-        db.ref(`games/${gameId}`).once('value').then(snap => {
-            const g = snap.val();
-            
-            gameState = 'ROLL';
-            
-            // Spawn players based on slot order (0 to 3)
-            for(let i=0; i<4; i++) {
-                // Check slots first to handle AI correctly
-                const slot = g.slots[i];
-                if(slot.type === 'human') {
-                    // Get detailed data from players node or slot charData
-                    const pData = g.players[i]; 
-                    spawnPlayer(i, slot.name, pData.race, pData.class, pData.activeSkillId, pData.passiveSkillId, (i !== myPlayerId), slot.color);
-                } else if(slot.type === 'ai') {
-                    // Random gen for AI if not specified, or standard basic AI
-                    const r = RACES[Math.floor(Math.random()*RACES.length)]; 
-                    const c = CLASSES[Math.floor(Math.random()*CLASSES.length)];
-                    const act = c.actives[0]; const pas = c.passives[0];
-                    spawnPlayer(i, "Computer "+i, r, c, act, pas, true, slot.color || '#888');
-                }
-            }
-            
-            updateHUD();
-            addLog("The Adventure Begins!");
+        // 2. Host Logic: Start Game after delay
+        if(myPlayerId === 0) {
+            setTimeout(() => {
+                db.ref(`games/${gameId}`).update({ status: 'playing', turnIndex: 0 });
+            }, 3000);
+        }
 
-            // Turn Sync Listener
-            db.ref(`games/${gameId}`).on('value', snap => {
-                const updated = snap.val();
-                if(updated.turnIndex !== undefined && updated.turnIndex !== turnIndex) {
-                    turnIndex = updated.turnIndex;
-                    updateHUD();
-                    const curP = players[turnIndex];
-                    if(curP) {
-                        addLog(curP.id === myPlayerId ? "Your Turn!" : `${curP.name}'s Turn`);
-                        if(curP.id === myPlayerId) AUDIO.playSound('sfx_transition');
+        // 3. Listen for Game Start (All Players)
+        db.ref(`games/${gameId}`).on('value', snap => {
+            const g = snap.val();
+            if(!g) return;
+            
+            // IF GAME STARTED and we haven't spawned players yet
+            if(g.status === 'playing' && players.length === 0) {
+                gameState = 'ROLL';
+                // Loop through all players in DB and spawn them locally
+                for(let i=0; i<4; i++) {
+                    const slot = g.slots[i];
+                    if(!slot) continue;
+
+                    if(slot.type === 'human') {
+                        // Get detailed data from players node
+                        const pData = g.players[i]; 
+                        if(pData) {
+                             spawnPlayer(i, slot.name, pData.race, pData.class, pData.activeSkillId, pData.passiveSkillId, (i !== myPlayerId), slot.color);
+                        }
+                    } else if(slot.type === 'ai') {
+                        // Generate AI stats based on the saved Slot Name/Color
+                        const r = RACES[Math.floor(Math.random()*RACES.length)]; 
+                        const c = CLASSES[Math.floor(Math.random()*CLASSES.length)];
+                        const act = c.actives[0]; const pas = c.passives[0];
+                        
+                        // UPDATED LINE: Use slot.name instead of "Computer"
+                        spawnPlayer(i, slot.name || "Computer "+i, r, c, act, pas, true, slot.color || '#888');
                     }
                 }
-            });
+
+                updateHUD();
+                addLog("The Adventure Begins!");
+            }
+            
+            // SYNC TURNS
+            if(g.status === 'playing' && g.turnIndex !== undefined && g.turnIndex !== turnIndex) {
+                turnIndex = g.turnIndex;
+                updateHUD();
+                const curP = players[turnIndex];
+                if(curP) {
+                    addLog(curP.id === myPlayerId ? "Your Turn!" : `${curP.name}'s Turn`);
+                    if(curP.id === myPlayerId) AUDIO.playSound('sfx_transition');
+                }
+            }
         });
 
     } else {
-        // ... (Existing Single Player Logic) ...
         // --- SINGLE PLAYER (ORIGINAL) LOGIC ---
         spawnPlayer(0, name, selRace, selClass, selActiveId, selPassiveId, false, selColor);
         let aiColors = PLAYER_COLORS.filter(c => c !== selColor); let availableNames = [...NPC_NAMES];
         for(let i=1; i<4; i++) { 
             const r = RACES[Math.floor(Math.random()*RACES.length)]; const c = CLASSES[Math.floor(Math.random()*CLASSES.length)]; 
+            // Random Name for Single Player
             const aiName = availableNames.splice(Math.floor(Math.random() * availableNames.length), 1)[0]; 
             const aiCol = aiColors.splice(Math.floor(Math.random()*aiColors.length), 1)[0]; 
             const act = c.actives[Math.floor(Math.random()*3)]; const pas = c.passives[Math.floor(Math.random()*3)]; 
