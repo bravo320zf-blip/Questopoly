@@ -2839,16 +2839,14 @@ const ROOM = {
         db.ref(`games/${gameId}`).on('value', snap => {
             currentRoomData = snap.val();
             
-            // --- GAME CLOSED / DELETED ---
+            // Game Deleted Check
             if(!currentRoomData) { 
-                // If I am NOT the host (Host knows they closed it), warn me
-                if(myPlayerId !== 0) {
-                    alert("The Host has left the game.");
-                }
+                if(myPlayerId !== 0) alert("The Host has left the game.");
                 this.leaveUI(); 
                 return; 
             } 
             
+            // Game Started Check
             if(currentRoomData.status === 'playing') {
                 document.getElementById('gameroom-screen').style.display = 'none';
                 db.ref(`games/${gameId}`).off(); 
@@ -2859,7 +2857,7 @@ const ROOM = {
             this.renderSlots();
         });
         
-        // Listen to Room Chat
+        // Listen to Chat
         const chatBox = document.getElementById('room-chat-box');
         chatBox.innerHTML = '';
         db.ref(`games/${gameId}/chat`).limitToLast(50).on('child_added', snap => {
@@ -2883,7 +2881,7 @@ const ROOM = {
         let aiCount = 0;
         let openCount = 0;
 
-        // 1. Handle Host Settings Area
+        // 1. Host Settings
         const settingsArea = document.getElementById('host-settings-area');
         if(isHost) {
             settingsArea.style.display = 'block';
@@ -2901,18 +2899,28 @@ const ROOM = {
             slotEl.innerHTML = '';
             slotEl.className = 'player-slot';
             
+            // --- HUMAN ---
             if (data.type === 'human') {
                 humanCount++;
                 let isMe = (i === myPlayerId);
-                if(data.ready) { slotEl.classList.add('ready'); humanReadyCount++; }
+                
+                if(data.ready) {
+                    slotEl.classList.add('ready');
+                    humanReadyCount++;
+                }
 
                 let desc = "Selecting Character...";
-                if(data.charData) desc = `<span style="color:${data.color}">Lvl 1 ${data.charData.race.name} ${data.charData.class.name}</span>`;
+                if(data.charData) {
+                     desc = `<span style="color:${data.color}">Lvl 1 ${data.charData.race.name} ${data.charData.class.name}</span>`;
+                }
 
                 let actionBtn = '';
                 if(isMe) {
-                    if(data.ready) actionBtn = `<button class="slot-action-btn edit" onclick="ROOM.editCharacter()">Edit Character</button>`;
-                    else actionBtn = `<button class="slot-action-btn" onclick="ROOM.editCharacter()">Create Character</button>`;
+                    if(data.ready) {
+                        actionBtn = `<button class="slot-action-btn edit" onclick="ROOM.editCharacter()">Edit Character</button>`;
+                    } else {
+                        actionBtn = `<button class="slot-action-btn" onclick="ROOM.editCharacter()">Create Character</button>`;
+                    }
                 } else if (isHost && i !== 0) {
                     actionBtn = `<button style="background:#ef4444; color:#fff; border:none; cursor:pointer; padding:5px 10px; border-radius:4px;" onclick="ROOM.kick(${i})">KICK</button>`;
                 }
@@ -2928,7 +2936,9 @@ const ROOM = {
                     <div>${actionBtn}</div>
                 `;
 
-            } else if (data.type === 'open') {
+            } 
+            // --- OPEN ---
+            else if (data.type === 'open') {
                 openCount++;
                 slotEl.classList.add('open');
                 if (isHost) {
@@ -2944,7 +2954,9 @@ const ROOM = {
                 } else {
                     slotEl.innerHTML = `<div style="color:#666; width:100%; text-align:center;">Waiting for player...</div>`;
                 }
-            } else if (data.type === 'ai') {
+            } 
+            // --- AI ---
+            else if (data.type === 'ai') {
                  aiCount++;
                  slotEl.innerHTML = `
                     <div class="slot-left-group">
@@ -2958,8 +2970,9 @@ const ROOM = {
                 if(isHost) {
                      slotEl.innerHTML += `<button style="background:#ef4444; color:#fff; border:none; cursor:pointer; padding:5px 10px; border-radius:4px;" onclick="ROOM.setSlot(${i}, 'open')">Remove</button>`;
                 }
-            } else {
-                // Invited/Closed
+            } 
+            // --- INVITED / CLOSED ---
+            else {
                 let statusText = (data.type === 'closed') ? "Closed" : `Invited: ${data.name}`;
                 slotEl.innerHTML = `<div style="color:#666;">${statusText}</div>`;
                 if(isHost) slotEl.innerHTML += `<button style="background:#444; color:#fff; border:none; cursor:pointer; padding:5px;" onclick="ROOM.setSlot(${i}, 'open')">Open</button>`;
@@ -3003,19 +3016,16 @@ const ROOM = {
         }
     },
 
-// Inside const ROOM = { ... }
-
-setSlot: function(slotIdx, type) {
+    setSlot: function(slotIdx, type) {
         let update = { type: type };
         
-        // Remove legacy player data if clearing slot
         if (type === 'open' || type === 'closed') {
              db.ref(`games/${gameId}/players/${slotIdx}`).remove();
         }
         
-        // --- UPDATED AI GENERATION ---
+        // AI Logic
         if(type === 'ai') {
-            // 1. Pick a Color not currently used in slots
+            // Find unused color
             const usedColors = [];
             for(let i=0; i<4; i++) {
                 if(currentRoomData.slots && currentRoomData.slots[i] && currentRoomData.slots[i].color) {
@@ -3024,18 +3034,9 @@ setSlot: function(slotIdx, type) {
             }
             const availableColors = PLAYER_COLORS.filter(c => !usedColors.includes(c));
             const aiColor = availableColors.length > 0 ? availableColors[0] : '#888';
-
-            // 2. Pick Random Name
             const aiName = NPC_NAMES[Math.floor(Math.random() * NPC_NAMES.length)];
 
-            update = { 
-                type: 'ai', 
-                name: aiName, 
-                color: aiColor, 
-                ready: true 
-            };
-            
-            // Update legacy players node so startGame knows an AI exists there
+            update = { type: 'ai', name: aiName, color: aiColor, ready: true };
             db.ref(`games/${gameId}/players/${slotIdx}`).set({ id: slotIdx, uid: 'AI_'+slotIdx }); 
         } 
 
@@ -3050,7 +3051,7 @@ setSlot: function(slotIdx, type) {
                  uid: uid,
                  name: name,
                  ready: false,
-                 color: '#444' 
+                 color: '#444'
              });
              this.sendChat(`Invited ${name} to Slot ${slotIdx + 1}`);
         }
@@ -3114,18 +3115,13 @@ setSlot: function(slotIdx, type) {
         db.ref(`games/${gameId}`).update({ status: 'playing' });
     },
 
-    // --- UPDATED LEAVE LOGIC ---
     leave: function() {
         if(myPlayerId === 0) {
-            // HOST LOGIC: Delete game
             if(confirm("You are the host. Leaving will close the game room for everyone. Continue?")) {
                 db.ref(`games/${gameId}`).remove();
-                // We rely on the .on('value') listener to trigger leaveUI, but since we remove the node, 
-                // the listener might fire with null immediately. We call leaveUI just in case.
                 this.leaveUI(); 
             }
         } else {
-            // CLIENT LOGIC: Just empty the slot
             this.setSlot(myPlayerId, 'open');
             this.leaveUI();
         }
