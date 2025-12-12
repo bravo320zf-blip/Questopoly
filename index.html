@@ -3174,6 +3174,7 @@ let selRace=null, selClass=null, selColor="#ef4444", selActiveId=null, selPassiv
 let nightBoard = null; 
 let fogGroup = null;
 let turnProcessing = false;
+let lastMoveTimestamp = 0; // Tracks the last processed move ID
 
 // --- GUARD & ANIMATION GLOBALS ---
 let activeGuards = []; // Tracks all guard objects for animation
@@ -5388,52 +5389,32 @@ function rollMove() {
     
     const p = players[turnIndex]; 
     
-    // --- MULTIPLAYER CHECK ---
-    // If Multiplayer:
-    // 1. If it's a Human opponent's turn, STOP (Wait for Firebase sync).
-    // 2. If it's MY turn, Proceed.
-    // 3. If it's an AI turn, Proceed (Everyone simulates AI locally).
+    // MP Check: Only allow if it's My Turn OR if I am Host managing an AI
     if(isMultiplayer) {
-        if (!p.isAi && p.id !== myPlayerId) {
-            return; 
-        }
+        if (!p.isAi && p.id !== myPlayerId) return; // Not my turn
+        if (p.isAi && myPlayerId !== 0) return; // Only Host runs AI logic
     }
 
     if(p.isDead) { endTurn(); return; }
     
-    debugLog(`Start Turn: ${p.name}`);
-    
-    // --- IMMEDIATE UI UPDATE ---
-    const btn = document.getElementById('btn-action');
-    if(btn) { btn.disabled = true; btn.innerText = "MOVING..."; btn.classList.remove('state-end'); }
-
-    if (p.isEventEntity) {
-        const r = Math.floor(Math.random() * 6) + 1;
-        addLog(`${p.name} travels ${r} spaces.`);
-        gameState = 'MOVING'; animateMove(p, r); return; 
-    }
-
-    if(turnIndex === 0) {
-        turnCount++;
-        if(turnCount % 10 === 0) { isNight = !isNight; transitionDayNight(isNight); AUDIO.playMusic(isNight); }
-    }
-
-    p.abilityUsed=false; 
-    if(p.isSkipping){ p.isSkipping=false; addLog(p.name+" skips turn.","log-fail"); endStep(); return; } 
-    
-    if(p.isPolymorphed) {
-        addLog(`${p.name} is a sheep! (Stats reduced, Move slowed)`);
-        finishRollLogic(p, Math.floor(Math.random() * 3) + 1); return;
-    }
-
-    // Logic for standard roll
+    // --- GENERATE ROLL ---
     let d1 = Math.floor(Math.random() * 6) + 1;
     let d2 = Math.floor(Math.random() * 6) + 1;
-    
-    // If I am not the host and it's an AI turn, use a "Simulated" log so it looks cleaner
-    // (In a perfect world we'd sync the dice roll, but this keeps the game moving)
+
+    // --- MULTIPLAYER: WRITE TO DB (Don't move yet) ---
+    if(isMultiplayer && db && gameId) {
+        db.ref(`games/${gameId}/currentMove`).set({
+            pid: p.id,
+            d1: d1,
+            d2: d2,
+            timestamp: firebase.database.ServerValue.TIMESTAMP
+        });
+        // We stop here. The 'startGame' listener will pick this up and animate everyone.
+        return; 
+    }
+
+    // --- SINGLE PLAYER LOGIC ---
     addLog(`${p.name} rolled ${d1+d2}.`);
-    
     if (p.id === myPlayerId) AUDIO.playSound('sfx_roll');
     finishRollLogic(p, d1 + d2);
 }
@@ -6533,124 +6514,36 @@ function createGuardMesh() {
 }
 
 function capture(t, p, lvl, callback) {
-    const previousOwner = t.userData.owner;
-    const wasEnemy = (previousOwner !== null && previousOwner !== p.id);
+    const isUpgrade = (lvl > 1);
 
-    // 1. Update Tile Data
+    // --- MP LOGIC: WRITE TO DB ---
+    if(isMultiplayer && db && gameId) {
+        db.ref(`games/${gameId}/board/${t.userData.id}`).set({
+            owner: p.id,
+            level: lvl,
+            guardCount: t.userData.guardCount || 0,
+            defendingStat: t.userData.defendingStat || 'str'
+        });
+        
+        // In MP, we wait for the listener to trigger the visual, 
+        // but for immediate feedback we can run visuals too. 
+        // However, let's let the listener handle it to ensure sync.
+        if (callback) setTimeout(callback, 2000); 
+        return; 
+    }
+
+    // --- SP LOGIC ---
     t.userData.owner = p.id; 
     t.userData.buildingLevel = lvl; 
-    // Note: We don't reset guardCount here because we might be upgrading a tavern that already has guards.
-    // If it's a fresh capture of an enemy, guards should have been set to 0 by the siege logic before calling this.
+    applyCaptureVisuals(t, p, lvl);
     
-    // 2. Remove Old Visuals
-    if (t.userData.prop) {
-        t.remove(t.userData.prop);
-        t.userData.prop = null;
-    }
-    
-    // 3. Clear Active Guards for this specific tile ID (Prevent ghost guards)
-    if (typeof activeGuards !== 'undefined') {
-        activeGuards = activeGuards.filter(g => g.tileId !== t.userData.id);
-    }
-
-    // --- HIDE UI ---
-    document.getElementById('card-modal').classList.remove('active');
-
-    // 4. Create New Visual Group
-    const g = new THREE.Group();
-    
-    // Use Player Color (Safe for Polymorph)
-    const buildingMat = new THREE.MeshStandardMaterial({ color: p.color });
-
-    if (lvl === 1) { 
-        // Campsite (Cone)
-        const m = new THREE.Mesh(new THREE.ConeGeometry(1, 1.5, 4), buildingMat); 
-        m.position.set(0, 0.5, 0); 
-        g.add(m); 
-    } else { 
-        // Tavern (House)
-        const b = new THREE.Mesh(new THREE.BoxGeometry(1.5, 1, 1.5), new THREE.MeshStandardMaterial({ color: 0x5c4033 })); 
-        b.position.set(0, 0.5, 0); 
-        const r = new THREE.Mesh(new THREE.ConeGeometry(1.5, 1, 4), buildingMat); 
-        r.position.set(0, 1.5, 0); r.rotation.y = Math.PI / 4; 
-        g.add(b); g.add(r); 
-    }
-
-    // --- 5. SPAWN GUARDS ---
-    const guardCount = t.userData.guardCount || 0;
-    if (guardCount > 0 && typeof createGuardMesh === 'function') {
-        for(let i=0; i<guardCount; i++) {
-            const guardMesh = createGuardMesh();
-            
-            // Place randomly around the center, but not IN the center
-            const angle = Math.random() * Math.PI * 2;
-            const radius = 1.1 + (Math.random() * 0.5); // 1.1 to 1.6 distance
-            guardMesh.position.set(Math.cos(angle)*radius, 0, Math.sin(angle)*radius);
-            
-            // Add to the Tile Group so it moves with the tile (and animation logic works locally)
-            g.add(guardMesh);
-            
-            // Register for Animation Loop
-            activeGuards.push({
-                mesh: guardMesh,
-                target: { x: guardMesh.position.x, z: guardMesh.position.z }, // Initialize target as current pos
-                tileId: t.userData.id
-            });
-        }
-    }
-    
-    // --- 6. ANIMATIONS ---
-    // Start underground and rise up
-    g.position.y = -5; 
-    t.add(g); 
-    t.userData.prop = g;
-    
-    // Building Rise
-    new TWEEN.Tween(g.position)
-        .to({y: 0}, 4000) 
-        .easing(TWEEN.Easing.Elastic.Out) 
-        .start();
-    
-    // Player Victory Dance (Spin & Hop)
-    new TWEEN.Tween(p.mesh.rotation)
-        .to({ y: p.mesh.rotation.y + Math.PI * 4 }, 2000) 
-        .easing(TWEEN.Easing.Cubic.Out)
-        .start();
-        
-    new TWEEN.Tween(p.mesh.position)
-        .to({ y: 2.5 }, 500)
-        .yoyo(true)
-        .repeat(3) 
-        .start();
-    
-    addLog(lvl === 1 ? "Captured!" : "Upgraded!", "log-success");
-
-    // --- 7. LOGIC & PASSIVES ---
-    
-    // Cutpurse Passive (Global check)
-    players.forEach(other => {
-        if (!other.isDead && other.id !== p.id && other.passiveSkillId === 'cutpurse') {
-            other.gold += 10;
-        }
-    });
-
-    // Player OnCapture Passive
-    if (wasEnemy) {
-        const pass = ABILITY_LIBRARY[p.passiveSkillId];
-        if (pass && pass.onCapture) pass.onCapture(p, t);
-    }
-
-    // --- 8. NEXT STEP ---
+    // Callback flow
     if (p.id === 0) {
-        // Human: If Lv1 Capture, pick defense. If Upgrade, just end.
-        if (lvl === 1) { 
-            setTimeout(() => chooseDefense(t, callback), 4000); 
-        } else { 
-            if (callback) setTimeout(callback, 4000); 
-            else setTimeout(endStep, 4000); 
-        }
+        if (lvl === 1) setTimeout(() => chooseDefense(t, callback), 4000); 
+        else if (callback) setTimeout(callback, 4000); 
+        else setTimeout(endStep, 4000); 
     } else {
-        // AI Logic: Auto-pick defense
+        // AI Logic
         const s = p.stats; 
         if (s.str >= s.dex && s.str >= s.int) t.userData.defendingStat = 'str'; 
         else if (s.dex >= s.str && s.dex >= s.int) t.userData.defendingStat = 'dex'; 
@@ -6659,6 +6552,68 @@ function capture(t, p, lvl, callback) {
         if (callback) setTimeout(callback, 2000);
         else setTimeout(endStep, 2000);
     }
+}
+
+// NEW FUNCTION: Handles the 3D graphics (Called by Capture OR DB Listener)
+function applyCaptureVisuals(t, p, lvl) {
+    // 1. Remove Old Visuals
+    if (t.userData.prop) {
+        t.remove(t.userData.prop);
+        t.userData.prop = null;
+    }
+    
+    // Clear old guards for this tile
+    if (typeof activeGuards !== 'undefined') {
+        activeGuards = activeGuards.filter(g => g.tileId !== t.userData.id);
+    }
+
+    // Hide UI if open
+    document.getElementById('card-modal').classList.remove('active');
+
+    // 2. Create New Visual Group
+    const g = new THREE.Group();
+    const buildingMat = new THREE.MeshStandardMaterial({ color: p.color });
+
+    if (lvl === 1) { 
+        // Campsite
+        const m = new THREE.Mesh(new THREE.ConeGeometry(1, 1.5, 4), buildingMat); 
+        m.position.set(0, 0.5, 0); 
+        g.add(m); 
+    } else { 
+        // Tavern
+        const b = new THREE.Mesh(new THREE.BoxGeometry(1.5, 1, 1.5), new THREE.MeshStandardMaterial({ color: 0x5c4033 })); 
+        b.position.set(0, 0.5, 0); 
+        const r = new THREE.Mesh(new THREE.ConeGeometry(1.5, 1, 4), buildingMat); 
+        r.position.set(0, 1.5, 0); r.rotation.y = Math.PI / 4; 
+        g.add(b); g.add(r); 
+    }
+
+    // 3. Spawn Guards
+    const guardCount = t.userData.guardCount || 0;
+    if (guardCount > 0 && typeof createGuardMesh === 'function') {
+        for(let i=0; i<guardCount; i++) {
+            const guardMesh = createGuardMesh();
+            const angle = Math.random() * Math.PI * 2;
+            const radius = 1.1 + (Math.random() * 0.5); 
+            guardMesh.position.set(Math.cos(angle)*radius, 0, Math.sin(angle)*radius);
+            g.add(guardMesh);
+            activeGuards.push({
+                mesh: guardMesh,
+                target: { x: guardMesh.position.x, z: guardMesh.position.z }, 
+                tileId: t.userData.id
+            });
+        }
+    }
+    
+    // 4. Animations
+    g.position.y = -5; 
+    t.add(g); 
+    t.userData.prop = g;
+    
+    new TWEEN.Tween(g.position).to({y: 0}, 4000).easing(TWEEN.Easing.Elastic.Out).start();
+    
+    addLog(lvl === 1 ? `${p.name} captured land!` : `${p.name} upgraded!`, "log-success");
+    updateHUD();
 }
 function chooseDefense(t, callback) { 
     // This function runs while camera is still zoomed in
@@ -7958,7 +7913,7 @@ function startGame() {
     // --- MULTIPLAYER STARTUP ---
     if(isMultiplayer && db && gameId) {
         
-        // 1. Save My Hero Data to DB (Ensures latest display name/avatar is used)
+        // 1. Sync User Data
         const pData = {
             id: myPlayerId, name: name, race: selRace, class: selClass,
             activeSkillId: selActiveId, passiveSkillId: selPassiveId, color: selColor,
@@ -7968,66 +7923,49 @@ function startGame() {
         
         addLog("Waiting for other players...", "log-gold");
         
-        // 2. Host Logic: Start Game after delay
         if(myPlayerId === 0) {
             setTimeout(() => {
                 db.ref(`games/${gameId}`).update({ status: 'playing', turnIndex: 0 });
             }, 3000);
         }
 
-        // 3. Listen for Game Start (All Players)
-        db.ref(`games/${gameId}`).on('value', snap => {
+        // --- GAME EVENT LISTENERS ---
+        
+        // A. Listen for Player Spawns
+        db.ref(`games/${gameId}`).once('value', snap => {
             const g = snap.val();
             if(!g) return;
-            
-            // IF GAME STARTED and we haven't spawned players yet
+
             if(g.status === 'playing' && players.length === 0) {
                 gameState = 'ROLL';
-                // Loop through all players in DB and spawn them locally
                 for(let i=0; i<4; i++) {
                     const slot = g.slots[i];
                     if(!slot) continue;
-
                     if(slot.type === 'human') {
-                        // Get detailed data from players node
-                        const pData = g.players[i]; 
-                        if(pData) {
-                             spawnPlayer(i, slot.name, pData.race, pData.class, pData.activeSkillId, pData.passiveSkillId, (i !== myPlayerId), slot.color);
-                        }
+                        const pData = g.players[i];
+                        if(pData) spawnPlayer(i, slot.name, pData.race, pData.class, pData.activeSkillId, pData.passiveSkillId, (i !== myPlayerId), slot.color);
                     } else if(slot.type === 'ai') {
-                        // Generate AI stats based on the saved Slot Name/Color
+                        // AI Gen
                         const r = RACES[Math.floor(Math.random()*RACES.length)]; 
                         const c = CLASSES[Math.floor(Math.random()*CLASSES.length)];
                         const act = c.actives[0]; const pas = c.passives[0];
-                        
-                        // UPDATED LINE: Use slot.name instead of "Computer"
                         spawnPlayer(i, slot.name || "Computer "+i, r, c, act, pas, true, slot.color || '#888');
                     }
                 }
-
                 updateHUD();
                 addLog("The Adventure Begins!");
-            }
-            
-            // SYNC TURNS
-            if(g.status === 'playing' && g.turnIndex !== undefined && g.turnIndex !== turnIndex) {
-                turnIndex = g.turnIndex;
-                updateHUD();
-                const curP = players[turnIndex];
-                if(curP) {
-                    addLog(curP.id === myPlayerId ? "Your Turn!" : `${curP.name}'s Turn`);
-                    if(curP.id === myPlayerId) AUDIO.playSound('sfx_transition');
-                }
+                
+                // START LISTENING FOR GAMEPLAY EVENTS
+                setupMultiplayerListeners();
             }
         });
 
     } else {
-        // --- SINGLE PLAYER (ORIGINAL) LOGIC ---
+        // --- SINGLE PLAYER LOGIC ---
         spawnPlayer(0, name, selRace, selClass, selActiveId, selPassiveId, false, selColor);
         let aiColors = PLAYER_COLORS.filter(c => c !== selColor); let availableNames = [...NPC_NAMES];
         for(let i=1; i<4; i++) { 
             const r = RACES[Math.floor(Math.random()*RACES.length)]; const c = CLASSES[Math.floor(Math.random()*CLASSES.length)]; 
-            // Random Name for Single Player
             const aiName = availableNames.splice(Math.floor(Math.random() * availableNames.length), 1)[0]; 
             const aiCol = aiColors.splice(Math.floor(Math.random()*aiColors.length), 1)[0]; 
             const act = c.actives[Math.floor(Math.random()*3)]; const pas = c.passives[Math.floor(Math.random()*3)]; 
@@ -8038,8 +7976,73 @@ function startGame() {
         addLog("Welcome to Questopoly!");
     }
     
-    // Start Music
     AUDIO.playMusic(false); 
+}
+
+// --- NEW HELPER FUNCTION FOR MP LISTENERS ---
+function setupMultiplayerListeners() {
+    // 1. Listen for Turn Changes
+    db.ref(`games/${gameId}/turnIndex`).on('value', snap => {
+        const idx = snap.val();
+        if(idx !== null && idx !== turnIndex) {
+            turnIndex = idx;
+            updateHUD();
+            const curP = players[turnIndex];
+            if(curP) {
+                addLog(curP.id === myPlayerId ? "Your Turn!" : `${curP.name}'s Turn`);
+                if(curP.id === myPlayerId) AUDIO.playSound('sfx_transition');
+                
+                // If it's AI turn and I am Host, I trigger the AI roll
+                if(curP.isAi && myPlayerId === 0) {
+                    setTimeout(rollMove, 1500); 
+                }
+            }
+        }
+    });
+
+    // 2. Listen for MOVES (Dice Rolls)
+    db.ref(`games/${gameId}/currentMove`).on('value', snap => {
+        const move = snap.val();
+        if(!move) return;
+
+        // Check timestamp to avoid re-playing old moves
+        if(move.timestamp <= lastMoveTimestamp) return;
+        lastMoveTimestamp = move.timestamp;
+
+        const p = players.find(pl => pl.id === move.pid);
+        if(p) {
+            addLog(`${p.name} rolled ${move.d1 + move.d2}.`);
+            // Play sound only if it's me
+            if(p.id === myPlayerId) AUDIO.playSound('sfx_roll');
+            
+            // EXECUTE MOVEMENT LOCALLY
+            finishRollLogic(p, move.d1 + move.d2);
+        }
+    });
+
+    // 3. Listen for Map Captures
+    db.ref(`games/${gameId}/board`).on('child_added', handleBoardUpdate);
+    db.ref(`games/${gameId}/board`).on('child_changed', handleBoardUpdate);
+}
+
+function handleBoardUpdate(snap) {
+    const tileId = snap.key;
+    const data = snap.val(); // { owner: id, level: 1 }
+    
+    const tile = tiles[tileId];
+    const owner = players.find(p => p.id === data.owner);
+    
+    if(tile && owner) {
+        // Update local data to match DB
+        tile.userData.owner = owner.id;
+        tile.userData.buildingLevel = data.level;
+        tile.userData.guardCount = data.guardCount || 0;
+        tile.userData.defendingStat = data.defendingStat || 'str';
+
+        // Trigger visual update (Building mesh)
+        // We pass 'true' as 4th arg to skip DB write inside capture()
+        applyCaptureVisuals(tile, owner, data.level); 
+    }
 }
 function forcePortrait() {
     // Check if the Screen Orientation API is supported
