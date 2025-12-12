@@ -2643,7 +2643,6 @@ const LOBBY = {
                     const div = document.createElement('div');
                     div.className = 'lobby-item';
                     
-                    // --- SHOW DELETE BUTTON IF ADMIN OR HOST ---
                     let deleteBtn = '';
                     if (isAdminMode || isMine) {
                         deleteBtn = `<button style="background:transparent; border:none; color:#ef4444; font-weight:bold; cursor:pointer; margin-left:10px; font-size:1.2rem;" onclick="event.stopPropagation(); LOBBY.deleteGame('${k}', ${isMine})" title="Delete Game">×</button>`;
@@ -2662,14 +2661,10 @@ const LOBBY = {
         });
     },
     
-    // Updated Delete Function
     deleteGame: function(gid, isMine) {
         const msg = isMine ? "Delete your game room?" : "Delete this game room? (Admin Action)";
         if(confirm(msg)) {
-            db.ref(`games/${gid}`).remove()
-              .then(() => {
-                  this.refreshList();
-              });
+            db.ref(`games/${gid}`).remove().then(() => this.refreshList());
         }
     },
 
@@ -2692,102 +2687,115 @@ const LOBBY = {
             }
         });
     },
+    
+    // --- UPDATED JOIN LOGIC ---
 joinGame: function(gid) {
         if(!db) return;
-        if(!currentUser) {
-            alert("You must be logged in to join a game.");
-            return;
+        
+        // 1. Get Current User directly from Auth to be safe
+        const user = firebase.auth().currentUser;
+        if(!user) { 
+            alert("You must be logged in to join."); 
+            return; 
         }
 
         gameId = gid;
         isMultiplayer = true;
-        const ref = db.ref(`games/${gid}`);
-        
-        ref.transaction(g => {
-            // Check if game data exists
-            if (g && g.status === 'waiting' && g.slots) {
-                
-                let slot = -1;
+        const myUid = user.uid;
+        // Fallback name if display name isn't fetched yet
+        const myName = user.email ? user.email.split('@')[0] : "Player"; 
 
-                // 1. Check if I am ALREADY in this game (Re-joining)
-                for(let i=0; i<4; i++) {
-                    if(g.slots[i] && (g.slots[i].uid === currentUser.uid)) {
-                        // I'm already here! Just let me in.
-                        return g; 
-                    }
-                }
+        const gameRef = db.ref(`games/${gid}`);
 
-                // 2. Check for Specific Invite
-                for(let i=0; i<4; i++) {
-                    if(g.slots[i] && g.slots[i].type === 'invited' && g.slots[i].uid === currentUser.uid) {
-                        slot = i; 
-                        break;
-                    }
-                }
-                
-                // 3. If not invited, find first 'open' slot
-                if(slot === -1) {
-                    for(let i=0; i<4; i++) {
-                         if(g.slots[i] && g.slots[i].type === 'open') { 
-                             slot = i; 
-                             break; 
-                         }
-                    }
-                }
-                
-                // 4. Occupy the slot
-                if(slot !== -1) {
-                    if (!g.players) g.players = {};
+        // 2. Fetch Game Data Once
+        gameRef.once('value').then(snap => {
+            const g = snap.val();
+            
+            if(!g) { alert("Game not found."); return; }
+            if(g.status !== 'waiting') { alert("Game has already started."); return; }
 
-                    // Update Slot Visuals
-                    g.slots[slot] = { 
-                        type: 'human', 
-                        uid: currentUser.uid, 
-                        // Use local display name (transaction can't be async, so we use temp name and update after)
-                        name: currentUser.email.split('@')[0], 
-                        ready: false,
-                        color: PLAYER_COLORS[slot] 
-                    };
-                    
-                    // Update Game Logic
-                    g.players[slot] = { id: slot, uid: currentUser.uid }; 
-                    
-                    return g; // Commit
+            // 3. Logic: Find Slot
+            let targetSlot = -1;
+            
+            // A. Check if I am ALREADY in this game (Re-joining)
+            for(let i=0; i<4; i++) {
+                // Check safely if slot exists and matches UID
+                if(g.slots && g.slots[i] && g.slots[i].uid === myUid) {
+                    myPlayerId = i;
+                    ROOM.enter(g);
+                    return; // Enter immediately
                 }
             }
-            // If we get here, game is full/started/invalid, return undefined to abort
-        }, (err, committed, snap) => {
-            if(committed) {
-                const g = snap.val();
-                
-                // Find MY slot ID based on my UID
-                let mySlot = -1;
+            
+            // B. Check for Specific Invite (Invited slots reserve spot for UID)
+            for(let i=0; i<4; i++) {
+                if(g.slots && g.slots[i] && g.slots[i].type === 'invited' && g.slots[i].uid === myUid) {
+                    targetSlot = i; 
+                    break;
+                }
+            }
+            
+            // C. If no invite found, find first OPEN slot
+            if(targetSlot === -1) {
                 for(let i=0; i<4; i++) {
-                    if(g.slots[i] && g.slots[i].uid === currentUser.uid) {
-                        mySlot = i;
+                    // Slot is open if:
+                    // 1. It doesn't exist in DB yet (!g.slots or !g.slots[i])
+                    // 2. OR it exists and type is explicitly 'open'
+                    if(!g.slots || !g.slots[i] || g.slots[i].type === 'open') {
+                        targetSlot = i; 
                         break;
                     }
                 }
+            }
 
-                if(mySlot !== -1) {
-                    myPlayerId = mySlot;
+            // 4. Update Database if slot found
+            if(targetSlot !== -1) {
+                myPlayerId = targetSlot;
+
+                const updates = {};
+                
+                // Update Slot Visuals
+                updates[`slots/${targetSlot}`] = {
+                    type: 'human',
+                    uid: myUid,
+                    name: myName, // Will update to display name below
+                    ready: false,
+                    color: PLAYER_COLORS[targetSlot]
+                };
+                
+                // Update Game Logic Player Data (Legacy support)
+                updates[`players/${targetSlot}`] = {
+                    id: targetSlot,
+                    uid: myUid
+                };
+
+                // Perform Update
+                gameRef.update(updates).then(() => {
+                    // Success!
                     
-                    // Update my name in the DB to match my Profile Display Name
-                    getMyDisplayName((name) => {
-                        db.ref(`games/${gid}/slots/${mySlot}/name`).set(name);
+                    // Attempt to fetch real Display Name and update record
+                    getMyDisplayName((dName) => {
+                        if(dName && dName !== "Unknown") {
+                            db.ref(`games/${gid}/slots/${targetSlot}/name`).set(dName);
+                        }
                     });
 
-                    ROOM.enter(g);
-                } else {
-                    alert("Error: Joined game but couldn't find slot.");
-                }
+                    // Enter Room (Fetch fresh data to ensure UI sync)
+                    gameRef.once('value').then(newSnap => {
+                        ROOM.enter(newSnap.val());
+                    });
+
+                }).catch(err => {
+                    console.error(err);
+                    alert("Failed to join game: " + err.message);
+                });
+
             } else {
-                alert("Game is full, started, or unavailable.");
-                isMultiplayer = false;
-                gameId = null;
+                alert("Game is full.");
             }
         });
     }
+};
 
 // --- HELPER FOR CREATE MODAL ---
 function showCreateModal() {
@@ -2830,7 +2838,7 @@ function createGameLogic() {
 const ROOM = {
     activeInviteSlot: null, 
 
-    enter: function(gameData) {
+		enter: function(gameData) {
         document.getElementById('lobby-screen').style.display = 'none';
         document.getElementById('gameroom-screen').style.display = 'flex';
         currentRoomData = gameData;
@@ -2839,14 +2847,30 @@ const ROOM = {
         db.ref(`games/${gameId}`).on('value', snap => {
             currentRoomData = snap.val();
             
-            // Game Deleted Check
+            // 1. Game Deleted Check (Host left)
             if(!currentRoomData) { 
-                if(myPlayerId !== 0) alert("The Host has left the game.");
+                if(myPlayerId !== 0) alert("The Host has closed the lobby.");
                 this.leaveUI(); 
                 return; 
             } 
             
-            // Game Started Check
+            // 2. Kicked Check (NEW LOGIC)
+            // If I am not the host, check if my slot is still mine
+            if (myPlayerId !== 0 && currentRoomData.slots) {
+                const mySlot = currentRoomData.slots[myPlayerId];
+                
+                // If slot is null, or type is 'open', or the UID doesn't match my UID
+                if (!mySlot || mySlot.type === 'open' || (mySlot.uid && mySlot.uid !== currentUser.uid)) {
+                    // Stop listening immediately so the alert doesn't fire multiple times
+                    db.ref(`games/${gameId}`).off(); 
+                    
+                    alert("You have been kicked from the lobby.");
+                    this.leaveUI();
+                    return;
+                }
+            }
+
+            // 3. Game Started Check
             if(currentRoomData.status === 'playing') {
                 document.getElementById('gameroom-screen').style.display = 'none';
                 db.ref(`games/${gameId}`).off(); 
