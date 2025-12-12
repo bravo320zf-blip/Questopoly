@@ -53,6 +53,55 @@
         overflow: hidden; 
     }
 
+    /* --- NEW LAYOUT CONTAINERS --- */
+    body {
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+        width: 100%;
+        overflow: hidden;
+    }
+
+    /* This holds the 3D Game and the UI Layer */
+    #game-viewport-wrapper {
+        position: relative;
+        width: 100%;
+        flex: 1; /* Takes up all remaining space */
+        overflow: hidden;
+        order: 1; /* Visual order: Top */
+    }
+
+    /* This is the Wood Bar at the bottom */
+    #ad-container {
+        position: relative;
+        width: 100%;
+        height: 12%; /* Adjust this % to control bar size */
+        min-height: 90px; /* Ensure space for standard ads */
+        background-color: #3e2723; /* Fallback brown */
+        /* Wood Texture Pattern */
+        background-image: url('https://www.transparenttextures.com/patterns/wood-pattern.png'); 
+        border-top: 4px solid var(--gold-main);
+        box-shadow: 0 -5px 20px rgba(0,0,0,0.8);
+        z-index: 9999;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        order: 2; /* Visual order: Bottom */
+        pointer-events: auto;
+    }
+
+    /* Hide ads if user is premium */
+    body.premium-user #ad-container {
+        display: none !important;
+    }
+
+    /* Ensure absolute items position relative to the wrapper, not body */
+    #game-layer, #ui-layer, #splash-screen, #create-screen, #lobby-screen, #gameroom-screen {
+        position: absolute;
+        width: 100%;
+        height: 100%;
+    }
+
     /* DESKTOP DEFAULT: Centered Square Aspect Ratio */
     #board-anchor {
         position: absolute; top: 50%; left: 50%; 
@@ -99,7 +148,6 @@
 
     /* --- 4. HUD WIDGETS (Relative to Container) --- */
     
-    /* These use negative margins on Desktop to hang "outside" the board */
     #turn-widget {
         position: absolute; top: -8%; left: 50%; transform: translate(-50%, 0);
         width: 60%; padding-top: 1vmin;
@@ -836,15 +884,86 @@
     aspect-ratio: 1; /* Force square */
 }
 
-/* --- PROFILE & FRIENDS --- */
-.profile-btn-floating {
-    position: absolute; top: 10px; right: 20px;
-    width: 50px; height: 50px; border-radius: 50%;
-    background-size: cover; background-position: center; background-color: #000;
-    border: 2px solid var(--gold-main); cursor: pointer; z-index: 600;
-    box-shadow: 0 0 15px rgba(0,0,0,0.8); transition: transform 0.2s;
+/* --- TOP RIGHT HUD CONTAINER --- */
+#top-right-hud {
+    position: fixed;
+    top: 15px;
+    right: 20px;
+    display: flex;
+    align-items: center;
+    gap: 15px; /* Space between buttons */
+    z-index: 10000; /* Above everything */
+    pointer-events: auto;
 }
-.profile-btn-floating:hover { transform: scale(1.1); }
+
+/* --- ICON BUTTON RESETS --- */
+/* We remove fixed positioning because the container handles it now */
+
+#store-floating-btn,
+.notification-icon-container, 
+#start-profile-btn,
+#lobby-profile-btn {
+    position: relative !important; /* Reset from fixed */
+    top: auto !important;
+    right: auto !important;
+    left: auto !important;
+    margin: 0 !important;
+    
+    /* Keep visual style */
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    
+    /* Stability Fixes */
+    transform: translateZ(0);
+    -webkit-transform: translateZ(0);
+    transition: background-color 0.2s, box-shadow 0.2s, border-color 0.2s;
+}
+
+/* Specific Styles */
+#store-floating-btn {
+    background: rgba(0, 0, 0, 0.9);
+    border: 2px solid #10b981;
+    font-size: 1.5rem;
+}
+#store-floating-btn:hover {
+    background-color: #064e3b;
+    border-color: #34d399;
+    box-shadow: 0 0 20px #10b981;
+}
+
+.notification-icon-container {
+    background: rgba(0, 0, 0, 0.9);
+    border: 2px solid var(--gold-dim);
+    font-size: 1.5rem;
+}
+.notification-icon-container:hover {
+    background-color: #451a03;
+    border-color: var(--gold-glow);
+    box-shadow: 0 0 20px var(--gold-main);
+}
+
+/* Profile button specific overrides to fit container */
+#start-profile-btn, #lobby-profile-btn {
+    display: block; /* Ensure visibility */
+    background-size: cover;
+    background-position: center;
+    background-color: #000;
+    border: 2px solid var(--gold-main);
+}
+#start-profile-btn:hover, #lobby-profile-btn:hover {
+    box-shadow: 0 0 20px var(--gold-glow);
+    border-color: #fff;
+}
+
+/* Hide Store if Premium */
+body.premium-user #store-floating-btn {
+    display: none !important;
+}
 
 /* In-Lobby Profile Button */
 .lobby-profile-btn {
@@ -1165,37 +1284,6 @@
 /* Custom Checkbox */
 .toggle-chk { width: 20px; height: 20px; accent-color: var(--gold-main); cursor: pointer; }
 
-/* --- NOTIFICATIONS SYSTEM --- */
-.notification-icon-container {
-    position: fixed; 
-    top: 10px; 
-    right: 85px; /* Sit to the left of the 50px Profile Button + 20px padding */
-    z-index: 9000 !important; 
-    cursor: pointer;
-    transition: transform 0.2s;
-    display: none; /* Hidden until logged in */
-    
-    /* Visibility Enhancements */
-    width: 50px; 
-    height: 50px;
-    background: rgba(0, 0, 0, 0.8);
-    border: 2px solid var(--gold-dim);
-    border-radius: 50%;
-    align-items: center;
-    justify-content: center;
-    box-shadow: 0 0 10px #000;
-}
-
-.notification-icon-container:hover { 
-    transform: scale(1.1); 
-    border-color: var(--gold-main);
-}
-
-.notification-bell {
-    font-size: 1.5rem; 
-    color: var(--gold-main);
-}
-
 /* The Red Counter */
 .notify-count-badge {
     position: absolute; top: -5px; right: -5px;
@@ -1230,53 +1318,29 @@
 .chat-msg .whisper-name { color: #d8b4fe; font-weight: bold; }
 .chat-msg .whisper-text { color: #f3e8ff; font-style: italic; }
 
-/* --- NEW LAYOUT CONTAINERS --- */
-body {
-    display: flex;
-    flex-direction: column;
-    height: 100%;
-    width: 100%;
-    overflow: hidden;
+/* --- FIX: SCREEN CONTAINMENT --- */
+/* This forces all main game screens to stay inside the Game Wrapper 
+   instead of stretching over the Ad Bar */
+
+#logo-screen,
+#splash-screen,
+#auth-screen,
+#lobby-screen,
+#gameroom-screen,
+#create-screen {
+    position: absolute !important; /* Changed from 'fixed' */
+    top: 0 !important;
+    left: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    overflow-y: auto !important; /* Ensure scrolling works inside the box */
+    overflow-x: hidden !important;
 }
 
-/* This holds the 3D Game and the UI Layer */
-#game-viewport-wrapper {
-    position: relative;
-    width: 100%;
-    flex: 1; /* Takes up all remaining space */
-    overflow: hidden;
-    order: 1; /* Visual order: Top */
-}
-
-/* This is the Wood Bar at the bottom */
-#ad-container {
-    position: relative;
-    width: 100%;
-    height: 12%; /* Adjust this % to control bar size */
-    min-height: 90px; /* Ensure space for standard ads */
-    background-color: #3e2723; /* Fallback brown */
-    /* Wood Texture Pattern */
-    background-image: url('https://www.transparenttextures.com/patterns/wood-pattern.png'); 
-    border-top: 4px solid var(--gold-main);
-    box-shadow: 0 -5px 20px rgba(0,0,0,0.8);
-    z-index: 9999;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    order: 2; /* Visual order: Bottom */
-    pointer-events: auto;
-}
-
-/* Hide ads if user is premium */
-body.premium-user #ad-container {
-    display: none !important;
-}
-
-/* Ensure absolute items position relative to the wrapper, not body */
-#game-layer, #ui-layer, #splash-screen, #create-screen, #lobby-screen, #gameroom-screen {
-    position: absolute;
-    width: 100%;
-    height: 100%;
+/* Add extra padding to the bottom of the Character Creator 
+   so the button doesn't feel cramped against the wood bar */
+#create-screen {
+    padding-bottom: 50px !important;
 }
 </style>
 </head>
@@ -1284,7 +1348,22 @@ body.premium-user #ad-container {
 <body>
 <div id="game-viewport-wrapper">
 
+<!-- TOP RIGHT HUD CONTAINER -->
+<div id="top-right-hud">
+    
+    <!-- 1. Store Button -->
+    <div id="store-floating-btn" onclick="STORE.open()">💎</div>
 
+    <!-- 2. Notification Bell -->
+    <div id="global-notify-btn" class="notification-icon-container" onclick="NOTIFICATIONS.openModal()">
+        <div class="notification-bell">🔔</div>
+        <div id="notify-badge-count" class="notify-count-badge" style="display:none;">0</div>
+    </div>
+
+    <!-- 3. Profile Button (Moves here from Splash Screen) -->
+    <div id="start-profile-btn" class="profile-btn-floating" onclick="PROFILE.open()"></div>
+
+</div>
 
 <!-- LOGO SCREEN (Preserved) -->
 <div id="logo-screen">
@@ -1424,9 +1503,6 @@ body.premium-user #ad-container {
     <div style="display:flex; flex-direction:column; gap:15px; align-items:center;">
         <button class="primary" style="font-size: 1.5rem; padding: 15px 40px; width: 300px; background:var(--gold-main); border:none; font-weight:900; cursor:pointer;" onclick="enterCreation(false)">SINGLE PLAYER</button>
         <button class="primary" style="font-size: 1.5rem; padding: 15px 40px; width: 300px; background:#3b82f6; border:2px solid #fff; color:#fff; font-weight:900; cursor:pointer;" onclick="LOBBY.enter()">MULTIPLAYER</button>
-		    <button class="primary" style="font-size: 1.2rem; padding: 10px 40px; width: 300px; background:#10b981; border:2px solid #fff; color:#fff; font-weight:900; cursor:pointer;" onclick="STORE.open()">
-        💎 REMOVE ADS ($3)
-    </button>
 		<div id="start-profile-btn" class="profile-btn-floating" onclick="PROFILE.open()" style="display:none;"></div>
     </div>
     
@@ -1561,12 +1637,6 @@ body.premium-user #ad-container {
         <button class="panel-close-btn" onclick="togglePanelVisibility('leaderboard')">CLOSE</button>
     </div>
 
-</div>
-
-<!-- GLOBAL NOTIFICATION BELL -->
-<div id="global-notify-btn" class="notification-icon-container" onclick="NOTIFICATIONS.openModal()">
-    <div class="notification-bell">🔔</div>
-    <div id="notify-badge-count" class="notify-count-badge" style="display:none;">0</div>
 </div>
 
 <!-- NOTIFICATION LIST MODAL -->
@@ -1867,17 +1937,48 @@ body.premium-user #ad-container {
 
 <!-- STORE MODAL -->
 <div id="store-modal" class="modal-overlay">
-    <div class="modal-content" style="width: 400px; text-align:center;">
+    <div class="modal-content" style="width: 450px; text-align:center;">
         <div class="close-x" onclick="document.getElementById('store-modal').style.display='none'">×</div>
         <h2 style="color:var(--gold-main); margin-top:20px;">PREMIUM STORE</h2>
         
-        <div style="background:rgba(0,0,0,0.5); padding:20px; border-radius:8px; margin:20px 0;">
-            <h3 style="color:#fff;">Unlock Full Experience</h3>
-            <ul style="text-align:left; color:#ccc; line-height:1.6;">
-                <li>🚫 <b>Remove All Ads</b> permanently</li>
-                <li>👑 <b>Gold Name</b> in Chat/Leaderboard</li>
-            </ul>
+        <div style="padding: 20px;">
+            
+            <!-- OPTION 1: REMOVE ADS -->
+            <div class="choice-btn" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; padding:20px; cursor:default; background:#1a202c; border-color:#10b981;">
+                <div style="text-align:left;">
+                    <div style="color:#10b981; font-weight:bold; font-size:1.1rem;">REMOVE ADS</div>
+                    <div style="font-size:0.8rem; color:#aaa;">Permanently remove all ads</div>
+                </div>
+                <!-- REPLACE 'YOUR_LINK_HERE' with your actual Stripe/PayPal link -->
+                <button class="auth-btn btn-login" style="width:auto; padding:10px 20px; margin:0; background:#10b981; color:#fff;" 
+                    onclick="window.open('https://www.paypal.com/cgi-bin/webscr?cmd=_s-xclick&hosted_button_id=3NNGM4THBVXPL, '_blank')">
+                    $3.00
+                </button>
+            </div>
+
+            <!-- OPTION 2: SUPPORT / DONATE (Example) -->
+            <div class="choice-btn" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; padding:20px; cursor:default; background:#1a202c; border-color:#f59e0b;">
+                <div style="text-align:left;">
+                    <div style="color:#f59e0b; font-weight:bold; font-size:1.1rem;">SUPPORT DEV</div>
+                    <div style="font-size:0.8rem; color:#aaa;">Buy the dev a coffee! ☕</div>
+                </div>
+                <!-- REPLACE 'YOUR_LINK_HERE' -->
+                <button class="auth-btn btn-login" style="width:auto; padding:10px 20px; margin:0;" 
+                    onclick="window.open('https://ko-fi.com/deathforgegames, '_blank')">
+                    Donate
+                </button>
+            </div>
+
+            <div style="border-top:1px solid #333; margin-top:15px; padding-top:15px;">
+                <p style="font-size:0.8rem; color:#888;">Already purchased?</p>
+                <button class="choice-btn" style="width:100%; justify-content:center; padding:10px;" onclick="STORE.restorePurchase()">
+                    ↻ Restore Purchase / Check Status
+                </button>
+            </div>
+
         </div>
+    </div>
+</div>
 
         <!-- PayPal Button will appear here -->
         <div id="paypal-button-container" style="margin-top: 10px;"></div>
@@ -2251,8 +2352,6 @@ const AUTH = {
 };
 
 const STORE = {
-    paypalInitialized: false, // Flag to ensure we don't draw buttons twice
-
     open: function() {
         if (!currentUser) {
             alert("Please log in to access the store.");
@@ -2265,81 +2364,42 @@ const STORE = {
                 alert("You already own Premium! Ads are removed.");
             } else {
                 document.getElementById('store-modal').style.display = 'flex';
-                // Render PayPal buttons only if not done yet
-                if (!this.paypalInitialized) {
-                    this.renderPayPal();
-                    this.paypalInitialized = true;
-                }
             }
         });
     },
 
-    renderPayPal: function() {
-        paypal.Buttons({
-            // 1. Set up the transaction
-            createOrder: function(data, actions) {
-                return actions.order.create({
-                    purchase_units: [{
-                        amount: {
-                            value: '3.00' // THE PRICE
-                        },
-                        description: "Questopoly Premium Upgrade"
-                    }]
-                });
-            },
-
-            // 2. Finalize the transaction
-            onApprove: function(data, actions) {
-                return actions.order.capture().then(function(details) {
-                    // Payment successful!
-                    console.log('Transaction completed by ' + details.payer.name.given_name);
-                    
-                    // Call the activation function
-                    STORE.activatePremium();
-                });
-            },
-
-            // 3. Handle Errors
-            onError: function (err) {
-                console.error('PayPal Error:', err);
-                alert("Payment could not be processed. Please try again.");
-            }
-        }).render('#paypal-button-container'); // Renders inside the div we made
-    },
-
-    activatePremium: function() {
+    // This function manually checks the DB again to see if status changed
+    restorePurchase: function() {
         if (!currentUser) return;
-
-        // Update Database: Set isPremium to true
-        db.ref(`users/${currentUser.uid}`).update({
-            isPremium: true
-        }).then(() => {
-            alert("Purchase Successful! Ads have been removed.");
-            document.getElementById('store-modal').style.display = 'none';
-            
-            // Apply Visual Changes Immediately (Hide Ad Bar)
-            STORE.applyPremiumFeatures();
+        
+        // Show loading state
+        const btn = event.target;
+        const originalText = btn.innerText;
+        btn.innerText = "Checking...";
+        
+        db.ref(`users/${currentUser.uid}/isPremium`).once('value').then(snap => {
+            if (snap.val() === true) {
+                alert("Premium Verified! Ads removed.");
+                this.applyPremiumFeatures();
+                document.getElementById('store-modal').style.display = 'none';
+            } else {
+                alert("No premium purchase found yet. If you just paid, please wait a moment or contact support.");
+            }
+            btn.innerText = originalText;
         });
     },
 
     applyPremiumFeatures: function() {
-        // 1. Add class to body to hide Ads via CSS
         document.body.classList.add('premium-user');
-        
-        // 2. Trigger resize so game fills the space previously taken by ads
-        setTimeout(() => {
-            onWindowResize();
-        }, 100);
+        setTimeout(() => { onWindowResize(); }, 100);
     },
     
     checkOnLogin: function() {
         if (!currentUser) return;
         db.ref(`users/${currentUser.uid}/isPremium`).once('value').then(snap => {
-            if (snap.val() === true) {
-                this.applyPremiumFeatures();
-            } else {
+            if (snap.val() === true) this.applyPremiumFeatures();
+            else {
                 document.body.classList.remove('premium-user');
-                // Ensure layout is correct if ads are present
                 onWindowResize();
             }
         });
