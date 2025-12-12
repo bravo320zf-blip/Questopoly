@@ -5752,13 +5752,20 @@ function endTurn(){
     if (prevP && !prevP.isEventEntity && !prevP.isBoss) {
         if (prevP.isPolymorphed) cureSheep(prevP);
         recalcStats(prevP);
-        if(!isMultiplayer && prevP.isAi) manageAiInventory(prevP); 
+        
+        // --- FIX: Allow Host to manage AI Inventory in MP ---
+        // Old: if(!isMultiplayer && prevP.isAi)
+        // New: Run if Single Player OR (Multiplayer AND I am Host)
+        if (prevP.isAi && (!isMultiplayer || myPlayerId === 0)) {
+            manageAiInventory(prevP); 
+        }
+        // ---------------------------------------------------
+
         const props = tiles.filter(t => t.userData.owner === prevP.id).length;
         prevP.history.push({ turn: turnCount, gold: prevP.gold, props: props });
     }
 
     setTimeout(() => {
-        
         // --- MULTIPLAYER LOGIC ---
         if(isMultiplayer && db && gameId) {
             const isMyTurn = (prevP.id === myPlayerId);
@@ -5788,11 +5795,8 @@ function endTurn(){
             }
         }
 
-        // --- ROUND CHECK (SINGLE PLAYER) ---
         if (nextIndex === 0 && !prevP.extraTurn) {
             turnCount++;
-            
-            // 1. Handle Active Event Duration
             if (activeEvent) {
                 activeEvent.turnsLeft--;
                 if (activeEvent.turnsLeft <= 0) {
@@ -5802,16 +5806,13 @@ function endTurn(){
                     removeParticles();
                     addLog("Event ended.", "log-entry");
                 }
-            } 
-            // 2. Roll for New Event (1 in 6)
-            else {
+            } else {
                 const roll = Math.floor(Math.random() * 6) + 1;
                 if (roll === 6) {
                     triggerRandomEvent();
                 }
             }
         }
-        // -----------------------------------
         
         turnIndex = nextIndex;
         gameState = 'ROLL'; 
@@ -7877,70 +7878,70 @@ function unequipItem(slot) {
 }
 
 function equipItem(pId, invIdx) { 
-    // 1. Find Player by ID (Crucial for Boss/AI compatibility)
+    // 1. Find Player
     const p = players.find(pl => pl.id === pId); 
+    if (!p) return;
     
-    if (!p) {
-        console.warn(`equipItem: Player ID ${pId} not found.`);
-        return;
-    }
-    
-    // 2. Validate Inventory Index
-    if (invIdx < 0 || invIdx >= p.inventory.length) {
-        // This index doesn't exist, stop.
-        return;
-    }
-
+    // 2. Validate
+    if (invIdx < 0 || invIdx >= p.inventory.length) return;
     const item = p.inventory[invIdx]; 
-    
-    // 3. Validate Item Object
-    if (!item || !item.type) {
-        console.warn(`equipItem: Corrupt item at index ${invIdx} for ${p.name}. Cleaning...`);
-        cleanInventory(p); // Self-repair
-        return;
-    }
+    if (!item) return;
 
-    // 4. Logic
-    if(item.type === 'scroll'){ 
-        // Scroll Logic
-        if (typeof item.fn === 'function') {
-            item.fn(p); 
-        } else {
-            addLog("Scroll fizzled.", "log-fail");
-        }
-        // Remove scroll
+    // 3. Logic
+    if (item.type === 'scroll') { 
+        if (typeof item.fn === 'function') item.fn(p); 
+        else addLog("Scroll fizzled.", "log-fail");
         p.inventory.splice(invIdx, 1); 
     } 
     else { 
-        // Equipment Logic
         const slot = item.slot; 
         const cur = p.equipment[slot]; 
         
         if(cur){
-            // Remove stats from current item
-            if(cur.bonus) {
-                const k = Object.keys(cur.bonus)[0];
-                p.stats[k] -= Object.values(cur.bonus)[0];
-            }
-            // Swap: Put current back in inventory at specific index
+            if(cur.bonus) p.stats[Object.keys(cur.bonus)[0]] -= Object.values(cur.bonus)[0];
             p.inventory[invIdx] = cur;
         } else {
-            // Remove from inventory
             p.inventory.splice(invIdx, 1);
         } 
         
-        // Equip new item
         p.equipment[slot] = item; 
         
-        // Add stats from new item
-        if(item.bonus) {
-            const k = Object.keys(item.bonus)[0];
-            p.stats[k] += Object.values(item.bonus)[0];
-        }
+        if(item.bonus) p.stats[Object.keys(item.bonus)[0]] += Object.values(item.bonus)[0];
         
         if(p.id === 0) AUDIO.playSound('sfx_equip');
     } 
     
+    // 4. --- FIX: MULTIPLAYER SYNC ---
+    if (isMultiplayer && db && gameId) {
+        // A. If I am equipping my own item
+        if (p.id === myPlayerId) {
+            syncPlayerState();
+        }
+        // B. If I am Host and I just equipped an item for an AI
+        else if (myPlayerId === 0 && p.isAi) {
+            // Write the new stats/inventory/equip to DB so clients see it
+            // Note: We need to serialize equipment because it might contain functions
+            // simplified sync for brevity, focusing on Stats/Gold which are critical for combat calc
+            // For full equipment visual sync, clients need the equipment list
+            
+            // Serialize Equipment for DB
+            const cleanEquip = {};
+            ['head','body','main','off'].forEach(s => {
+                if(p.equipment[s]) cleanEquip[s] = serializeItem(p.equipment[s]);
+            });
+
+            // Serialize Inventory
+            const cleanInv = p.inventory.map(i => serializeItem(i));
+
+            db.ref(`games/${gameId}/players/${p.id}`).update({
+                stats: p.stats,
+                gold: p.gold,
+                equipment: cleanEquip,
+                inventory: cleanInv
+            });
+        }
+    }
+
     updateHUD(); 
 }
 function equipItem(pId, invIdx) { 
