@@ -2692,47 +2692,95 @@ const LOBBY = {
             }
         });
     },
-    joinGame: function(gid) {
+joinGame: function(gid) {
         if(!db) return;
+        if(!currentUser) {
+            alert("You must be logged in to join a game.");
+            return;
+        }
+
         gameId = gid;
         isMultiplayer = true;
         const ref = db.ref(`games/${gid}`);
         
         ref.transaction(g => {
-            if(g && g.status === 'waiting') {
+            // Check if game data exists
+            if (g && g.status === 'waiting' && g.slots) {
+                
                 let slot = -1;
-                if(g.slots) {
-                    for(let i=0; i<4; i++) {
-                        if(g.slots[i] && g.slots[i].type === 'invited' && g.slots[i].uid === currentUser.uid) {
-                            slot = i; break;
-                        }
+
+                // 1. Check if I am ALREADY in this game (Re-joining)
+                for(let i=0; i<4; i++) {
+                    if(g.slots[i] && (g.slots[i].uid === currentUser.uid)) {
+                        // I'm already here! Just let me in.
+                        return g; 
                     }
                 }
-                if(slot === -1 && g.slots) {
-                    for(let i=0; i<4; i++) {
-                         if(g.slots[i] && g.slots[i].type === 'open') { slot = i; break; }
+
+                // 2. Check for Specific Invite
+                for(let i=0; i<4; i++) {
+                    if(g.slots[i] && g.slots[i].type === 'invited' && g.slots[i].uid === currentUser.uid) {
+                        slot = i; 
+                        break;
                     }
                 }
+                
+                // 3. If not invited, find first 'open' slot
+                if(slot === -1) {
+                    for(let i=0; i<4; i++) {
+                         if(g.slots[i] && g.slots[i].type === 'open') { 
+                             slot = i; 
+                             break; 
+                         }
+                    }
+                }
+                
+                // 4. Occupy the slot
                 if(slot !== -1) {
                     if (!g.players) g.players = {};
+
+                    // Update Slot Visuals
                     g.slots[slot] = { 
                         type: 'human', 
                         uid: currentUser.uid, 
+                        // Use local display name (transaction can't be async, so we use temp name and update after)
                         name: currentUser.email.split('@')[0], 
                         ready: false,
                         color: PLAYER_COLORS[slot] 
                     };
+                    
+                    // Update Game Logic
                     g.players[slot] = { id: slot, uid: currentUser.uid }; 
-                    myPlayerId = slot;
-                    return g; 
+                    
+                    return g; // Commit
                 }
             }
+            // If we get here, game is full/started/invalid, return undefined to abort
         }, (err, committed, snap) => {
             if(committed) {
-                getMyDisplayName((name) => {
-                    db.ref(`games/${gid}/slots/${myPlayerId}/name`).set(name);
-                });
-                ROOM.enter(snap.val());
+                const g = snap.val();
+                
+                // Find MY slot ID based on my UID
+                let mySlot = -1;
+                for(let i=0; i<4; i++) {
+                    if(g.slots[i] && g.slots[i].uid === currentUser.uid) {
+                        mySlot = i;
+                        break;
+                    }
+                }
+
+                if(mySlot !== -1) {
+                    myPlayerId = mySlot;
+                    
+                    // Update my name in the DB to match my Profile Display Name
+                    getMyDisplayName((name) => {
+                        db.ref(`games/${gid}/slots/${mySlot}/name`).set(name);
+                    });
+
+                    ROOM.enter(g);
+                } else {
+                    alert("Error: Joined game but couldn't find slot.");
+                }
             } else {
                 alert("Game is full, started, or unavailable.");
                 isMultiplayer = false;
@@ -2740,7 +2788,6 @@ const LOBBY = {
             }
         });
     }
-};
 
 // --- HELPER FOR CREATE MODAL ---
 function showCreateModal() {
@@ -8323,4 +8370,5 @@ init();
 </script>
 </body>
 </html>
+
 
