@@ -1229,11 +1229,60 @@
 }
 .chat-msg .whisper-name { color: #d8b4fe; font-weight: bold; }
 .chat-msg .whisper-text { color: #f3e8ff; font-style: italic; }
+
+/* --- NEW LAYOUT CONTAINERS --- */
+body {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    width: 100%;
+    overflow: hidden;
+}
+
+/* This holds the 3D Game and the UI Layer */
+#game-viewport-wrapper {
+    position: relative;
+    width: 100%;
+    flex: 1; /* Takes up all remaining space */
+    overflow: hidden;
+    order: 1; /* Visual order: Top */
+}
+
+/* This is the Wood Bar at the bottom */
+#ad-container {
+    position: relative;
+    width: 100%;
+    height: 12%; /* Adjust this % to control bar size */
+    min-height: 90px; /* Ensure space for standard ads */
+    background-color: #3e2723; /* Fallback brown */
+    /* Wood Texture Pattern */
+    background-image: url('https://www.transparenttextures.com/patterns/wood-pattern.png'); 
+    border-top: 4px solid var(--gold-main);
+    box-shadow: 0 -5px 20px rgba(0,0,0,0.8);
+    z-index: 9999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    order: 2; /* Visual order: Bottom */
+    pointer-events: auto;
+}
+
+/* Hide ads if user is premium */
+body.premium-user #ad-container {
+    display: none !important;
+}
+
+/* Ensure absolute items position relative to the wrapper, not body */
+#game-layer, #ui-layer, #splash-screen, #create-screen, #lobby-screen, #gameroom-screen {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+}
 </style>
 </head>
 
 <body>
-
+<div id="game-viewport-wrapper">
 
 
 
@@ -1375,6 +1424,9 @@
     <div style="display:flex; flex-direction:column; gap:15px; align-items:center;">
         <button class="primary" style="font-size: 1.5rem; padding: 15px 40px; width: 300px; background:var(--gold-main); border:none; font-weight:900; cursor:pointer;" onclick="enterCreation(false)">SINGLE PLAYER</button>
         <button class="primary" style="font-size: 1.5rem; padding: 15px 40px; width: 300px; background:#3b82f6; border:2px solid #fff; color:#fff; font-weight:900; cursor:pointer;" onclick="LOBBY.enter()">MULTIPLAYER</button>
+		    <button class="primary" style="font-size: 1.2rem; padding: 10px 40px; width: 300px; background:#10b981; border:2px solid #fff; color:#fff; font-weight:900; cursor:pointer;" onclick="STORE.open()">
+        💎 REMOVE ADS ($3)
+    </button>
 		<div id="start-profile-btn" class="profile-btn-floating" onclick="PROFILE.open()" style="display:none;"></div>
     </div>
     
@@ -1813,6 +1865,27 @@
     <div id="debug-log-content"></div>
 </div>
 
+<!-- STORE MODAL -->
+<div id="store-modal" class="modal-overlay">
+    <div class="modal-content" style="width: 400px; text-align:center;">
+        <div class="close-x" onclick="document.getElementById('store-modal').style.display='none'">×</div>
+        <h2 style="color:var(--gold-main); margin-top:20px;">PREMIUM STORE</h2>
+        
+        <div style="background:rgba(0,0,0,0.5); padding:20px; border-radius:8px; margin:20px 0;">
+            <h3 style="color:#fff;">Unlock Full Experience</h3>
+            <ul style="text-align:left; color:#ccc; line-height:1.6;">
+                <li>🚫 <b>Remove All Ads</b> permanently</li>
+                <li>👑 <b>Gold Name</b> in Chat/Leaderboard</li>
+            </ul>
+        </div>
+
+        <!-- PayPal Button will appear here -->
+        <div id="paypal-button-container" style="margin-top: 10px;"></div>
+        
+        <div style="font-size:0.7rem; color:#666; margin-top:10px;">One-time purchase of $3.00</div>
+    </div>
+</div>
+
 <!-- PROFILE MODAL -->
 <div id="profile-modal" class="modal-overlay">
     <div class="modal-content" style="width: 500px;">
@@ -1966,6 +2039,28 @@
     <div class="ctx-item" onclick="FRIENDS.actionSettings()">Friend Settings</div>
     <div class="ctx-item" onclick="FRIENDS.actionRemove()" style="color:#ef4444;">Remove Friend</div>
 </div>
+</div> 
+
+<!-- PayPal SDK -->
+<script src="https://www.paypal.com/sdk/js?client-id=YOUR_CLIENT_ID&currency=USD"></script>
+
+<div id="ad-container">
+    <div id="google-ad-slot" style="width:100%; height:100%; display:flex; justify-content:center; align-items:center; color:#aaa; font-size:0.8rem;">
+        <!-- Google Ad Code Will Go Here -->
+        <span><script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-8171909770069568"
+     crossorigin="anonymous"></script>
+<!-- Game_Bottom_Bar -->
+<ins class="adsbygoogle"
+     style="display:block"
+     data-ad-client="ca-pub-XXXXXXXXXXXXXXXX"
+     data-ad-slot="YYYYYYYYYY"
+     data-ad-format="auto"
+     data-full-width-responsive="true"></ins>
+<script>
+     (adsbygoogle = window.adsbygoogle || []).push({});
+</script></span>
+    </div>
+</div>
 <!-- ================================================================
    [06] JAVASCRIPT
    ================================================================ -->
@@ -2067,7 +2162,6 @@ performQuit: function(logout) {
 };
 
 // --- AUTH SYSTEM ---
-// --- AUTH SYSTEM ---
 const AUTH = {
     init: function() {
         if(!auth) return;
@@ -2130,6 +2224,7 @@ const AUTH = {
                 const bell = document.getElementById('global-notify-btn');
                 if(bell) bell.style.display = 'none';
             }
+			STORE.checkOnLogin(); 
         });
     },
     login: function() {
@@ -2153,6 +2248,102 @@ const AUTH = {
         auth.sendPasswordResetEmail(e).then(()=>alert("Reset email sent.")).catch(err=>alert(err.message));
     },
     logout: function() { auth.signOut().then(() => location.reload()); }
+};
+
+const STORE = {
+    paypalInitialized: false, // Flag to ensure we don't draw buttons twice
+
+    open: function() {
+        if (!currentUser) {
+            alert("Please log in to access the store.");
+            return;
+        }
+        
+        // Check if already premium
+        db.ref(`users/${currentUser.uid}/isPremium`).once('value').then(snap => {
+            if (snap.val() === true) {
+                alert("You already own Premium! Ads are removed.");
+            } else {
+                document.getElementById('store-modal').style.display = 'flex';
+                // Render PayPal buttons only if not done yet
+                if (!this.paypalInitialized) {
+                    this.renderPayPal();
+                    this.paypalInitialized = true;
+                }
+            }
+        });
+    },
+
+    renderPayPal: function() {
+        paypal.Buttons({
+            // 1. Set up the transaction
+            createOrder: function(data, actions) {
+                return actions.order.create({
+                    purchase_units: [{
+                        amount: {
+                            value: '3.00' // THE PRICE
+                        },
+                        description: "Questopoly Premium Upgrade"
+                    }]
+                });
+            },
+
+            // 2. Finalize the transaction
+            onApprove: function(data, actions) {
+                return actions.order.capture().then(function(details) {
+                    // Payment successful!
+                    console.log('Transaction completed by ' + details.payer.name.given_name);
+                    
+                    // Call the activation function
+                    STORE.activatePremium();
+                });
+            },
+
+            // 3. Handle Errors
+            onError: function (err) {
+                console.error('PayPal Error:', err);
+                alert("Payment could not be processed. Please try again.");
+            }
+        }).render('#paypal-button-container'); // Renders inside the div we made
+    },
+
+    activatePremium: function() {
+        if (!currentUser) return;
+
+        // Update Database: Set isPremium to true
+        db.ref(`users/${currentUser.uid}`).update({
+            isPremium: true
+        }).then(() => {
+            alert("Purchase Successful! Ads have been removed.");
+            document.getElementById('store-modal').style.display = 'none';
+            
+            // Apply Visual Changes Immediately (Hide Ad Bar)
+            STORE.applyPremiumFeatures();
+        });
+    },
+
+    applyPremiumFeatures: function() {
+        // 1. Add class to body to hide Ads via CSS
+        document.body.classList.add('premium-user');
+        
+        // 2. Trigger resize so game fills the space previously taken by ads
+        setTimeout(() => {
+            onWindowResize();
+        }, 100);
+    },
+    
+    checkOnLogin: function() {
+        if (!currentUser) return;
+        db.ref(`users/${currentUser.uid}/isPremium`).once('value').then(snap => {
+            if (snap.val() === true) {
+                this.applyPremiumFeatures();
+            } else {
+                document.body.classList.remove('premium-user');
+                // Ensure layout is correct if ads are present
+                onWindowResize();
+            }
+        });
+    }
 };
 
 // --- PROFILE SYSTEM ---
@@ -4499,15 +4690,21 @@ function handleActionClick() {
 }
 
 function onWindowResize() {
-    const width = window.innerWidth;
-    const height = window.innerHeight;
+    const wrapper = document.getElementById('game-viewport-wrapper');
+    const width = wrapper.clientWidth;
+    const height = wrapper.clientHeight;
     
     camera.aspect = width / height; 
     camera.updateProjectionMatrix();
+    
     renderer.setSize(width, height); 
+    // IMPORTANT: style.width/height needs to match to prevent stretching
+    renderer.domElement.style.width = width + 'px';
+    renderer.domElement.style.height = height + 'px';
+    
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); 
     
-    updateCamera(); // Recalculate zoom on resize
+    updateCamera(); 
 }
 
 function transitionDayNight(toNight) {
