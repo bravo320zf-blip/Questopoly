@@ -926,11 +926,12 @@ Because you do not have a backend server listening for automatic receipts (Webho
 /* --- ICON BUTTON RESETS --- */
 /* We remove fixed positioning because the container handles it now */
 
+#bug-btn,
 #store-floating-btn,
 .notification-icon-container, 
 #start-profile-btn,
 #lobby-profile-btn {
-    position: relative !important; /* Reset from fixed */
+    position: relative !important;
     top: auto !important;
     right: auto !important;
     left: auto !important;
@@ -949,6 +950,17 @@ Because you do not have a backend server listening for automatic receipts (Webho
     transform: translateZ(0);
     -webkit-transform: translateZ(0);
     transition: background-color 0.2s, box-shadow 0.2s, border-color 0.2s;
+}
+
+#bug-btn {
+    background: rgba(0, 0, 0, 0.9);
+    border: 2px solid #ef4444; /* Red border for bugs */
+    font-size: 1.5rem;
+}
+#bug-btn:hover {
+    background-color: #450a0a;
+    border-color: #f87171;
+    box-shadow: 0 0 20px #ef4444;
 }
 
 /* Specific Styles */
@@ -1378,16 +1390,19 @@ body.premium-user #store-floating-btn {
 <!-- TOP RIGHT HUD CONTAINER -->
 <div id="top-right-hud">
     
-    <!-- 1. Store Button -->
+    <!-- 1. Bug Report Button -->
+    <div id="bug-btn" onclick="BUG_REPORT.open()">🐞</div>
+
+    <!-- 2. Store Button -->
     <div id="store-floating-btn" onclick="STORE.open()">💎</div>
 
-    <!-- 2. Notification Bell -->
+    <!-- 3. Notification Bell -->
     <div id="global-notify-btn" class="notification-icon-container" onclick="NOTIFICATIONS.openModal()">
         <div class="notification-bell">🔔</div>
         <div id="notify-badge-count" class="notify-count-badge" style="display:none;">0</div>
     </div>
 
-    <!-- 3. Profile Button (Moves here from Splash Screen) -->
+    <!-- 4. Profile Button -->
     <div id="start-profile-btn" class="profile-btn-floating" onclick="PROFILE.open()"></div>
 
 </div>
@@ -2191,6 +2206,27 @@ body.premium-user #store-floating-btn {
 </script></span>
     </div>
 </div>
+
+<!-- BUG REPORT MODAL -->
+<div id="bug-report-modal" class="modal-overlay">
+    <div class="modal-content" style="width: 400px; text-align:center;">
+        <div class="close-x" onclick="document.getElementById('bug-report-modal').style.display='none'">×</div>
+        <h3 style="color:#ef4444; margin-top:20px;">REPORT A BUG</h3>
+        
+        <div style="padding:15px; text-align:left;">
+            <label style="color:#aaa; font-size:0.8rem;">Describe the issue:</label>
+            <textarea id="bug-description" style="width:100%; height:120px; background:rgba(0,0,0,0.5); border:1px solid #444; color:#fff; padding:10px; margin-top:5px; resize:none; border-radius:4px;" placeholder="What happened? What were you doing?"></textarea>
+            
+            <p style="color:#666; font-size:0.75rem; margin-top:10px;">
+                * Pressing send will open your default email client with your User ID attached so we can investigate.
+            </p>
+        </div>
+
+        <button class="choice-btn" style="width:100%; justify-content:center; border-color:#ef4444;" onclick="BUG_REPORT.send()">
+            SEND REPORT
+        </button>
+    </div>
+</div>
 <!-- ================================================================
    [06] JAVASCRIPT
    ================================================================ -->
@@ -2860,6 +2896,38 @@ send: function() {
         document.getElementById('dm-window').style.display = 'none';
         if(this.listener) db.ref(this.listener).off();
         this.activeChatUid = null;
+    }
+};
+
+
+const BUG_REPORT = {
+    open: function() {
+        document.getElementById('bug-report-modal').style.display = 'flex';
+        document.getElementById('bug-description').value = ""; // Clear previous text
+    },
+
+    send: function() {
+        const desc = document.getElementById('bug-description').value;
+        if (!desc.trim()) {
+            alert("Please describe the bug first.");
+            return;
+        }
+
+        // Gather Debug Info
+        const uid = currentUser ? currentUser.uid : "Not Logged In";
+        const email = currentUser ? currentUser.email : "N/A";
+        const time = new Date().toLocaleString();
+        
+        // Construct Email Body
+        const subject = encodeURIComponent("Bug Report: Questopoly Legends");
+        const bodyContent = `BUG DESCRIPTION:\n${desc}\n\n----------------\nTECHNICAL INFO:\nUser: ${email}\nUID: ${uid}\nTime: ${time}\nPlatform: ${navigator.userAgent}`;
+        const body = encodeURIComponent(bodyContent);
+
+        // Open Email Client
+        window.location.href = `mailto:beginmegaquest@gmail.com?subject=${subject}&body=${body}`;
+        
+        // Close Modal
+        document.getElementById('bug-report-modal').style.display = 'none';
     }
 };
 
