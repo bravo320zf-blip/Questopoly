@@ -8,6 +8,22 @@
 ================================================================
 -->
 
+<!--
+How to Manage "Premium" Users (Manual Verification)
+Because you do not have a backend server listening for automatic receipts (Webhooks), the process for a user getting their ads removed will be:
+1. Player clicks "$3.00" inside the game.
+2. Player is taken to PayPal in a new tab and pays you.
+3. You (The Admin) get an email from PayPal saying "You received $3.00 from [Player Email]".
+4. You go to your Firebase Console:
+     -Go to Authentication to find the user's UID based on their email.
+     -Go to Realtime Database.
+     -Navigate to users > [THE USER'S UID].
+     -Add a new field: isPremium and set the value to true (boolean).
+5. Player clicks the "↻ Restore Purchase / Check Status" button inside the game store.
+6. The game checks Firebase, sees isPremium: true, and removes the ads instantly.
+(Note: In the future, you can automate step 4 using Firebase Cloud Functions, but doing it manually is perfectly fine for starting out!)
+-->
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
@@ -274,12 +290,23 @@
     .panel-close-btn { margin: 10px auto; display: block; background: rgba(127, 29, 29, 0.8); border: 1px solid #ef4444; color: #fff; padding: 8px 20px; border-radius: 4px; cursor: pointer; width: 80%; }
 
     /* --- 7. GENERIC MODALS --- */
-    .modal-overlay { 
-        position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
-        background: rgba(0, 0, 0, 0.85); z-index: 500; 
-        display: none; align-items: center; justify-content: center; 
-        flex-direction: column; pointer-events: auto;
-    }
+.modal-overlay { 
+    position: fixed; 
+    top: 0; 
+    left: 0; 
+    width: 100%; 
+    height: 100%; 
+    background: rgba(0, 0, 0, 0.85); 
+    
+    /* NEW: Higher than Ad Bar (9999) and HUD (10000) */
+    z-index: 20000 !important; 
+    
+    display: none; 
+    align-items: center; 
+    justify-content: center; 
+    flex-direction: column; 
+    pointer-events: auto;
+}
     .modal-overlay.active { display: flex; }
 
     .modal-content { 
@@ -2411,18 +2438,27 @@ const STORE = {
 // --- PROFILE SYSTEM ---
 const PROFILE = {
     open: function() {
-        if(!currentUser) return;
+        // 1. Check if user is logged in
+        if(!currentUser) {
+            // New: Give feedback instead of doing nothing
+            alert("Please log in to view your profile.");
+            // Optional: Re-open auth screen if they are stuck
+            document.getElementById('auth-screen').style.display = 'flex';
+            return;
+        }
+
+        // 2. Open the modal
         document.getElementById('profile-modal').style.display = 'flex';
         
-        // Fetch data from Firebase
+        // 3. Fetch data from Firebase
         db.ref(`users/${currentUser.uid}`).once('value').then(snap => {
             const data = snap.val() || {};
             
-            // 1. Set the Static Username Text (Top left of profile)
+            // Set Username
             const nameLabel = document.getElementById('prof-username');
             if(nameLabel) nameLabel.innerText = data.displayName || data.name || "Hero";
 
-            // 2. Populate the Input Fields (This was missing/failing before)
+            // Populate Inputs
             const nameInput = document.getElementById('prof-display-name');
             if(nameInput) nameInput.value = data.displayName || "";
             
@@ -2432,14 +2468,14 @@ const PROFILE = {
             const aboutInput = document.getElementById('prof-about');
             if(aboutInput) aboutInput.value = data.about || "";
 
-            // 3. Update the large Avatar Preview
+            // Update Avatar Preview
             const avatarDisplay = document.getElementById('prof-avatar-display');
             if(avatarDisplay) {
                 avatarDisplay.style.backgroundImage = data.avatar ? `url('${data.avatar}')` : 'none';
                 avatarDisplay.style.backgroundColor = data.avatar ? 'transparent' : '#000';
             }
             
-            // 4. Load Friends List
+            // Load Friends
             FRIENDS.renderList('profile-friends-list');
         });
     },
