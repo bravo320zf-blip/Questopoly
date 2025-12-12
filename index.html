@@ -1943,31 +1943,33 @@ body.premium-user #store-floating-btn {
         
         <div style="padding: 20px;">
             
-            <!-- OPTION 1: REMOVE ADS -->
-            <div class="choice-btn" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; padding:20px; cursor:default; background:#1a202c; border-color:#10b981;">
-                <div style="text-align:left;">
-                    <div style="color:#10b981; font-weight:bold; font-size:1.1rem;">REMOVE ADS</div>
-                    <div style="font-size:0.8rem; color:#aaa;">Permanently remove all ads</div>
-                </div>
-                <!-- REPLACE 'YOUR_LINK_HERE' with your actual Stripe/PayPal link -->
-                <button class="auth-btn btn-login" style="width:auto; padding:10px 20px; margin:0; background:#10b981; color:#fff;" 
-                    onclick="window.open('https://www.paypal.com/cgi-bin/webscr?cmd=_s-xclick&hosted_button_id=3NNGM4THBVXPL, '_blank')">
-                    $3.00
-                </button>
-            </div>
+<!-- OPTION 1: REMOVE ADS -->
+<div class="choice-btn" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; padding:20px; cursor:default; background:#1a202c; border-color:#10b981;">
+    <div style="text-align:left;">
+        <div style="color:#10b981; font-weight:bold; font-size:1.1rem;">REMOVE ADS</div>
+        <div style="font-size:0.8rem; color:#aaa;">Permanently remove all ads</div>
+    </div>
+    
+    <!-- FIXED: Added missing ' after the URL -->
+    <button class="auth-btn btn-login" style="width:auto; padding:10px 20px; margin:0; background:#10b981; color:#fff;" 
+        onclick="window.open('https://www.paypal.com/cgi-bin/webscr?cmd=_s-xclick&hosted_button_id=3NNGM4THBVXPL', '_blank')">
+        $3.00
+    </button>
+</div>
 
-            <!-- OPTION 2: SUPPORT / DONATE (Example) -->
-            <div class="choice-btn" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; padding:20px; cursor:default; background:#1a202c; border-color:#f59e0b;">
-                <div style="text-align:left;">
-                    <div style="color:#f59e0b; font-weight:bold; font-size:1.1rem;">SUPPORT DEV</div>
-                    <div style="font-size:0.8rem; color:#aaa;">Buy the dev a coffee! ☕</div>
-                </div>
-                <!-- REPLACE 'YOUR_LINK_HERE' -->
-                <button class="auth-btn btn-login" style="width:auto; padding:10px 20px; margin:0;" 
-                    onclick="window.open('https://ko-fi.com/deathforgegames, '_blank')">
-                    Donate
-                </button>
-            </div>
+<!-- OPTION 2: SUPPORT / DONATE -->
+<div class="choice-btn" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; padding:20px; cursor:default; background:#1a202c; border-color:#f59e0b;">
+    <div style="text-align:left;">
+        <div style="color:#f59e0b; font-weight:bold; font-size:1.1rem;">SUPPORT DEV</div>
+        <div style="font-size:0.8rem; color:#aaa;">Buy the dev a coffee! ☕</div>
+    </div>
+    
+    <!-- FIXED: Added missing ' after the URL -->
+    <button class="auth-btn btn-login" style="width:auto; padding:10px 20px; margin:0;" 
+        onclick="window.open('https://ko-fi.com/deathforgegames', '_blank')">
+        Donate
+    </button>
+</div>
 
             <div style="border-top:1px solid #333; margin-top:15px; padding-top:15px;">
                 <p style="font-size:0.8rem; color:#888;">Already purchased?</p>
