@@ -2001,6 +2001,7 @@ let currentUser = null;
 let currentRoomData = null; // Stores real-time room data
 let pendingJoinId = null;
 let isAdminMode = false;
+let listenersActive = false;
 
 // --- GAME FLOW CONTROL ---
 const GAME_FLOW = {
@@ -2021,7 +2022,7 @@ const GAME_FLOW = {
         modal.style.display = 'flex';
     },
     
-    performQuit: function(logout) {
+performQuit: function(logout) {
         document.getElementById('confirm-modal').style.display = 'none';
         
         // 1. Reset Game State
@@ -2030,31 +2031,36 @@ const GAME_FLOW = {
         players = [];
         activeEvent = null;
         
-        // 2. Hide Game UI / Show Splash
+        // 2. Hide Game UI
         document.getElementById('gameroom-screen').style.display = 'none';
         document.getElementById('create-screen').style.display = 'none';
         document.getElementById('game-over-modal').style.display = 'none';
         
-        // If Multiplayer, disconnect from Firebase listener
+        // --- 3. CLEAN UP LISTENERS ---
         if(isMultiplayer && gameId && db) {
+            // Detach all listeners for this game ID
             db.ref(`games/${gameId}`).off();
+            db.ref(`games/${gameId}/turnIndex`).off();
+            db.ref(`games/${gameId}/currentMove`).off();
+            db.ref(`games/${gameId}/board`).off();
+            db.ref(`games/${gameId}/players`).off();
+            
             if(myPlayerId !== 0) {
-                 // Remove self from slot if client
+                 // Remove self if client
                  db.ref(`games/${gameId}/slots/${myPlayerId}`).set({type:'open'});
             }
         }
         
-        // 3. Handle Logout or Return to Menu
+        // RESET FLAG
+        listenersActive = false;
+        
+        // 4. Handle Logout or Return
         if(logout) {
             AUTH.logout();
         } else {
-            // Show Splash Screen
             document.getElementById('splash-screen').style.display = 'flex';
             document.getElementById('splash-screen').style.opacity = '1';
-            
-            // Reset Camera
             resetCamera();
-            
             addLog("Returned to Main Menu.");
         }
     }
@@ -3464,7 +3470,7 @@ const ABILITY_LIBRARY = {
     sprint_act: { name: "Sprint", desc: "Move 3 spaces.", fn: (p) => { animateMove(p,3); return true; }, img: "https://static.wixstatic.com/media/b16479_2a97d38d75f14a7c96eb980178f1bdf6~mv2.jpg" },
     smoke_bomb_act: { name: "Smoke Bomb", desc: "Teleport to random space (Escape).", fn: (p) => { const r=Math.floor(Math.random()*40); animateTeleport(p, tiles[r], ()=>{resolveLanding(p)}); addLog("Vanished in smoke!", "log-rare"); return true; }, img: "https://static.wixstatic.com/media/b16479_6c7a5d29595e42cdbc625397ad4a9a7d~mv2.jpeg" },
     sabotage: { name: "Sabotage", desc: "Target Tavern becomes a Camp.", fn: (p) => { const ts=tiles.filter(t=>t.userData.buildingLevel===2 && t.userData.owner!==p.id); if(ts.length){const t=ts[Math.floor(Math.random()*ts.length)]; t.userData.buildingLevel=1; addLog(`Sabotaged tavern at ${t.userData.info.name}!`, "log-fail"); return true;} return false; }, img: "https://static.wixstatic.com/media/b16479_6364e428d9504a139a2c56e1e168eb3d~mv2.jpg" },
-    gamble_act: { name: "Gamble", desc: "Pay 50G. 50% chance to win 200G.", fn: (p) => { if(p.gold<50)return false; p.gold-=50; if(Math.random()>0.5){p.gold+=200; addLog("Gamble won: +200G!", "log-gold");}else{addLog("Gamble lost.", "log-fail");} updateHUD(); return true; }, img: "https://static.wixstatic.com/media/b16479_1b0329544faf46dbb17384ebb20cacc1~mv2.jpeg" },
+    gamble_act: { name: "Gamble", desc: "Pay 50G. 50% chance to win 200G.", fn: (p) => { if(p.gold<50)return false; p.gold-=50; if(Math.random()>0.5){p.gold+=200; addLog("Gamble won: +200G!", "log-gold");}else{addLog("Gamble lost.", "log-fail");} updateHUD(); return true; }, img: "https://static.wixstatic.com/media/b16479_613c6b72c1984c8d93398e7f00ae2ee0~mv2.jpeg" },
     
     // **CHANGED: SHADOW STRIKE (Teleport & Steal)**
     shadow_strike: { 
@@ -3772,10 +3778,10 @@ function generateTreasureDeck() {
     // --- NEW HELPER: Get Random Image ---
     const getImg = (name) => {
         const pool = ITEM_IMAGE_POOLS[name];
-        if (!pool || pool.length === 0) return "";
-        // Pick a random index from the list of images
+        if (!pool || pool.length === 0) return null; // Return null, not empty string
         const randomIndex = Math.floor(Math.random() * pool.length);
-        return pool[randomIndex];
+        const url = pool[randomIndex];
+        return (url && url.length > 5) ? url : null; // Only return if valid URL
     };
 
     // 1. GOLD & CONSUMABLES
@@ -5157,7 +5163,19 @@ function createDecks() {
 }
 
 // --- REGION 4: PLAYER & AI (WAS MISSING) ---
-function spawnPlayer(id, n, r, c, actId, pasId, ai, col) {
+function spawnPlayer(id, n, r, c, actId, pasId, ai, col, startPos = 0) {
+    // --- FAIL-SAFE OVERRIDE ---
+    // If we are in Multiplayer, check the Room Data 'truth'.
+    // If the slot says 'human', we force ai = false, no matter what argument was passed.
+    if (isMultiplayer && currentRoomData && currentRoomData.slots) {
+        const slotDef = currentRoomData.slots[id];
+        if (slotDef && slotDef.type === 'human') {
+            console.log(`[SPAWN FIX] Forcing Player ${id} (${n}) to HUMAN (was ${ai})`);
+            ai = false;
+        }
+    }
+    // ---------------------------
+
     const stats = { str: r.stats.str, dex: r.stats.dex, int: r.stats.int, gold: 1000 };
     
     const passiveDef = ABILITY_LIBRARY[pasId];
@@ -5168,7 +5186,14 @@ function spawnPlayer(id, n, r, c, actId, pasId, ai, col) {
     else if(c.id === 'rogue' || r.stats.dex > r.stats.str) archetype = 'dex';
     
     const g = createPlayerMesh(r, c, col);
-    g.position.copy(tiles[0].position);
+    
+    // Set Initial Position
+    if (tiles[startPos]) {
+        g.position.copy(tiles[startPos].position);
+    } else {
+        g.position.copy(tiles[0].position);
+    }
+
     if (id > 0) { 
         g.position.x += (Math.random() - 0.5) * 0.5; 
         g.position.z += (Math.random() - 0.5) * 0.5; 
@@ -5180,7 +5205,10 @@ function spawnPlayer(id, n, r, c, actId, pasId, ai, col) {
     const newPlayer = {
         id: id, name: n, race: r, class: c, portrait: portraitUrl,
         activeSkillId: actId, passiveSkillId: pasId,
-        stats: stats, gold: stats.gold, pos: 0, mesh: g, color: col, isAi: ai,
+        stats: stats, gold: stats.gold, 
+        pos: startPos, 
+        mesh: g, color: col, 
+        isAi: ai, // Now using the corrected flag
         archetype: archetype, 
         equipment: { main: null, off: null, head: null, body: null },
         inventory: [], 
@@ -5194,23 +5222,10 @@ function spawnPlayer(id, n, r, c, actId, pasId, ai, col) {
         history: [{ turn: 0, gold: 1000, props: 0 }] 
     };
 
-    // --- FIX: Add Image to Vanguard Blade ---
     if (pasId === 'vanguard') {
-        // Look up the image from your pool
         const vImg = (ITEM_IMAGE_POOLS["Vanguard Blade"] && ITEM_IMAGE_POOLS["Vanguard Blade"].length > 0) 
-                     ? ITEM_IMAGE_POOLS["Vanguard Blade"][0] 
-                     : "";
-
-        const sword = { 
-            id: `vg_${id}`, 
-            name: `Vanguard Blade`, 
-            type: 'equip', 
-            slot: 'main', 
-            bonus: {str:2}, 
-            rarity: 'rare', 
-            cost: 300,
-            img: vImg // <--- This line ensures the image shows up!
-        };
+                     ? ITEM_IMAGE_POOLS["Vanguard Blade"][0] : "";
+        const sword = { id: `vg_${id}`, name: `Vanguard Blade`, type: 'equip', slot: 'main', bonus: {str:2}, rarity: 'rare', cost: 300, img: vImg };
         newPlayer.inventory.push(sword);
     }
     
@@ -5385,38 +5400,48 @@ function useSkillAi(p, slotIdx) {
 
 // --- REGION 5: LOGIC (Turns, Move, Combat) ---
 function rollMove() { 
-    if(gameState!=='ROLL') return; 
-    
+    if(gameState !== 'ROLL') return; 
     const p = players[turnIndex]; 
-    
-    // MP Check: Only allow if it's My Turn OR if I am Host managing an AI
-    if(isMultiplayer) {
-        if (!p.isAi && p.id !== myPlayerId) return; // Not my turn
-        if (p.isAi && myPlayerId !== 0) return; // Only Host runs AI logic
-    }
-
     if(p.isDead) { endTurn(); return; }
-    
-    // --- GENERATE ROLL ---
-    let d1 = Math.floor(Math.random() * 6) + 1;
-    let d2 = Math.floor(Math.random() * 6) + 1;
 
-    // --- MULTIPLAYER: WRITE TO DB (Don't move yet) ---
-    if(isMultiplayer && db && gameId) {
-        db.ref(`games/${gameId}/currentMove`).set({
-            pid: p.id,
-            d1: d1,
-            d2: d2,
-            timestamp: firebase.database.ServerValue.TIMESTAMP
-        });
-        // We stop here. The 'startGame' listener will pick this up and animate everyone.
-        return; 
+    // --- SINGLE PLAYER ---
+    if (!isMultiplayer) {
+        let d1 = Math.floor(Math.random() * 6) + 1;
+        let d2 = Math.floor(Math.random() * 6) + 1;
+        let total = d1 + d2;
+        if (p.passiveSkillId && ABILITY_LIBRARY[p.passiveSkillId].name === "Shadow Step") total += 1;
+        if (activeEvent && activeEvent.data.id === 'weather_blizzard') total = Math.max(1, total - 1);
+        addLog(`${p.name} rolled ${d1+d2}.`);
+        if (p.id === 0) AUDIO.playSound('sfx_roll');
+        finishRollLogic(p, total);
+        return;
     }
 
-    // --- SINGLE PLAYER LOGIC ---
-    addLog(`${p.name} rolled ${d1+d2}.`);
-    if (p.id === myPlayerId) AUDIO.playSound('sfx_roll');
-    finishRollLogic(p, d1 + d2);
+    // --- MULTIPLAYER ---
+    const isMyTurn = (p.id === myPlayerId);
+    
+    // AI Turn: Host handles it.
+    // We add the check: Host only handles it if it's NOT a human slot.
+    let isAiTurn = (p.isAi && myPlayerId === 0);
+    if (isMultiplayer && currentRoomData && currentRoomData.slots[p.id].type === 'human') {
+        isAiTurn = false;
+    }
+
+    // Only send request if I have authority
+    if (isMyTurn || isAiTurn) {
+        if (db && gameId) {
+            // Prevent double clicking UI
+            const btn = document.getElementById('btn-action');
+            if(btn && btn.innerText === "WAITING...") return;
+            if(btn) btn.innerText = "WAITING...";
+
+            db.ref(`games/${gameId}/request`).set({
+                type: 'ROLL',
+                pid: p.id,
+                timestamp: firebase.database.ServerValue.TIMESTAMP
+            });
+        }
+    }
 }
 function finishRollLogic(p, r) {
     // Shadow Step Logic (Passive +1)
@@ -5560,17 +5585,37 @@ function endTurn(){
     const btnAction = document.getElementById('btn-action');
     if(btnAction) { btnAction.disabled = true; btnAction.innerText = "..."; }
 
-    // Logic for previous player (cleanup)
+    // Logic for previous player (cleanup stats/history)
     const prevP = players[turnIndex]; 
     if (prevP && !prevP.isEventEntity && !prevP.isBoss) {
         if (prevP.isPolymorphed) cureSheep(prevP);
         recalcStats(prevP);
-        if(prevP.isAi) manageAiInventory(prevP); 
+        if(!isMultiplayer && prevP.isAi) manageAiInventory(prevP); 
         const props = tiles.filter(t => t.userData.owner === prevP.id).length;
         prevP.history.push({ turn: turnCount, gold: prevP.gold, props: props });
     }
 
     setTimeout(() => {
+        // --- MULTIPLAYER: SEND REQUEST ---
+        if(isMultiplayer && db && gameId) {
+            // Only the current player (or Host for AI) can end the turn
+            const isMyTurn = (prevP.id === myPlayerId);
+            const isAiTurn = (prevP.isAi && myPlayerId === 0);
+
+            if (isMyTurn || isAiTurn) {
+                db.ref(`games/${gameId}/request`).set({
+                    type: 'END_TURN',
+                    pid: prevP.id, // Who is finishing
+                    timestamp: firebase.database.ServerValue.TIMESTAMP
+                });
+            }
+            
+            // We exit here. The Listener will handle the actual index update.
+            turnProcessing = false;
+            return; 
+        }
+
+        // --- SINGLE PLAYER LOGIC ---
         let nextIndex;
         if (prevP && prevP.extraTurn) {
             nextIndex = turnIndex; 
@@ -5587,31 +5632,19 @@ function endTurn(){
         
         turnIndex = nextIndex;
         gameState = 'ROLL'; 
-        
-        // --- SYNC WITH FIREBASE ---
-        if(isMultiplayer && db && gameId) {
-            // 1. If I am the player taking the NEXT turn, I update the DB.
-            // 2. OR, if the previous player was AI and I am the HOST, I update the DB.
-            if (players[nextIndex].id === myPlayerId || (prevP.isAi && myPlayerId === 0)) {
-                 db.ref(`games/${gameId}`).update({ turnIndex: nextIndex });
-            }
-        }
-
         updateHUD();
         turnProcessing = false;
 
         const curP = players[turnIndex];
-        
         if(curP.isDead) { endTurn(); return; }
 
         if(curP.isAi) { 
             zoomToPiece(curP);
-            // AI Turn: Everyone simulates it locally after a short delay
+            // Single Player AI Logic
             if (curP.isEventEntity) setTimeout(rollMove, 800);
             else setTimeout(() => { const didMove = attemptAiAbilities(curP, 'pre-roll'); if (!didMove) setTimeout(rollMove, 500); }, 1000);
         } 
         else {
-            // Check if it's LOCAL player's turn
             if(curP.id === myPlayerId) {
                 addLog("Your Turn!");
                 zoomToPiece(curP);
@@ -5624,38 +5657,51 @@ function endTurn(){
     }, 1200); 
 }
 function resolveLanding(p) {
-    debugLog(`Landed: ${p.name} at Tile ${p.pos}`);
-
-    // --- CASE 1: THE MERCHANT IS MOVING ---
-    if (p.isEventEntity) {
-        // Merchant has finished moving. End their turn.
-        endStep();
+    debugLog(`Landed: ${p.name} at Tile ${p.pos} (AI: ${p.isAi})`);
+    
+    // --- SINGLE PLAYER ---
+    if (!isMultiplayer) {
+        triggerTileEventLogic(p); 
         return;
     }
 
-    // --- CASE 2: PLAYER LANDS ON MERCHANT ---
+    // --- MULTIPLAYER ---
+    const isMyCharacter = (p.id === myPlayerId);
+    // Host owns AI, but MUST NOT own Humans
+    const isMyAi = (p.isAi && myPlayerId === 0);
+
+    // 1. If I am the Host, and this is a HUMAN CLIENT (not me), STOP.
+    if (myPlayerId === 0 && !isMyCharacter && !isMyAi) {
+        console.log("Host waiting for Client to act...");
+        return;
+    }
+
+    // 2. If this is ME (or my AI), Run Logic
+    if (isMyCharacter || isMyAi) {
+        // Sync position to be safe
+        db.ref(`games/${gameId}/players/${p.id}`).update({
+            pos: p.pos,
+            gold: p.gold
+        });
+        triggerTileEventLogic(p); 
+    }
+}
+
+// Helper to separate Logic from the Authority Check
+function triggerTileEventLogic(p) {
+    // --- Existing Logic for Events ---
+    const passive = ABILITY_LIBRARY[p.passiveSkillId];
+    if (passive && passive.onLanding) passive.onLanding(p);
+    
+    if (p.isEventEntity) { endStep(); return; }
+    
     if (activeEvent && activeEvent.playerRef && activeEvent.data) {
         if (p.pos === activeEvent.playerRef.pos) {
-            activeEvent.data.onLand(p, activeEvent.playerRef, () => {
-                triggerTileEvent(p);
-            });
+            activeEvent.data.onLand(p, activeEvent.playerRef, () => triggerTileEvent(p));
             return; 
         }
     }
-
-    // --- CASE 3: STANDARD LANDING ---
-    const passive = ABILITY_LIBRARY[p.passiveSkillId];
-    if (passive && passive.onLanding) passive.onLanding(p);
-    const active = ABILITY_LIBRARY[p.activeSkillId];
-    if (active && active.onLanding) active.onLanding(p);
-    ['head', 'body', 'main', 'off'].forEach(slot => {
-        const item = p.equipment[slot];
-        if (item && item.ability) {
-            const libAbil = Object.values(ABILITY_LIBRARY).find(a => a.name === item.ability.name);
-            if (libAbil && libAbil.onLanding) libAbil.onLanding(p);
-        }
-    });
-
+    
     triggerTileEvent(p);
 }
 
@@ -5768,26 +5814,29 @@ function continueFromArrival() {
 }
 
 function processAiTurn(p, t, i) {
+    // 1. SECURITY CHECK: In Multiplayer, ONLY the Host runs AI logic.
+    if (isMultiplayer && myPlayerId !== 0) return;
+
+    // 2. NEW CHECK: Is this slot actually a HUMAN?
+    // If currentRoomData says this ID is human, DO NOT run AI logic, 
+    // even if p.isAi is accidentally true.
+    if (isMultiplayer && currentRoomData && currentRoomData.slots) {
+        if (currentRoomData.slots[p.id].type === 'human') {
+            console.log(`[AI BLOCK] Preventing AI logic for Human Player ${p.id}`);
+            return;
+        }
+    }
+
     debugLog(`AI (${p.name}) processing tile: ${i.name} (${i.type})`);
     
     setTimeout(() => {
         try {
-            // --- NEW: MERCHANT LOGIC ---
-            // Merchants just wander. They don't interact with the board.
+            // --- MERCHANT LOGIC ---
             if (p.isEventEntity) {
-                // Check if they landed on the Human Player
-                const human = players[0];
-                if (human.pos === p.pos) {
-                    // Trigger the shop for the human
-                    // (The logic for this is actually in resolveLanding, but we can double check here)
-                }
-                endStep(); // Just end the turn
-                return;
+                endStep(); return;
             }
-            // ---------------------------
 
-            // ... (Rest of existing AI logic for normal players remains below) ...
-            
+            // --- STANDARD LOGIC ---
             if(i.type === 'tax') { 
                 processTax(p, 50); 
                 endStep(); return; 
@@ -5800,7 +5849,7 @@ function processAiTurn(p, t, i) {
                 } 
                 endStep(); return; 
             } 
-            // ... (Keep the rest of your existing processAiTurn logic here) ...
+            
              if(i.type === 'goto') { 
                 if (p.passiveSkillId === 'smoke_bomb' || p.activeSkillId === 'smoke_bomb') { 
                     addLog(`${p.name} uses Skeleton Key!`, "log-epic"); 
@@ -5826,6 +5875,7 @@ function processAiTurn(p, t, i) {
                 } 
                 endStep(); return; 
             }
+            
              if (i.type === 'mystery') {
                 addLog(`${p.name} explores...`, "log-rare");
                 const deck = isNight ? DECK_SKIRMISH : DECK_ENCOUNTER;
@@ -5842,6 +5892,9 @@ function processAiTurn(p, t, i) {
                         if (stat2 > stat1) best = card.choices[1];
                     }
                     setTimeout(() => {
+                        // AI ROLLS are local to Host, but the RESULT (Capture/Fail) needs to broadcast.
+                        // Since we don't have a full combat sync system, the Host calculates result
+                        // and the 'capture' function handles writing to DB.
                         rollCombat(p, best.stat, best.tn, best.req || 1, t, 'teleport', false, best.val || 0, best.fail || 50, false);
                     }, 500);
                     return;
@@ -5849,11 +5902,14 @@ function processAiTurn(p, t, i) {
                     endStep(); return;
                 }
             }
+            
+            // --- CAPTURE LOGIC ---
             if(i.cost > 0 && t.userData.owner === null) { 
                 const isRogue = p.class?.id === 'rogue';
                 const isDragonborn = p.race?.id === 'dragonborn';
                 const safetyRatio = (isRogue || isDragonborn) ? 1.2 : 2.0; 
                 if (p.gold >= i.cost * safetyRatio) { 
+                    // This triggers capture -> which triggers DB write -> which updates Clients
                     capture(t, p, 1, () => { checkForBonusLoot(p); }); 
                     return; 
                 } else { 
@@ -5861,6 +5917,8 @@ function processAiTurn(p, t, i) {
                     endStep(); return;
                 } 
             } 
+            
+            // --- ENEMY LAND LOGIC ---
             if(t.userData.owner !== null && t.userData.owner !== p.id) {
                 const enemyDefStat = t.userData.defendingStat || 'str'; 
                 const tn = i.tn || 3; 
@@ -5890,6 +5948,8 @@ function processAiTurn(p, t, i) {
                     endStep(); return; 
                 }
             }
+            
+            // --- UPGRADE LOGIC ---
              if (t.userData.owner === p.id) { 
                 if (t.userData.buildingLevel === 1 && p.gold > i.cost * 3) { 
                     addLog(`${p.name} upgrades...`); 
@@ -5909,6 +5969,10 @@ function processAiTurn(p, t, i) {
                     t.userData.guardCount = (t.userData.guardCount || 0) + 1; 
                     p.metrics.guardsHired++;
                     addLog(`${p.name} hired guard.`, "log-gold"); 
+                    // Important: Write guard update to DB
+                    if(isMultiplayer && db && gameId) {
+                         db.ref(`games/${gameId}/board/${t.userData.id}`).update({guardCount: t.userData.guardCount});
+                    }
                     updateHUD(); 
                 } 
                 endStep(); return;
@@ -7021,7 +7085,7 @@ function updateHUD() {
                     d.innerText = ""; 
                 } else {
                     d.innerText = item.name;
-                    d.style.backgroundImage = 'none';
+                    d.style.backgroundImage = 'none'; // Clear if no image
                 }
             } 
 
@@ -7907,68 +7971,102 @@ function up() {
     } 
 }
 function startGame() {
+    // 1. Reset UI
     document.getElementById('create-screen').style.display='none';
     const name = document.getElementById('char-name-input').value || "Hero";
 
     // --- MULTIPLAYER STARTUP ---
-    if(isMultiplayer && db && gameId) {
+    if (isMultiplayer && gameId && db) {
         
-        // 1. Sync User Data
-        const pData = {
-            id: myPlayerId, name: name, race: selRace, class: selClass,
-            activeSkillId: selActiveId, passiveSkillId: selPassiveId, color: selColor,
-            ready: true
-        };
-        db.ref(`games/${gameId}/players/${myPlayerId}`).update(pData);
-        
-        addLog("Waiting for other players...", "log-gold");
-        
-        if(myPlayerId === 0) {
-            setTimeout(() => {
-                db.ref(`games/${gameId}`).update({ status: 'playing', turnIndex: 0 });
-            }, 3000);
-        }
-
-        // --- GAME EVENT LISTENERS ---
-        
-        // A. Listen for Player Spawns
         db.ref(`games/${gameId}`).once('value', snap => {
             const g = snap.val();
             if(!g) return;
 
-            if(g.status === 'playing' && players.length === 0) {
+            // Only initialize if not already done
+            if(players.length === 0) {
                 gameState = 'ROLL';
+                players = []; // Ensure empty start
+
+                // STRICT SLOT LOOP: Must process 0, 1, 2, 3 in order
                 for(let i=0; i<4; i++) {
                     const slot = g.slots[i];
-                    if(!slot) continue;
-                    if(slot.type === 'human') {
-                        const pData = g.players[i];
-                        if(pData) spawnPlayer(i, slot.name, pData.race, pData.class, pData.activeSkillId, pData.passiveSkillId, (i !== myPlayerId), slot.color);
-                    } else if(slot.type === 'ai') {
-                        // AI Gen
-                        const r = RACES[Math.floor(Math.random()*RACES.length)]; 
-                        const c = CLASSES[Math.floor(Math.random()*CLASSES.length)];
-                        const act = c.actives[0]; const pas = c.passives[0];
-                        spawnPlayer(i, slot.name || "Computer "+i, r, c, act, pas, true, slot.color || '#888');
+                    
+                    // Defaults for empty/closed slots
+                    let pName = "Empty";
+                    let pRace = RACES[0];
+                    let pClass = CLASSES[0];
+                    let pAct = pClass.actives[0];
+                    let pPas = pClass.passives[0];
+                    let pColor = '#333';
+                    let isBot = false;
+                    let isDead = true; // Default to dead so they are skipped in turns
+
+                    // A. HUMAN
+                    if(slot && slot.type === 'human') {
+                        const pData = (g.players && g.players[i]) ? g.players[i] : {};
+                        pName = slot.name;
+                        pColor = slot.color;
+                        isBot = false; // CRITICAL: HUMANS ARE NOT BOTS
+                        isDead = false; // Humans are alive
+
+                        // Load saved character data
+                        if (pData.race && pData.class) {
+                            pRace = pData.race;
+                            pClass = pData.class;
+                            pAct = pData.activeSkillId;
+                            pPas = pData.passiveSkillId;
+                        }
+                    } 
+                    // B. AI
+                    else if(slot && slot.type === 'ai') {
+                        pName = slot.name || "CPU " + i;
+                        pColor = slot.color || '#888';
+                        isBot = true; 
+                        isDead = false; // Bots are alive
+                        
+                        // Randomize if not saved
+                        pRace = RACES[Math.floor(Math.random()*RACES.length)];
+                        pClass = CLASSES[Math.floor(Math.random()*CLASSES.length)];
+                        pAct = pClass.actives[0];
+                        pPas = pClass.passives[0];
                     }
+
+                    // SPAWN THE ENTITY (Even if dummy/dead)
+                    spawnPlayer(i, pName, pRace, pClass, pAct, pPas, isBot, pColor, 0);
+                    
+                    // Set Status
+                    const justSpawned = players[i];
+                    justSpawned.isDead = isDead; 
+                    
+                    // Sync Gold if Human/AI
+                    if (!isDead && g.players && g.players[i] && g.players[i].gold !== undefined) {
+                        justSpawned.gold = g.players[i].gold;
+                    }
+                    
+                    // Log for Debugging
+                    console.log(`Spawned P${i}: ${pName} | AI: ${isBot} | Dead: ${isDead}`);
                 }
+                
                 updateHUD();
                 addLog("The Adventure Begins!");
-                
-                // START LISTENING FOR GAMEPLAY EVENTS
-                setupMultiplayerListeners();
             }
+
+            setupMultiplayerListeners();
         });
 
     } else {
         // --- SINGLE PLAYER LOGIC ---
         spawnPlayer(0, name, selRace, selClass, selActiveId, selPassiveId, false, selColor);
-        let aiColors = PLAYER_COLORS.filter(c => c !== selColor); let availableNames = [...NPC_NAMES];
+        let aiColors = PLAYER_COLORS.filter(c => c !== selColor); 
+        let availableNames = [...NPC_NAMES];
+        
         for(let i=1; i<4; i++) { 
-            const r = RACES[Math.floor(Math.random()*RACES.length)]; const c = CLASSES[Math.floor(Math.random()*CLASSES.length)]; 
+            const r = RACES[Math.floor(Math.random()*RACES.length)]; 
+            const c = CLASSES[Math.floor(Math.random()*CLASSES.length)]; 
             const aiName = availableNames.splice(Math.floor(Math.random() * availableNames.length), 1)[0]; 
             const aiCol = aiColors.splice(Math.floor(Math.random()*aiColors.length), 1)[0]; 
-            const act = c.actives[Math.floor(Math.random()*3)]; const pas = c.passives[Math.floor(Math.random()*3)]; 
+            const act = c.actives[Math.floor(Math.random()*3)]; 
+            const pas = c.passives[Math.floor(Math.random()*3)]; 
             spawnPlayer(i, aiName, r, c, act, pas, true, aiCol); 
         }
         gameState='ROLL'; 
@@ -7981,67 +8079,189 @@ function startGame() {
 
 // --- NEW HELPER FUNCTION FOR MP LISTENERS ---
 function setupMultiplayerListeners() {
-    // 1. Listen for Turn Changes
+    if(listenersActive) return;
+    listenersActive = true;
+
+    console.log("Setting up Host-Authoritative Listeners...");
+
+    // ==========================================
+    //  SECTION A: HOST LOGIC (Process Requests)
+    // ==========================================
+    if (myPlayerId === 0) {
+        db.ref(`games/${gameId}/request`).on('value', snap => {
+            const req = snap.val();
+            if(!req) return;
+
+            // 1. HANDLE ROLL REQUEST
+            if (req.type === 'ROLL') {
+                const p = players.find(pl => pl.id === req.pid);
+                if (p) {
+                    // Host performs the RNG
+                    let d1 = Math.floor(Math.random() * 6) + 1;
+                    let d2 = Math.floor(Math.random() * 6) + 1;
+                    let total = d1 + d2;
+
+                    // Host applies modifiers
+                    if (p.passiveSkillId && ABILITY_LIBRARY[p.passiveSkillId].name === "Shadow Step") total += 1;
+                    if (activeEvent && activeEvent.data.id === 'weather_blizzard') total = Math.max(1, total - 1);
+
+                    // Write the authoritative result
+                    db.ref(`games/${gameId}/currentMove`).set({
+                        pid: p.id,
+                        d1: d1,
+                        d2: d2,
+                        finalSteps: total,
+                        startPos: p.pos,
+                        timestamp: firebase.database.ServerValue.TIMESTAMP
+                    });
+                }
+                // Clear request so it doesn't run again
+                db.ref(`games/${gameId}/request`).remove();
+            }
+
+            // 2. HANDLE END TURN REQUEST
+            if (req.type === 'END_TURN') {
+                const prevP = players[turnIndex];
+                
+                // Logic for next turn index
+                let nextIndex;
+                if (prevP && prevP.extraTurn) {
+                    nextIndex = turnIndex;
+                    prevP.extraTurn = false; // Consume extra turn
+                    // Optionally write a chat message about time warp here
+                } else {
+                    nextIndex = (turnIndex + 1) % players.length;
+                    let safety = 0;
+                    while(players[nextIndex].isDead && safety < 4) {
+                        nextIndex = (nextIndex + 1) % players.length;
+                        safety++;
+                    }
+                }
+
+                // Write Result
+                db.ref(`games/${gameId}`).update({ turnIndex: nextIndex });
+                // Clear Request
+                db.ref(`games/${gameId}/request`).remove();
+            }
+        });
+    }
+
+    // ==========================================
+    //  SECTION B: CLIENT LOGIC (React to State)
+    // ==========================================
+
+    // 1. MOVEMENT LISTENER (Animation)
+    db.ref(`games/${gameId}/currentMove`).on('value', snap => {
+        const move = snap.val();
+        if(!move) return;
+        if(move.timestamp <= lastMoveTimestamp) return; // Ignore old moves
+        lastMoveTimestamp = move.timestamp;
+
+        const p = players.find(pl => pl.id === move.pid);
+        if(p) {
+            // Hard Sync
+            p.pos = move.startPos;
+            if(tiles[p.pos]) {
+                p.mesh.position.set(tiles[p.pos].position.x, 0, tiles[p.pos].position.z);
+            }
+
+            addLog(`${p.name} rolled ${move.d1 + move.d2}.`);
+            if(p.id === myPlayerId) AUDIO.playSound('sfx_roll');
+            
+            gameState = 'MOVING';
+            // Everyone animates based on what the Host decided
+            animateMove(p, move.finalSteps);
+        }
+    });
+
+    // 2. TURN CHANGE LISTENER
     db.ref(`games/${gameId}/turnIndex`).on('value', snap => {
         const idx = snap.val();
         if(idx !== null && idx !== turnIndex) {
             turnIndex = idx;
-            updateHUD();
             const curP = players[turnIndex];
+            
+            gameState = 'ROLL'; // Reset state for new player
+            updateHUD();
+
             if(curP) {
-                addLog(curP.id === myPlayerId ? "Your Turn!" : `${curP.name}'s Turn`);
-                if(curP.id === myPlayerId) AUDIO.playSound('sfx_transition');
-                
-                // If it's AI turn and I am Host, I trigger the AI roll
-                if(curP.isAi && myPlayerId === 0) {
-                    setTimeout(rollMove, 1500); 
+                zoomToPiece(curP);
+                if(curP.id === myPlayerId) {
+                    addLog("Your Turn!");
+                    AUDIO.playSound('sfx_transition');
+                } else {
+                    addLog(`${curP.name}'s Turn`);
+                }
+
+                // AI TRIGGER (HOST ONLY)
+                // If it's an AI turn, the Host waits a moment then writes a Roll Request
+                if (curP.isAi && myPlayerId === 0) {
+                    setTimeout(() => {
+                        db.ref(`games/${gameId}/request`).set({
+                            type: 'ROLL',
+                            pid: curP.id,
+                            timestamp: firebase.database.ServerValue.TIMESTAMP
+                        });
+                    }, 1500);
                 }
             }
         }
     });
 
-    // 2. Listen for MOVES (Dice Rolls)
-    db.ref(`games/${gameId}/currentMove`).on('value', snap => {
-        const move = snap.val();
-        if(!move) return;
-
-        // Check timestamp to avoid re-playing old moves
-        if(move.timestamp <= lastMoveTimestamp) return;
-        lastMoveTimestamp = move.timestamp;
-
-        const p = players.find(pl => pl.id === move.pid);
-        if(p) {
-            addLog(`${p.name} rolled ${move.d1 + move.d2}.`);
-            // Play sound only if it's me
-            if(p.id === myPlayerId) AUDIO.playSound('sfx_roll');
+    // 3. BOARD & PLAYER SYNC (Visuals)
+    const boardHandler = (snap) => {
+        const tileId = parseInt(snap.key);
+        const data = snap.val();
+        const tile = tiles[tileId];
+        const owner = players.find(p => p.id === data.owner);
+        
+        if(tile && owner) {
+            tile.userData.owner = owner.id;
+            tile.userData.buildingLevel = data.level;
+            tile.userData.guardCount = data.guardCount || 0;
+            tile.userData.defendingStat = data.defendingStat || 'str';
             
-            // EXECUTE MOVEMENT LOCALLY
-            finishRollLogic(p, move.d1 + move.d2);
+            if(gameState === 'MOVING') setTimeout(() => applyCaptureVisuals(tile, owner, data.level), 3000);
+            else applyCaptureVisuals(tile, owner, data.level);
+        }
+    };
+    db.ref(`games/${gameId}/board`).on('child_added', boardHandler);
+    db.ref(`games/${gameId}/board`).on('child_changed', boardHandler);
+
+    db.ref(`games/${gameId}/players`).on('child_changed', snap => {
+        const pData = snap.val();
+        const pId = parseInt(snap.key);
+        const p = players.find(pl => pl.id === pId);
+        if(p && pData) {
+            if(pData.gold !== undefined) p.gold = pData.gold;
+            updateHUD();
         }
     });
-
-    // 3. Listen for Map Captures
-    db.ref(`games/${gameId}/board`).on('child_added', handleBoardUpdate);
-    db.ref(`games/${gameId}/board`).on('child_changed', handleBoardUpdate);
 }
 
 function handleBoardUpdate(snap) {
-    const tileId = snap.key;
-    const data = snap.val(); // { owner: id, level: 1 }
+    const tileId = parseInt(snap.key); // Ensure int
+    const data = snap.val();
     
     const tile = tiles[tileId];
     const owner = players.find(p => p.id === data.owner);
     
     if(tile && owner) {
-        // Update local data to match DB
+        // Update Internal Data immediately
         tile.userData.owner = owner.id;
         tile.userData.buildingLevel = data.level;
         tile.userData.guardCount = data.guardCount || 0;
         tile.userData.defendingStat = data.defendingStat || 'str';
 
-        // Trigger visual update (Building mesh)
-        // We pass 'true' as 4th arg to skip DB write inside capture()
-        applyCaptureVisuals(tile, owner, data.level); 
+        // DELAY VISUALS if game is moving
+        if(gameState === 'MOVING') {
+            // Wait 3 seconds (approx move time) before showing tent
+            setTimeout(() => {
+                applyCaptureVisuals(tile, owner, data.level);
+            }, 3000);
+        } else {
+            applyCaptureVisuals(tile, owner, data.level);
+        }
     }
 }
 function forcePortrait() {
