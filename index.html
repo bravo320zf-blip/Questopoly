@@ -119,13 +119,20 @@ Because you do not have a backend server listening for automatic receipts (Webho
     }
 
     /* DESKTOP DEFAULT: Centered Square Aspect Ratio */
-    #board-anchor {
-        position: absolute; top: 50%; left: 50%; 
-        transform: translate(-50%, -50%);
-        height: 96vh; width: 96vh; 
-        max-width: 96vw; max-height: 96vw; 
-        pointer-events: none;
-    }
+#board-anchor {
+    position: absolute; top: 50%; left: 50%; 
+    transform: translate(-50%, -50%);
+    
+    /* UPDATED: Use % relative to the Wrapper, not vh relative to Screen */
+    height: 96%; 
+    width: 96%; /* Matches height to keep aspect ratio if needed, or stick to vh/vw logic if squareness is vital */
+    
+    /* Keep aspect ratio constraints */
+    max-width: 96vh; 
+    max-height: 96vw; 
+    
+    pointer-events: none;
+}
 
     #inner-zone {
         position: absolute; top: 14.5%; left: 14.5%;
@@ -570,15 +577,15 @@ Because you do not have a backend server listening for automatic receipts (Webho
 /* --- MOBILE FULL SCREEN UI --- */
     @media only screen and (max-width: 768px) {
         /* Expand the Container to Full Screen */
-        #board-anchor {
-            width: 100vw !important;
-            height: 100vh !important;
-            max-width: none !important;
-            max-height: none !important;
-            transform: none !important; 
-            top: 0 !important;
-            left: 0 !important;
-        }
+    #board-anchor {
+        width: 100% !important;  /* Changed from 100vw to 100% to fit wrapper */
+        height: 100% !important; /* Changed from 100vh to 100% to fit wrapper */
+        max-width: none !important;
+        max-height: none !important;
+        transform: none !important; 
+        top: 0 !important;
+        left: 0 !important;
+    }
 
         /* Expand the Inner Zone */
         #inner-zone {
@@ -916,10 +923,10 @@ Because you do not have a backend server listening for automatic receipts (Webho
     position: fixed;
     top: 15px;
     right: 20px;
-    display: flex;
+    display: none; 
     align-items: center;
-    gap: 15px; /* Space between buttons */
-    z-index: 10000; /* Above everything */
+    gap: 15px;
+    z-index: 10000;
     pointer-events: auto;
 }
 
@@ -2297,30 +2304,33 @@ performQuit: function(logout) {
         document.getElementById('create-screen').style.display = 'none';
         document.getElementById('game-over-modal').style.display = 'none';
         
-        // --- 3. CLEAN UP LISTENERS ---
+        // 3. Clean Listeners
         if(isMultiplayer && gameId && db) {
-            // Detach all listeners for this game ID
             db.ref(`games/${gameId}`).off();
             db.ref(`games/${gameId}/turnIndex`).off();
             db.ref(`games/${gameId}/currentMove`).off();
             db.ref(`games/${gameId}/board`).off();
             db.ref(`games/${gameId}/players`).off();
-            
             if(myPlayerId !== 0) {
-                 // Remove self if client
                  db.ref(`games/${gameId}/slots/${myPlayerId}`).set({type:'open'});
             }
         }
         
-        // RESET FLAG
         listenersActive = false;
         
         // 4. Handle Logout or Return
         if(logout) {
+            // --- UPDATE: HIDE HUD ON LOGOUT ---
+            document.getElementById('top-right-hud').style.display = 'none';
             AUTH.logout();
         } else {
             document.getElementById('splash-screen').style.display = 'flex';
             document.getElementById('splash-screen').style.opacity = '1';
+            
+            // --- UPDATE: SHOW HUD ON RETURN ---
+            document.getElementById('top-right-hud').style.display = 'flex';
+            // ----------------------------------
+
             resetCamera();
             addLog("Returned to Main Menu.");
         }
@@ -2942,15 +2952,25 @@ function getMyDisplayName(callback) {
 
 // --- LOBBY SYSTEM ---
 const LOBBY = {
-    enter: function() {
+enter: function() {
         document.getElementById('splash-screen').style.display = 'none';
         document.getElementById('lobby-screen').style.display = 'flex';
+        
+        // --- UPDATE: HIDE HUD ---
+        document.getElementById('top-right-hud').style.display = 'none';
+        // ------------------------
+
         this.refreshList();
         this.initGlobalChat();
     },
-    exit: function() {
+exit: function() {
         document.getElementById('lobby-screen').style.display = 'none';
         document.getElementById('splash-screen').style.display = 'flex';
+        
+        // --- UPDATE: SHOW HUD ---
+        document.getElementById('top-right-hud').style.display = 'flex';
+        // ------------------------
+
         if(this.chatListener) db.ref('chat/global').off();
     },
     initGlobalChat: function() {
@@ -3414,17 +3434,25 @@ setSlot: function(slotIdx, type) {
     
     // AI Logic: Generate Stats/Race/Class NOW and save to DB
     if(type === 'ai') {
-        // Find unused color
+        // --- FIX: CHECK USED COLORS ACCURATELY ---
         const usedColors = [];
+        // Check currentRoomData to see what humans/other AIs have taken
         if(currentRoomData && currentRoomData.slots) {
             for(let i=0; i<4; i++) {
-                if(currentRoomData.slots[i] && currentRoomData.slots[i].color) {
-                    usedColors.push(currentRoomData.slots[i].color);
+                // Only count color if the slot is NOT the one we are currently changing
+                // and if the slot is actually occupied (human, ai, or ready)
+                if(i !== slotIdx && currentRoomData.slots[i] && currentRoomData.slots[i].type !== 'open') {
+                    if(currentRoomData.slots[i].color) {
+                        usedColors.push(currentRoomData.slots[i].color);
+                    }
                 }
             }
         }
+        
         const availableColors = PLAYER_COLORS.filter(c => !usedColors.includes(c));
+        // Fallback to grey if all taken, though unlikely with 6 colors and 4 players
         const aiColor = availableColors.length > 0 ? availableColors[0] : '#888';
+        
         const aiName = NPC_NAMES[Math.floor(Math.random() * NPC_NAMES.length)];
 
         // GENERATE FIXED AI DATA
@@ -5477,51 +5505,49 @@ function init() {
     AUDIO.init();
 
     // --- TRANSITION LOGIC ---
+// --- TRANSITION LOGIC ---
     window.triggerGameMenu = () => {
         const logo = document.getElementById('logo-screen');
         const splash = document.getElementById('splash-screen');
         const authScreen = document.getElementById('auth-screen');
         const logoImg = document.getElementById('logo-img');
         const logoText = document.getElementById('logo-text');
+        
+        // VISIBILITY CONTROL: Ensure HUD is hidden during logo fade
+        document.getElementById('top-right-hud').style.display = 'none';
 
-        // 1. Ensure Logo is visible covering everything
         logo.style.display = 'flex';
         logo.style.opacity = '1';
         if(logoImg) logoImg.style.opacity = '1';
         if(logoText) logoText.style.opacity = '1';
 
-        // 2. Start Sequence
         setTimeout(() => {
-            // A. Fade out Logo Text/Image first (Black background stays)
             if(logoImg) logoImg.style.opacity = '0';
             if(logoText) logoText.style.opacity = '0';
 
-            // B. Wait 2 seconds, then PREPARE the next screen BEHIND the logo
             setTimeout(() => {
-                
-                // IMPORTANT: Turn on the destination screen BEFORE fading out the logo
                 if(currentUser) {
-                    // Logged In: Enable Splash
                     authScreen.style.display = 'none';
                     splash.style.display = 'flex';
                     splash.style.opacity = '1'; 
                     
-                    // Check URL Join
+                    // --- UPDATE: SHOW HUD ONLY HERE ---
+                    document.getElementById('top-right-hud').style.display = 'flex';
+                    // ----------------------------------
+
                     const urlParams = new URLSearchParams(window.location.search);
                     const joinId = urlParams.get('join');
                     if(joinId) setTimeout(() => LOBBY.attemptJoin(joinId), 500);
 
                 } else {
-                    // Not Logged In: Enable Auth
                     splash.style.display = 'none';
                     authScreen.style.display = 'flex';
+                    // HUD remains hidden for Auth screen
                 }
 
-                // C. Now fade out the Black Background (Revealing Splash or Auth immediately)
                 logo.style.opacity = '0';
                 AUDIO.tryPlayStart();
 
-                // D. Cleanup Logo from DOM after fade finishes
                 setTimeout(() => {
                     logo.style.display = 'none';
                 }, 1500); 
@@ -6051,29 +6077,45 @@ function animateMove(p, s) {
 
     // --- ANIMATION SYNC ---
     const t = tiles[p.pos].position.clone(); 
+    // Add jitter if not Player 1 to avoid overlap
     if (p.id > 0) { t.x += (Math.random()-0.5)*0.5; t.z += (Math.random()-0.5)*0.5; } 
 
-    // 1. Calculate Rotation
+    // 1. Calculate Target Rotation
     const dx = t.x - p.mesh.position.x;
     const dz = t.z - p.mesh.position.z;
-    const angle = Math.atan2(dx, dz);
+    let targetAngle = Math.atan2(dx, dz);
+
+    // --- FIX: SHORTEST PATH ROTATION ---
+    // Get current rotation
+    let currentAngle = p.mesh.rotation.y;
+    
+    // Calculate difference between target and current
+    let diff = targetAngle - currentAngle;
+    
+    // Normalize difference to [-PI, PI] to find the shortest turn
+    while (diff > Math.PI) diff -= Math.PI * 2;
+    while (diff < -Math.PI) diff += Math.PI * 2;
+    
+    // The actual target for the Tween is current + corrected difference
+    const tweenTarget = currentAngle + diff;
+    // -----------------------------------
 
     // 2. Rotate First (150ms)
     new TWEEN.Tween(p.mesh.rotation)
-        .to({ y: angle }, 150)
+        .to({ y: tweenTarget }, 150)
         .onComplete(() => {
             // 3. Move Player (300ms)
             new TWEEN.Tween(p.mesh.position)
                 .to({x: t.x, z: t.z}, 300)
                 .start();
             
-            // 4. Move Camera (300ms) - EXACT SAME DURATION
+            // 4. Move Camera (300ms)
             if(isZoomed) {
                 const offset = { x: 0, y: 22, z: 18 }; 
                 new TWEEN.Tween(camera.position)
                     .to({
                         x: t.x + offset.x, 
-                        y: offset.y, // Maintain steady height (ignore player hop)
+                        y: offset.y, 
                         z: t.z + offset.z
                     }, 300)
                     .start();
@@ -6116,20 +6158,17 @@ function endTurn(){
         if (prevP.isPolymorphed) cureSheep(prevP);
         recalcStats(prevP);
         
-        // --- FIX: Allow Host to manage AI Inventory in MP ---
-        // Old: if(!isMultiplayer && prevP.isAi)
-        // New: Run if Single Player OR (Multiplayer AND I am Host)
+        // Host manages AI Inventory in both SP and MP
         if (prevP.isAi && (!isMultiplayer || myPlayerId === 0)) {
             manageAiInventory(prevP); 
         }
-        // ---------------------------------------------------
 
         const props = tiles.filter(t => t.userData.owner === prevP.id).length;
         prevP.history.push({ turn: turnCount, gold: prevP.gold, props: props });
     }
 
     setTimeout(() => {
-        // --- MULTIPLAYER LOGIC ---
+        // --- MULTIPLAYER REQUEST LOGIC ---
         if(isMultiplayer && db && gameId) {
             const isMyTurn = (prevP.id === myPlayerId);
             const isAiTurn = (prevP.isAi && myPlayerId === 0);
@@ -6143,7 +6182,7 @@ function endTurn(){
             return; 
         }
 
-        // --- SINGLE PLAYER LOGIC ---
+        // --- SINGLE PLAYER / LOCAL LOGIC ---
         let nextIndex;
         if (prevP && prevP.extraTurn) {
             nextIndex = turnIndex; 
@@ -6158,8 +6197,24 @@ function endTurn(){
             }
         }
 
+        // --- ROUND COMPLETION LOGIC ---
         if (nextIndex === 0 && !prevP.extraTurn) {
             turnCount++;
+            
+            // --- FIX: DAY/NIGHT CYCLE ---
+            // Toggle every 4 rounds (adjust number as desired)
+            if (turnCount > 0 && turnCount % 4 === 0) {
+                const newNightState = !isNight;
+                
+                // Local transition (MP syncs via listener)
+                isNight = newNightState;
+                transitionDayNight(isNight);
+                
+                const phaseName = newNightState ? "NIGHT FALLS" : "DAWN BREAKS";
+                addLog(`=== ${phaseName} ===`, "log-epic");
+            }
+            // ----------------------------
+
             if (activeEvent) {
                 activeEvent.turnsLeft--;
                 if (activeEvent.turnsLeft <= 0) {
@@ -6332,8 +6387,30 @@ function continueFromArrival() {
         drawCardAnim(deckType, () => showEncounter(p, i, t, 'mystery_event'));
         return;
     }
-    if(i.type === 'park') { 
-        if(treasuryGold > 0){ p.gold += treasuryGold; addLog(`Won ${treasuryGold}G!`, "log-success"); treasuryGold = 0; updateHUD(); } 
+		if(i.type === 'park') { 
+        if(treasuryGold > 0){ 
+            p.gold += treasuryGold; 
+            addLog(`Won ${treasuryGold}G!`, "log-success"); 
+            
+            // SYNC CLEAR TREASURY
+            treasuryGold = 0; 
+            if(isMultiplayer && gameId) {
+                db.ref(`games/${gameId}/treasury`).set(0);
+                syncPlayerState(); // Update my gold in DB
+            }
+			
+			// 9. DAY/NIGHT SYNC
+    db.ref(`games/${gameId}/isNight`).on('value', snap => {
+        const val = snap.val();
+        if(val !== null && val !== isNight) {
+            isNight = val;
+            transitionDayNight(isNight);
+            updateHUD();
+        }
+    });
+            
+            updateHUD(); 
+        } 
         else { addLog("Treasury empty."); } 
         endStep(); return; 
     }
@@ -7189,13 +7266,11 @@ function applyCaptureVisuals(t, p, lvl) {
         activeGuards = activeGuards.filter(g => g.tileId !== t.userData.id);
     }
 
-    // --- FIX: Prevent closing Loot/Shop windows during sync ---
+    // Prevent closing Loot/Shop windows during sync
     const modal = document.getElementById('card-modal');
     const header = document.getElementById('enc-header');
     
-    // Only close the window if it is open AND it is NOT a Loot or Shop window
-    // (We assume Loot/Shop have specific classes added in showEncounter)
-    if (modal.classList.contains('active')) {
+    if (modal && modal.classList.contains('active')) {
         const isLoot = header.classList.contains('loot');
         const isShop = header.classList.contains('market');
         
@@ -7203,7 +7278,6 @@ function applyCaptureVisuals(t, p, lvl) {
             modal.classList.remove('active');
         }
     }
-    // ----------------------------------------------------------
 
     // 2. Create New Visual Group
     const g = new THREE.Group();
@@ -7240,14 +7314,36 @@ function applyCaptureVisuals(t, p, lvl) {
         }
     }
     
-    // 4. Animations
+    // 4. Animate Building Pop-up
     g.position.y = -5; 
     t.add(g); 
     t.userData.prop = g;
     
     new TWEEN.Tween(g.position).to({y: 0}, 4000).easing(TWEEN.Easing.Elastic.Out).start();
     
-    // Only log if this wasn't a reload/sync (simple check if we are moving or it's our turn)
+    // --- FIX: VICTORY ANIMATION (JUMP & SPIN) ---
+    // Only animate if the player mesh exists and isn't currently moving between tiles
+    if (p && p.mesh && gameState !== 'MOVING') {
+        // Jump Up
+        new TWEEN.Tween(p.mesh.position)
+            .to({ y: 1.5 }, 300)
+            .yoyo(true)
+            .repeat(1)
+            .easing(TWEEN.Easing.Quadratic.Out)
+            .start();
+
+        // Spin 360
+        new TWEEN.Tween(p.mesh.rotation)
+            .to({ y: p.mesh.rotation.y + (Math.PI * 2) }, 600)
+            .easing(TWEEN.Easing.Cubic.Out)
+            .start();
+            
+        // Play Sound only if it's me
+        if(p.id === myPlayerId && typeof AUDIO !== 'undefined') AUDIO.playSound('sfx_win');
+    }
+    // --------------------------------------------
+    
+    // Log Update
     if(p.id === turnIndex || gameState === 'MOVING') {
         addLog(lvl === 1 ? `${p.name} captured land!` : `${p.name} upgraded!`, "log-success");
     }
@@ -7276,24 +7372,45 @@ function pay(p, amount, recipient) {
         addLog(`Iron Skin reduced loss by ${oldAmt - finalAmount}G`, "log-rare"); 
     }
     
-    // --- MANA SHIELD CHECK ---
-    // If the cost would bankrupt them, and they have Mana Shield and Items, destroy an item instead.
+    // Mana Shield Check... (Keep existing logic)
     if (p.passiveSkillId === 'mana_shield' && p.gold < finalAmount && p.inventory.length > 0) {
-        p.inventory.shift(); // Remove first item
+        p.inventory.shift(); 
         addLog("Mana Shield: Item sacrificed to negate debt!", "log-epic");
-        return; // Skip payment
+        return; 
     }
-    // -------------------------
 
     p.gold -= finalAmount;
-    if (p.gold < 0) { handleDebt(p, Math.abs(p.gold), recipient); } 
+    
+    // --- UPDATE DB FOR PLAYER GOLD ---
+    if(isMultiplayer) syncPlayerState(); 
+
+    if (p.gold < 0) { 
+        handleDebt(p, Math.abs(p.gold), recipient); 
+    } 
     else { 
-        if (recipient) recipient.gold += finalAmount; 
-        else treasuryGold += finalAmount; 
+        if (recipient) {
+            recipient.gold += finalAmount; 
+            // Update recipient gold in DB too if possible, or wait for their client to sync?
+            // Safer to update locally and let Host/Owner sync eventually, 
+            // but for instant feedback:
+            if(isMultiplayer && myPlayerId === 0) {
+                // If I am host, I can force update the recipient
+                db.ref(`games/${gameId}/players/${recipient.id}`).update({gold: recipient.gold});
+            }
+        } 
+        else { 
+            // Pay to Treasury
+            treasuryGold += finalAmount; 
+            // SYNC TREASURY
+            if(isMultiplayer && gameId) {
+                db.ref(`games/${gameId}/treasury`).set(treasuryGold);
+            }
+        }
+        
         if(finalAmount > 0) addLog(`Paid ${finalAmount}G`, "log-fail"); 
         updateHUD(); 
     }
-	AUDIO.playSound('sfx_gold');
+    AUDIO.playSound('sfx_gold');
 }
 function handleDebt(p, debt, recipient) {
     const ownedTiles = tiles.filter(t => t.userData.owner === p.id);
@@ -8506,35 +8623,27 @@ document.addEventListener('keydown', (e) => { if (["1","2","3","4","5","6","7"].
 // --- REGION 7: CREATION SCREEN ---
 function enterCreation(isMP = false) { 
     isMultiplayer = isMP;
-    // 1. Disable Start Music Flag immediately
     AUDIO.allowStartMusic = false;
-    
-    // 2. Audio Transitions
-    AUDIO.stopStartMusic();   // Fade out Intro
-    AUDIO.playMusic(false);   // Start Day Music
+    AUDIO.stopStartMusic();   
+    AUDIO.playMusic(false);   
 
-    // 3. Visual Transition
+    // --- UPDATE: HIDE HUD ---
+    document.getElementById('top-right-hud').style.display = 'none';
+    // ------------------------
+
     const splash = document.getElementById('splash-screen');
     const create = document.getElementById('create-screen');
 
-    // STEP A: Turn on the Create Screen immediately
-    // It sits at z-index 200, so it appears BEHIND the Splash Screen (z-index 300)
     create.style.display = 'flex';
     
-    // STEP B: Ensure Create Screen is fully opaque so we see it when Splash fades
-    // We use a tiny timeout to ensure the browser registers 'display:flex' first
     setTimeout(() => {
         create.style.opacity = '1';
-        
-        // STEP C: Fade out the Splash Screen
-        // This effectively "Crossfades" or reveals the Create Screen underneath
         splash.style.opacity = '0';
     }, 50);
 
-    // STEP D: Cleanup Splash Screen after animation finishes
     setTimeout(() => {
         splash.style.display = 'none';
-    }, 1500); // Matches CSS transition time
+    }, 1500); 
 }
 
 function cleanInventory(p) {
@@ -8846,6 +8955,14 @@ function setupMultiplayerListeners() {
             gameState = 'MOVING';
             animateMove(p, move.finalSteps);
         }
+    });
+	
+	// 8. TREASURY SYNC (Add this inside setupMultiplayerListeners)
+    db.ref(`games/${gameId}/treasury`).on('value', snap => {
+        const val = snap.val();
+        // If null, default to 0
+        treasuryGold = val || 0;
+        updateHUD();
     });
 
     // 2. EVENTS
@@ -9453,4 +9570,3 @@ init();
 </script>
 </body>
 </html>
-
