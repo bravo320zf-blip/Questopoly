@@ -4192,7 +4192,30 @@ const ABILITY_LIBRARY = {
 
     // ================= CLERIC SKILLS =================
     heal_spell: { name: "Heal", desc: "Clear negative status (Jail/Stun).", fn: (p) => { if(p.isSkipping){p.isSkipping=false; addLog("Healed status!", "log-success"); return true;} addLog("No status to heal.", "log-fail"); return false; }, img: "https://static.wixstatic.com/media/b16479_6fbb98ea84a9479b98dd0441fd7152b6~mv2.jpg" },
-    smite: { name: "Smite", desc: "Instant Capture/Upgrade current tile.", fn: (p) => { const t=tiles[p.pos]; if(t.userData.info.cost>0){capture(t,p,1); addLog("Smite: Land Conquered!", "log-epic"); return true;} return false; }, img: "https://static.wixstatic.com/media/b16479_de48e0494048408dbd67d6c2008aee28~mv2.jpg" },
+smite: { 
+        name: "Smite", 
+        desc: "Instant Capture (or Upgrade Camp to Tavern) on current tile.", 
+        fn: (p) => { 
+            const t = tiles[p.pos]; 
+            // Check if valid property
+            if (t.userData.info.cost > 0) {
+                let lvl = 1;
+                let logMsg = "Smite: Land Conquered!";
+                
+                // If I own it and it is a Camp, upgrade to Tavern
+                if (t.userData.owner === p.id && t.userData.buildingLevel === 1) {
+                    lvl = 2;
+                    logMsg = "Smite: Upgraded to Tavern!";
+                }
+                
+                capture(t, p, lvl); 
+                addLog(logMsg, "log-epic"); 
+                return true;
+            } 
+            return false; 
+        }, 
+        img: "https://static.wixstatic.com/media/b16479_de48e0494048408dbd67d6c2008aee28~mv2.jpg" 
+    },
     bless: { name: "Bless", desc: "Gain +5 INT for this turn.", fn: (p) => { p.stats.int+=5; addLog("Blessed!", "log-success"); updateHUD(); return true; }, img: "https://static.wixstatic.com/media/b16479_75752aecbee444ada136a1d9c923b8f8~mv2.jpg" },
     divine_intervention: { name: "Intervention", desc: "Roll 1d6. On 6, Gain 500G.", fn: (p) => { if(Math.floor(Math.random()*6)+1===6){p.gold+=500; addLog("Divine Gift: +500G!", "log-epic"); updateHUD(); return true;} addLog("Prayers unanswered.", "log-fail"); return true; }, img: "https://static.wixstatic.com/media/b16479_17b9cb42fac041e6ab622b3a45d6b3f0~mv2.jpg" },
     
@@ -4474,36 +4497,34 @@ function generateTreasureDeck() {
     ];
     const abilities = Object.keys(ABILITY_LIBRARY);
     
-    // --- NEW HELPER: Get Random Image ---
+    // --- HELPER: Get Random Image ---
     const getImg = (name) => {
         const pool = ITEM_IMAGE_POOLS[name];
-        if (!pool || pool.length === 0) return null; // Return null, not empty string
+        if (!pool || pool.length === 0) return null; 
         const randomIndex = Math.floor(Math.random() * pool.length);
         const url = pool[randomIndex];
-        return (url && url.length > 5) ? url : null; // Only return if valid URL
+        return (url && url.length > 5) ? url : null; 
     };
 
-    // 1. GOLD & CONSUMABLES
-    for(let i=0; i<15; i++) deck.push({ id: `g${i}`, name: "Pouch of Gold", type: 'scroll', rarity: 'common', cost: 0, desc: "Gain 50 Gold", img: getImg("Pouch of Gold"), fn: (p) => { let amt = 50; if (p.activeSkillId === 'midas' || p.passiveSkillId === 'midas' || ['head','body','main','off'].some(s => p.equipment[s] && p.equipment[s].ability && p.equipment[s].ability.name === "Midas Touch")) { amt *= 2; addLog("Midas Touch! Gold doubled.", "log-gold"); } p.gold += amt; if(p.id === myPlayerId) AUDIO.playSound('sfx_gold'); addLog(`+${amt} Gold`, "log-gold"); updateHUD(); } });
-    for(let i=0; i<8; i++) deck.push({ id: `lc${i}`, name: "Lucky Coin", type: 'scroll', rarity: 'common', cost: 50, desc: "Gain 20-100G", img: getImg("Lucky Coin"), fn: (p) => { let r = Math.floor(Math.random()*6)+1; let amt = (r > 3) ? 200 : -50; if (amt > 0 && (p.activeSkillId === 'midas' || p.passiveSkillId === 'midas')) amt *= 2; if(amt > 0) { p.gold += amt; if(p.id === myPlayerId) AUDIO.playSound('sfx_gold'); addLog(`Rolled ${r}: Won ${amt}G!`, "log-gold"); } else { pay(p, 50); addLog(`Rolled ${r}: Lost 50G.`, "log-fail"); } updateHUD(); } });
+    // 1. GOLD & CONSUMABLES (Fixed Descriptions)
+    for(let i=0; i<15; i++) deck.push({ id: `g${i}`, name: "Pouch of Gold", type: 'scroll', rarity: 'common', cost: 0, desc: "Gain 50 Gold instantly.", img: getImg("Pouch of Gold"), fn: (p) => { let amt = 50; if (p.activeSkillId === 'midas' || p.passiveSkillId === 'midas' || ['head','body','main','off'].some(s => p.equipment[s] && p.equipment[s].ability && p.equipment[s].ability.name === "Midas Touch")) { amt *= 2; addLog("Midas Touch! Gold doubled.", "log-gold"); } p.gold += amt; if(p.id === myPlayerId) AUDIO.playSound('sfx_gold'); addLog(`+${amt} Gold`, "log-gold"); updateHUD(); } });
+    for(let i=0; i<8; i++) deck.push({ id: `lc${i}`, name: "Lucky Coin", type: 'scroll', rarity: 'common', cost: 50, desc: "Roll d6: Gain 200G (4-6) or Lose 50G (1-3).", img: getImg("Lucky Coin"), fn: (p) => { let r = Math.floor(Math.random()*6)+1; let amt = (r > 3) ? 200 : -50; if (amt > 0 && (p.activeSkillId === 'midas' || p.passiveSkillId === 'midas')) amt *= 2; if(amt > 0) { p.gold += amt; if(p.id === myPlayerId) AUDIO.playSound('sfx_gold'); addLog(`Rolled ${r}: Won ${amt}G!`, "log-gold"); } else { pay(p, 50); addLog(`Rolled ${r}: Lost 50G.`, "log-fail"); } updateHUD(); } });
 
-    // 2. EQUIPMENT REBALANCE with DYNAMIC NAMING & RANDOM IMAGES
-    
-    // OLD (Common)
+    // 2. EQUIPMENT (Common)
     for(let i=0; i<20; i++) { 
         const idx = i % itemNames.length; 
         const b = {}; b[stats[idx]] = 1; 
         deck.push({ id: `c${i}`, name: `Old ${itemNames[idx]}`, type: 'equip', slot: slots[idx], bonus: b, rarity: 'common', cost: 100, img: getImg(itemNames[idx]) }); 
     }
 
-    // MAGIC (Rare)
+    // 3. EQUIPMENT (Rare)
     for(let i=0; i<20; i++) { 
         const idx = i % itemNames.length; 
         const b={}; b[stats[idx]] = 2; 
         deck.push({ id: `m${i}`, name: `Magic ${itemNames[idx]}`, type: 'equip', slot: slots[idx], bonus: b, rarity: 'rare', cost: 300, img: getImg(itemNames[idx]) }); 
     }
 
-    // ANCIENT (Epic)
+    // 4. EQUIPMENT (Epic)
     for(let i=0; i<20; i++) { 
         const idx = i % itemNames.length; 
         const b={}; b[stats[idx]] = 3; 
@@ -4521,7 +4542,7 @@ function generateTreasureDeck() {
         }); 
     }
 
-    // LEGENDARY
+    // 5. EQUIPMENT (Legendary)
     for(let i=0; i<10; i++) { 
         const idx = i % itemNames.length; 
         const b={}; b[stats[idx]] = 4; 
@@ -4539,21 +4560,21 @@ function generateTreasureDeck() {
         }); 
     }
     
-    // SCROLLS & CONSUMABLES
+    // 6. SCROLLS & CONSUMABLES (Updated with Descriptions)
     const misc = [
-        {name: "Town Portal", rarity: 'rare', cost: 100, fn: ABILITY_LIBRARY.teleport.fn},
-        {name: "Sprint Scroll", rarity: 'common', cost: 50, fn: ABILITY_LIBRARY.dash.fn},
-        {name: "Transmute Scroll", rarity: 'epic', cost: 300, fn: ABILITY_LIBRARY.transmute.fn},
-        {name: "Elixir of Strength", rarity: 'epic', cost: 500, fn: (p) => { p.stats.str++; addLog("Strength increased!", "log-success"); updateHUD(); }},
-        {name: "Elixir of Speed", rarity: 'epic', cost: 500, fn: (p) => { p.stats.dex++; addLog("Dexterity increased!", "log-success"); updateHUD(); }},
-        {name: "Elixir of Wisdom", rarity: 'epic', cost: 500, fn: (p) => { p.stats.int++; addLog("Intelligence increased!", "log-success"); updateHUD(); }},
-        {name: "Builder's Hammer", rarity: 'rare', cost: 300, fn: (p) => { capture(tiles[p.pos], p, 2); addLog("Tavern Built!", "log-success"); }},
-        {name: "Mercenary Contract", rarity: 'rare', cost: 150, fn: (p) => { tiles[p.pos].userData.guardCount++; addLog("Guard hired!", "log-success"); updateHUD(); }},
-        {name: "Thief's Glove", rarity: 'rare', cost: 200, fn: (p) => { /* logic */ addLog("Steal!", "log-gold"); }},
-        {name: "Royal Pardon", rarity: 'rare', cost: 150, fn: (p) => { p.isSkipping = false; addLog("Pardoned!", "log-success"); }},
-        {name: "Map to Riches", rarity: 'epic', cost: 400, fn: (p) => { /* logic */ }},
-        {name: "Investment Deed", rarity: 'rare', cost: 200, fn: (p) => { p.gold += 100; addLog("Dividends!", "log-gold"); updateHUD(); }},
-        {name: "Warp Stone", rarity: 'common', cost: 50, fn: (p) => { /* logic */ }}
+        {name: "Town Portal", rarity: 'rare', cost: 100, desc: "Teleport to the Inn (Start) immediately.", fn: ABILITY_LIBRARY.teleport.fn},
+        {name: "Sprint Scroll", rarity: 'common', cost: 50, desc: "Move 3 spaces forward.", fn: ABILITY_LIBRARY.dash.fn},
+        {name: "Transmute Scroll", rarity: 'epic', cost: 300, desc: "Destroy first inventory item for 300G.", fn: ABILITY_LIBRARY.transmute.fn},
+        {name: "Elixir of Strength", rarity: 'epic', cost: 500, desc: "Permanently gain +1 Strength.", fn: (p) => { p.stats.str++; addLog("Strength increased!", "log-success"); updateHUD(); }},
+        {name: "Elixir of Speed", rarity: 'epic', cost: 500, desc: "Permanently gain +1 Dexterity.", fn: (p) => { p.stats.dex++; addLog("Dexterity increased!", "log-success"); updateHUD(); }},
+        {name: "Elixir of Wisdom", rarity: 'epic', cost: 500, desc: "Permanently gain +1 Intelligence.", fn: (p) => { p.stats.int++; addLog("Intelligence increased!", "log-success"); updateHUD(); }},
+        {name: "Builder's Hammer", rarity: 'rare', cost: 300, desc: "Upgrade your current Camp to a Tavern.", fn: (p) => { capture(tiles[p.pos], p, 2); addLog("Tavern Built!", "log-success"); }},
+        {name: "Mercenary Contract", rarity: 'rare', cost: 150, desc: "Add +1 Guard to your Tavern here.", fn: (p) => { tiles[p.pos].userData.guardCount++; addLog("Guard hired!", "log-success"); updateHUD(); }},
+        {name: "Thief's Glove", rarity: 'rare', cost: 200, desc: "Attempt to steal gold from rival.", fn: (p) => { addLog("Steal!", "log-gold"); }},
+        {name: "Royal Pardon", rarity: 'rare', cost: 150, desc: "Remove Jail or Stun status.", fn: (p) => { p.isSkipping = false; addLog("Pardoned!", "log-success"); }},
+        {name: "Map to Riches", rarity: 'epic', cost: 400, desc: "Reveal hidden treasures (Effect).", fn: (p) => { /* logic placeholder */ }},
+        {name: "Investment Deed", rarity: 'rare', cost: 200, desc: "Collect 100 Gold dividends.", fn: (p) => { p.gold += 100; addLog("Dividends!", "log-gold"); updateHUD(); }},
+        {name: "Warp Stone", rarity: 'common', cost: 50, desc: "Teleport to a random tile.", fn: (p) => { /* logic placeholder */ }}
     ];
 
     misc.forEach((m, i) => {
@@ -4563,8 +4584,9 @@ function generateTreasureDeck() {
             type: 'scroll', 
             rarity: m.rarity, 
             cost: m.cost, 
-            desc: "Consumable", 
-            img: getImg(m.name), // Calls the new random helper
+            // HERE IS THE FIX: Use specific desc, fallback to "Consumable" only if missing
+            desc: m.desc || "Consumable", 
+            img: getImg(m.name), 
             fn: m.fn 
         });
     });
@@ -4888,107 +4910,79 @@ function animate() {
     requestAnimationFrame(animate); 
     TWEEN.update(); 
     
-    // --- 1. VISUALS: Update Guards ---
+    // 1. Update Guards
     if(typeof updateGuards === 'function') updateGuards();
 
-    // --- 2. VISUALS: Hero Animations & Environment ---
+    // 2. Hero Animations
     const time = Date.now() * 0.005;
     players.forEach(p => {
         if (p.mesh && !p.isDead) {
-            // Idle breathing animation
-            if (gameState !== 'MOVING') {
-                p.mesh.scale.y = 1 + Math.sin(time) * 0.02;
-            }
-            // Cape physics
+            if (gameState !== 'MOVING') p.mesh.scale.y = 1 + Math.sin(time) * 0.02;
             const cape = p.mesh.getObjectByName("Cape");
-            if (cape) {
-                // Flap harder when moving, gentle when idle
-                cape.rotation.x = (gameState === 'MOVING') 
-                    ? 0.8 + Math.sin(time * 10) * 0.2 
-                    : 0.2 + Math.sin(time * 2) * 0.1;
-            }
+            if (cape) cape.rotation.x = (gameState === 'MOVING') ? 0.8 + Math.sin(time * 10) * 0.2 : 0.2 + Math.sin(time * 2) * 0.1;
         }
     });
 
-    // Fog Animation
-    if(fogGroup) {
-        fogGroup.children.forEach((cloud, idx) => {
-            cloud.rotation.z += 0.001 * (idx % 2 === 0 ? 1 : -1);
-            if(isNight) cloud.position.x += Math.sin(Date.now() * 0.0005 + idx) * 0.005;
-        });
-    }
-    
-    // Particle System (Weather)
-    if(particleSystem) {
-        particleSystem.geometry.attributes.position.needsUpdate = true;
-    }
-    
-    // Event Mesh Rotation (Bosses/Items)
-    if (activeEvent && activeEvent.mesh) {
-        activeEvent.mesh.rotation.y += 0.01;
-    }
+    if(fogGroup) fogGroup.children.forEach((cloud, idx) => {
+        cloud.rotation.z += 0.001 * (idx % 2 === 0 ? 1 : -1);
+        if(isNight) cloud.position.x += Math.sin(Date.now() * 0.0005 + idx) * 0.005;
+    });
+    if(particleSystem) particleSystem.geometry.attributes.position.needsUpdate = true;
+    if(activeEvent && activeEvent.mesh) activeEvent.mesh.rotation.y += 0.01;
 
-    // --- 3. CAMERA TRACKING ---
-    if(isZoomed && cameraTarget) {
-        // Lock Y to 0 so camera doesn't bob up and down with the player jump animation
-        camera.lookAt(cameraTarget.position.x, 0, cameraTarget.position.z);
-    }
+    // 3. Camera Tracking
+    if(isZoomed && cameraTarget) camera.lookAt(cameraTarget.position.x, 0, cameraTarget.position.z);
 
-    // --- 4. TURN TIMER LOGIC ---
+    // --- 4. TURN TIMER VISUALS (UPDATED FOR SHOP) ---
     const timerContainer = document.getElementById('timer-container');
     const timerBar = document.getElementById('timer-bar');
     
     const curP = players[turnIndex];
-    
-    // A. Check if Modals are Open (Arrival or Encounter)
     const arrivalModal = document.getElementById('arrival-modal');
     const cardModal = document.getElementById('card-modal');
-    const isModalOpen = (arrivalModal && arrivalModal.classList.contains('active')) || 
-                        (cardModal && cardModal.classList.contains('active'));
+    const encHeader = document.getElementById('enc-header');
 
-    // B. Determine Visibility
-    // 1. Must be a Human Player and Alive
-    const isHumanAndAlive = curP && !curP.isAi && !curP.isDead;
+    // Check visibility states
+    const isArrivalOpen = arrivalModal && arrivalModal.classList.contains('active');
+    const isCardOpen = cardModal && cardModal.classList.contains('active');
     
-    // 2. Show if: 
-    //    - A Modal is open (Reading card/Shopping) - PRIORITY
-    //    - OR We are NOT moving AND (in Roll Phase OR End Phase)
+    // Check if specifically in a SHOP (market class on header)
+    const isShopping = isCardOpen && encHeader && encHeader.classList.contains('market');
+
+    const isHumanAndAlive = curP && !curP.isAi && !curP.isDead;
     const shouldShowTimer = isHumanAndAlive && (
-        isModalOpen || 
+        isArrivalOpen || isCardOpen || 
         (gameState !== 'MOVING' && (gameState === 'ROLL' || gameState === 'END'))
     );
     
     if (shouldShowTimer) {
         if(timerContainer) timerContainer.style.display = 'block';
         
-        // C. Calculate Time Left
-        // Use synced time in MP, or local time in SP
+        // --- DYNAMIC TIME LIMIT ---
+        // 45 Seconds for Shop, 15 Seconds for everything else
+        const currentLimit = isShopping ? (TURN_TIME_LIMIT * 3) : TURN_TIME_LIMIT;
+
         const baseTime = lastInteractionTime || Date.now();
         const elapsed = (Date.now() - baseTime) / 1000;
         
-        const remaining = Math.max(0, TURN_TIME_LIMIT - elapsed);
-        const pct = remaining / TURN_TIME_LIMIT;
+        const remaining = Math.max(0, currentLimit - elapsed);
+        const pct = remaining / currentLimit;
         
-        // D. Update Visuals
         if(timerBar) {
             timerBar.style.transform = `scaleX(${pct})`;
-            // Color Logic: Green (>50%) -> Orange (>20%) -> Red (<20%)
+            // Color Logic
             if (pct > 0.5) timerBar.style.background = '#10b981'; 
             else if (pct > 0.2) timerBar.style.background = '#f59e0b'; 
             else timerBar.style.background = '#ef4444'; 
         }
         
-        // E. Handle Timeout Trigger
+        // Timeout Trigger
         if (remaining <= 0) {
-            // Only trigger if I am the active player (Authority)
-            // This prevents the timer from firing multiple times or firing on other clients screens
             if (!isMultiplayer || curP.id === myPlayerId) {
-                // Reset base immediately to prevent rapid-fire loop while function executes
                 lastInteractionTime = Date.now(); 
                 handleTimeoutAction(curP);
             }
         }
-        
     } else {
         if(timerContainer) timerContainer.style.display = 'none';
     }
@@ -6216,17 +6210,25 @@ function startHostTimerLoop() {
     
     afkCheckInterval = setInterval(() => {
         if (!isMultiplayer || myPlayerId !== 0 || !gameId) return;
-        if (gameState !== 'ROLL' && gameState !== 'END') return; // Don't timeout during animations
+        if (gameState !== 'ROLL' && gameState !== 'END') return; 
         
+        // Check current event to see if it is a shop
+        let isShopping = false;
+        if (currentRoomData && currentRoomData.currentEvent && currentRoomData.currentEvent.mode === 'shop') {
+            isShopping = true;
+        }
+
+        // Determine Enforcement Limit (45s for shop, 15s normally, +2s buffer for latency)
+        const enforcementLimit = isShopping ? (TURN_TIME_LIMIT * 3) + 2 : TURN_TIME_LIMIT + 2;
+
         db.ref(`games/${gameId}/turnTimer`).once('value', snap => {
             const lastAction = snap.val() || Date.now();
             const elapsed = (Date.now() - lastAction) / 1000;
             
-            // If time is up (allow 2s buffer for latency)
-            if (elapsed > TURN_TIME_LIMIT + 2) {
+            if (elapsed > enforcementLimit) {
                 const curP = players[turnIndex];
                 if (curP && !curP.isAi && !curP.isDead) {
-                    console.log(`Player ${curP.name} timed out.`);
+                    console.log(`Player ${curP.name} timed out (Limit: ${enforcementLimit}s).`);
                     handleAfkTimeout(curP.id);
                 }
             }
@@ -9292,6 +9294,10 @@ function setupMultiplayerListeners() {
                         }
                     });
                 }
+                
+                // HOST: Reset Timer DB for new player immediately
+                db.ref(`games/${gameId}/turnTimer`).set(firebase.database.ServerValue.TIMESTAMP);
+                
                 db.ref(`games/${gameId}`).update({ turnIndex: nextIndex });
                 db.ref(`games/${gameId}/request/${reqKey}`).remove();
             }
@@ -9317,10 +9323,9 @@ function setupMultiplayerListeners() {
         }
     });
 	
-	// 8. TREASURY SYNC (Add this inside setupMultiplayerListeners)
+	// 8. TREASURY SYNC
     db.ref(`games/${gameId}/treasury`).on('value', snap => {
         const val = snap.val();
-        // If null, default to 0
         treasuryGold = val || 0;
         updateHUD();
     });
@@ -9386,19 +9391,30 @@ function setupMultiplayerListeners() {
                 btn.onclick = executeNextStep;
                 closeBtn.onclick = executeNextStep;
                 m.classList.add('active');
+                
+                // Client reset timer when modal opens
+                lastInteractionTime = Date.now();
+                
                 AUDIO.playSound('sfx_gold');
             }
         }
     });
 
-    // 3. TURN INDEX
+    // 3. TURN INDEX (CRITICAL FIX HERE)
     db.ref(`games/${gameId}/turnIndex`).on('value', snap => {
         const idx = snap.val();
         if(idx !== null && idx !== turnIndex) {
             turnIndex = idx;
+            
+            // --- CRITICAL FIX: FORCE RESET TIMER LOCALLY ---
+            // This prevents the previous turn's time from leaking into the new turn
+            lastInteractionTime = Date.now(); 
+            // ----------------------------------------------
+
             const curP = players[turnIndex];
             gameState = 'ROLL'; 
             updateHUD();
+            
             if(curP) {
                 if (curP.isSkipping) {
                     addLog(`${curP.name} is stunned/jailed and skips turn.`, "log-fail");
@@ -9410,15 +9426,23 @@ function setupMultiplayerListeners() {
                     }
                     return; 
                 }
+                
                 zoomToPiece(curP);
-                if(curP.id === myPlayerId) { addLog("Your Turn!"); AUDIO.playSound('sfx_transition'); } 
-                else { addLog(`${curP.name}'s Turn`); }
-                if (curP.isAi && myPlayerId === 0) { setTimeout(() => { db.ref(`games/${gameId}/request`).push({ type: 'ROLL', pid: curP.id }); }, 1500); }
+                if(curP.id === myPlayerId) { 
+                    addLog("Your Turn!"); 
+                    AUDIO.playSound('sfx_transition'); 
+                } else { 
+                    addLog(`${curP.name}'s Turn`); 
+                }
+                
+                if (curP.isAi && myPlayerId === 0) { 
+                    setTimeout(() => { db.ref(`games/${gameId}/request`).push({ type: 'ROLL', pid: curP.id }); }, 1500); 
+                }
             }
         }
     });
 
-    // 4. PLAYERS SYNC (FIXED ORDER OF OPERATIONS)
+    // 4. PLAYERS SYNC
     db.ref(`games/${gameId}/players`).on('child_changed', snap => {
         const pData = snap.val();
         const pId = parseInt(snap.key);
@@ -9430,26 +9454,14 @@ function setupMultiplayerListeners() {
             if(pData.extraTurn !== undefined) p.extraTurn = pData.extraTurn;
             if(pData.isSkipping !== undefined) p.isSkipping = pData.isSkipping;
             
-            // --- FIX: VISUAL SYNC LOGIC ---
             if(pData.isPolymorphed !== undefined) {
-                // If DB says we should be different from what we are...
                 if (p.isPolymorphed !== pData.isPolymorphed) {
-                    
                     if (pData.isPolymorphed) {
-                        // DB says TRUE -> Turn into Sheep
-                        // Only do it if we haven't already locally
-                        if (!p.isPolymorphed) {
-                            makeSheep(p); 
-                        }
+                        if (!p.isPolymorphed) makeSheep(p); 
                     } else {
-                        // DB says FALSE -> Cure Sheep
-                        // Force cure even if we think we aren't polymorphic (e.g. initial load)
-                        // to ensure mesh is correct
-                        p.isPolymorphed = true; // Hack to force cureSheep to run
+                        p.isPolymorphed = true; 
                         cureSheep(p); 
                     }
-                    
-                    // Update Local State to match DB exactly
                     p.isPolymorphed = pData.isPolymorphed;
                     recalcStats(p); 
                     updateHUD();
@@ -9484,24 +9496,21 @@ function setupMultiplayerListeners() {
         }
     });
 
-    // 7. GLOBAL EVENT SYNC
-    db.ref(`games/${gameId}/globalEvent`).on('value', snap => {
+    // 7. GLOBAL EVENT SYNC (DAY/NIGHT)
+    db.ref(`games/${gameId}/isNight`).on('value', snap => {
         const val = snap.val();
-        if (val) {
-            if (!activeEvent || activeEvent.data.id !== MAP_EVENTS[val.idx].id) forceTriggerEvent(val.idx);
-        } else {
-            if (activeEvent) {
-                if(activeEvent.data.onEnd) activeEvent.data.onEnd();
-                if(activeEvent.playerRef) removeEventEntity(activeEvent.playerRef);
-                activeEvent = null; removeParticles(); updateHUD();
-            }
+        if(val !== null && val !== isNight) {
+            isNight = val;
+            transitionDayNight(isNight);
+            updateHUD();
         }
     });
 
-
     // 10. TURN TIMER SYNC
     db.ref(`games/${gameId}/turnTimer`).on('value', snap => {
-        lastInteractionTime = snap.val() || Date.now(); // Sync local base time
+        // Sync local base time to DB time
+        // Note: We also reset this in turnIndex change, so this acts as a backup/heartbeat
+        lastInteractionTime = snap.val() || Date.now(); 
     });
 
     // Start Host Enforcement Loop if I am Host
