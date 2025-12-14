@@ -1006,16 +1006,18 @@ Because you do not have a backend server listening for automatic receipts (Webho
     border-color: #fff;
 }
 
-/* Hide Store if Premium */
-body.premium-user #store-floating-btn {
-    display: none !important;
-}
-
 /* In-Lobby Profile Button */
 .lobby-profile-btn {
     width: 40px; height: 40px; border-radius: 50%;
     background-size: cover; background-color: #000; border: 1px solid var(--gold-main);
     cursor: pointer; margin-right: 10px;
+}
+
+/* Add this for the grayed out button */
+.choice-btn.disabled {
+    opacity: 0.5;
+    pointer-events: none;
+    filter: grayscale(1);
 }
 
 .profile-layout { display: flex; gap: 20px; text-align: left; }
@@ -1388,6 +1390,30 @@ body.premium-user #store-floating-btn {
 #create-screen {
     padding-bottom: 50px !important;
 }
+
+/* --- TURN TIMER BAR --- */
+#timer-container {
+    position: fixed; /* Changed from absolute to fixed */
+    top: 100%; /* Moved down slightly to not cover the turn banner */
+    left: 50%;
+    transform: translateX(-50%);
+    width: 60%;
+    height: 8px;
+    background: rgba(0,0,0,0.9);
+    border: 2px solid #fff;
+    border-radius: 4px;
+    z-index: 20001; /* Higher than Modals (20000) */
+    display: none;
+    box-shadow: 0 0 10px #000;
+}
+
+#timer-bar {
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(to right, #10b981, #f59e0b, #ef4444);
+    transform-origin: left;
+    transition: transform 0.1s linear;
+}
 </style>
 </head>
 
@@ -1614,10 +1640,16 @@ body.premium-user #store-floating-btn {
         <div id="inner-zone">
             
             <!-- Turn Tracker -->
-            <div id="turn-widget">
-                <h2 id="turn-banner">SETUP</h2>
-                <div id="day-night-indicator">☀ DAY</div>
-            </div>
+<!-- Turn Tracker -->
+<div id="turn-widget">
+    <h2 id="turn-banner">SETUP</h2>
+    <div id="day-night-indicator">☀ DAY</div>
+    
+    <!-- NEW: TIMER BAR -->
+    <div id="timer-container">
+        <div id="timer-bar"></div>
+    </div>
+</div>
 
            <!-- TREASURY WIDGET (Top Left) -->
             <div id="treasury-widget">
@@ -1993,14 +2025,15 @@ body.premium-user #store-floating-btn {
         <div style="padding: 20px;">
             
 <!-- OPTION 1: REMOVE ADS -->
-<div class="choice-btn" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; padding:20px; cursor:default; background:#1a202c; border-color:#10b981;">
+<div class="choice-btn" id="remove-ads-container" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; padding:20px; cursor:default; background:#1a202c; border-color:#10b981;">
     <div style="text-align:left;">
         <div style="color:#10b981; font-weight:bold; font-size:1.1rem;">REMOVE ADS</div>
         <div style="font-size:0.8rem; color:#aaa;">Permanently remove all ads</div>
     </div>
     
-    <!-- FIXED: Added missing ' after the URL -->
-    <button class="auth-btn btn-login" style="width:auto; padding:10px 20px; margin:0; background:#10b981; color:#fff;" 
+    <!-- SINGLE BUTTON -->
+    <button id="btn-buy-ads" class="auth-btn" 
+        style="width:auto; padding:10px 30px; margin:0; background:#10b981; color:#fff; border:none; font-weight:900; font-size:1.1rem; cursor:pointer;" 
         onclick="window.open('https://www.paypal.com/cgi-bin/webscr?cmd=_s-xclick&hosted_button_id=3NNGM4THBVXPL', '_blank')">
         $3.00
     </button>
@@ -2271,6 +2304,12 @@ let pendingJoinId = null;
 let isAdminMode = false;
 let listenersActive = false;
 
+// --- TIMER GLOBALS ---
+let turnTimerValue = 15; // Seconds
+let lastInteractionTime = 0;
+let afkCheckInterval = null;
+const TURN_TIME_LIMIT = 15; // 15 Seconds
+
 // --- GAME FLOW CONTROL ---
 const GAME_FLOW = {
     requestQuit: function(logout) {
@@ -2433,21 +2472,18 @@ const STORE = {
             return;
         }
         
-        // Check if already premium
+        document.getElementById('store-modal').style.display = 'flex';
+        
+        // Check Status immediately when opening to update UI
         db.ref(`users/${currentUser.uid}/isPremium`).once('value').then(snap => {
             if (snap.val() === true) {
-                alert("You already own Premium! Ads are removed.");
-            } else {
-                document.getElementById('store-modal').style.display = 'flex';
+                this.applyPremiumVisuals();
             }
         });
     },
 
-    // This function manually checks the DB again to see if status changed
     restorePurchase: function() {
         if (!currentUser) return;
-        
-        // Show loading state
         const btn = event.target;
         const originalText = btn.innerText;
         btn.innerText = "Checking...";
@@ -2455,25 +2491,42 @@ const STORE = {
         db.ref(`users/${currentUser.uid}/isPremium`).once('value').then(snap => {
             if (snap.val() === true) {
                 alert("Premium Verified! Ads removed.");
-                this.applyPremiumFeatures();
-                document.getElementById('store-modal').style.display = 'none';
+                this.applyPremiumFeatures(); // Logic (Hide Ad Bar)
+                this.applyPremiumVisuals();  // UI (Gray out button)
             } else {
-                alert("No premium purchase found yet. If you just paid, please wait a moment or contact support.");
+                alert("No premium purchase found.");
             }
             btn.innerText = originalText;
         });
     },
 
+    // Logic: Hides the bottom Ad bar
     applyPremiumFeatures: function() {
         document.body.classList.add('premium-user');
         setTimeout(() => { onWindowResize(); }, 100);
+    },
+
+    // UI: Grays out the button
+    applyPremiumVisuals: function() {
+        const btn = document.getElementById('btn-buy-ads');
+        const container = document.getElementById('remove-ads-container'); // Uses the ID added above
+        
+        if(btn) {
+            btn.innerText = "OWNED";
+            btn.onclick = null; // Remove the link
+            
+            // Apply the disabled style to the whole row
+            if(container) container.classList.add('disabled');
+        }
     },
     
     checkOnLogin: function() {
         if (!currentUser) return;
         db.ref(`users/${currentUser.uid}/isPremium`).once('value').then(snap => {
-            if (snap.val() === true) this.applyPremiumFeatures();
-            else {
+            if (snap.val() === true) {
+                this.applyPremiumFeatures();
+                // We don't call applyPremiumVisuals here because the modal isn't open yet
+            } else {
                 document.body.classList.remove('premium-user');
                 onWindowResize();
             }
@@ -2998,51 +3051,66 @@ exit: function() {
             input.value = '';
         }
     },
-    refreshList: function() {
-        if(!db) return;
-        const list = document.getElementById('lobby-list');
-        const searchVal = document.getElementById('lobby-search').value.toLowerCase();
+// Inside LOBBY object
+refreshList: function() {
+    if(!db) return;
+    const list = document.getElementById('lobby-list');
+    const searchVal = document.getElementById('lobby-search').value.toLowerCase();
+    
+    list.innerHTML = '<div style="padding:20px; text-align:center;">Loading...</div>';
+    
+    db.ref('games').once('value').then(snap => {
+        list.innerHTML = '';
+        const games = snap.val();
         
-        list.innerHTML = '<div style="padding:20px; text-align:center;">Loading...</div>';
+        if(!games) { 
+            list.innerHTML = '<div style="padding:20px; text-align:center;">No games found.</div>'; 
+            return; 
+        }
         
-        db.ref('games').once('value').then(snap => {
-            list.innerHTML = '';
-            const games = snap.val();
+        const now = Date.now();
+        const EIGHT_HOURS_MS = 8 * 60 * 60 * 1000;
+
+        Object.keys(games).forEach(k => {
+            const g = games[k];
             
-            if(!games) { 
-                list.innerHTML = '<div style="padding:20px; text-align:center;">No games found.</div>'; 
-                return; 
+            // --- NEW: CLEANUP LOGIC ---
+            // If game has no createdAt (legacy) or is older than 8 hours
+            if (!g.createdAt || (now - g.createdAt > EIGHT_HOURS_MS)) {
+                console.log("Cleaning up expired game:", k);
+                // We delete it. Since anyone can read/write in this demo setup, this works.
+                db.ref(`games/${k}`).remove();
+                return; // Skip rendering this one
             }
-            
-            Object.keys(games).forEach(k => {
-                const g = games[k];
-                if(g.status === 'waiting') {
-                    if(searchVal && !g.hostName.toLowerCase().includes(searchVal)) return;
+            // ---------------------------
 
-                    const playerCount = g.players ? Object.keys(g.players).length : 1;
-                    const locked = g.password ? '🔒 ' : '';
-                    const isMine = (g.host === currentUser.uid);
+            if(g.status === 'waiting') {
+                if(searchVal && !g.hostName.toLowerCase().includes(searchVal)) return;
 
-                    const div = document.createElement('div');
-                    div.className = 'lobby-item';
-                    
-                    let deleteBtn = '';
-                    if (isAdminMode || isMine) {
-                        deleteBtn = `<button style="background:transparent; border:none; color:#ef4444; font-weight:bold; cursor:pointer; margin-left:10px; font-size:1.2rem;" onclick="event.stopPropagation(); LOBBY.deleteGame('${k}', ${isMine})" title="Delete Game">×</button>`;
-                    }
+                const playerCount = g.players ? Object.keys(g.players).length : 1;
+                const locked = g.password ? '🔒 ' : '';
+                const isMine = (g.host === currentUser.uid);
 
-                    div.innerHTML = `
-                        <div style="flex-grow:1; display:flex; justify-content:space-between;" onclick="LOBBY.attemptJoin('${k}', '${g.password}')">
-                            <span>${locked}${g.hostName}'s Game</span>
-                            <span>${playerCount}/4</span>
-                        </div>
-                        ${deleteBtn}
-                    `;
-                    list.appendChild(div);
+                const div = document.createElement('div');
+                div.className = 'lobby-item';
+                
+                let deleteBtn = '';
+                if (isAdminMode || isMine) {
+                    deleteBtn = `<button style="background:transparent; border:none; color:#ef4444; font-weight:bold; cursor:pointer; margin-left:10px; font-size:1.2rem;" onclick="event.stopPropagation(); LOBBY.deleteGame('${k}', ${isMine})" title="Delete Game">×</button>`;
                 }
-            });
+
+                div.innerHTML = `
+                    <div style="flex-grow:1; display:flex; justify-content:space-between;" onclick="LOBBY.attemptJoin('${k}', '${g.password}')">
+                        <span>${locked}${g.hostName}'s Game</span>
+                        <span>${playerCount}/4</span>
+                    </div>
+                    ${deleteBtn}
+                `;
+                list.appendChild(div);
+            }
         });
-    },
+    });
+},
     
     deleteGame: function(gid, isMine) {
         const msg = isMine ? "Delete your game room?" : "Delete this game room? (Admin Action)";
@@ -3205,6 +3273,7 @@ function createGameLogic() {
         ref.set({
             host: currentUser.uid,
             hostName: myName,
+            createdAt: firebase.database.ServerValue.TIMESTAMP, // <--- NEW: Timestamp
             password: "",
             status: 'waiting',
             turnIndex: 0,
@@ -4732,59 +4801,115 @@ function updateCamera() {
     camera.lookAt(0, 0, 0);
 }
 
-function animate(){ 
+function animate() { 
     requestAnimationFrame(animate); 
     TWEEN.update(); 
     
-    // 1. Update Guards
+    // --- 1. VISUALS: Update Guards ---
     if(typeof updateGuards === 'function') updateGuards();
 
-    // 2. Hero Animations
+    // --- 2. VISUALS: Hero Animations & Environment ---
     const time = Date.now() * 0.005;
     players.forEach(p => {
         if (p.mesh && !p.isDead) {
+            // Idle breathing animation
             if (gameState !== 'MOVING') {
                 p.mesh.scale.y = 1 + Math.sin(time) * 0.02;
             }
+            // Cape physics
             const cape = p.mesh.getObjectByName("Cape");
             if (cape) {
-                cape.rotation.x = 0.2 + Math.sin(time * 2) * 0.1;
-                if (gameState === 'MOVING') {
-                    cape.rotation.x = 0.8 + Math.sin(time * 10) * 0.2;
-                }
+                // Flap harder when moving, gentle when idle
+                cape.rotation.x = (gameState === 'MOVING') 
+                    ? 0.8 + Math.sin(time * 10) * 0.2 
+                    : 0.2 + Math.sin(time * 2) * 0.1;
             }
         }
     });
 
-    // 3. Fog & Particles
+    // Fog Animation
     if(fogGroup) {
         fogGroup.children.forEach((cloud, idx) => {
             cloud.rotation.z += 0.001 * (idx % 2 === 0 ? 1 : -1);
             if(isNight) cloud.position.x += Math.sin(Date.now() * 0.0005 + idx) * 0.005;
         });
     }
+    
+    // Particle System (Weather)
     if(particleSystem) {
-        const positions = particleSystem.geometry.attributes.position.array;
-        const type = particleSystem.userData.type;
-        for(let i=1; i<positions.length; i+=3) {
-            positions[i] -= 0.1;
-            if(type === 'snow') positions[i-1] -= 0.02;
-            if(positions[i] < 0) {
-                positions[i] = 10 + Math.random() * 5;
-                if(type === 'snow') positions[i-1] += (Math.random()*10);
-            }
-        }
         particleSystem.geometry.attributes.position.needsUpdate = true;
     }
+    
+    // Event Mesh Rotation (Bosses/Items)
     if (activeEvent && activeEvent.mesh) {
         activeEvent.mesh.rotation.y += 0.01;
     }
 
-    // 4. Camera Tracking (SMOOTH FOLLOW FIX)
+    // --- 3. CAMERA TRACKING ---
     if(isZoomed && cameraTarget) {
-        // Look at the player's X/Z, but lock Y to 0 (floor) to ignore hopping jitter
+        // Lock Y to 0 so camera doesn't bob up and down with the player jump animation
         camera.lookAt(cameraTarget.position.x, 0, cameraTarget.position.z);
     }
+
+    // --- 4. TURN TIMER LOGIC ---
+    const timerContainer = document.getElementById('timer-container');
+    const timerBar = document.getElementById('timer-bar');
+    
+    const curP = players[turnIndex];
+    
+    // A. Check if Modals are Open (Arrival or Encounter)
+    const arrivalModal = document.getElementById('arrival-modal');
+    const cardModal = document.getElementById('card-modal');
+    const isModalOpen = (arrivalModal && arrivalModal.classList.contains('active')) || 
+                        (cardModal && cardModal.classList.contains('active'));
+
+    // B. Determine Visibility
+    // 1. Must be a Human Player and Alive
+    const isHumanAndAlive = curP && !curP.isAi && !curP.isDead;
+    
+    // 2. Show if: 
+    //    - A Modal is open (Reading card/Shopping) - PRIORITY
+    //    - OR We are NOT moving AND (in Roll Phase OR End Phase)
+    const shouldShowTimer = isHumanAndAlive && (
+        isModalOpen || 
+        (gameState !== 'MOVING' && (gameState === 'ROLL' || gameState === 'END'))
+    );
+    
+    if (shouldShowTimer) {
+        if(timerContainer) timerContainer.style.display = 'block';
+        
+        // C. Calculate Time Left
+        // Use synced time in MP, or local time in SP
+        const baseTime = lastInteractionTime || Date.now();
+        const elapsed = (Date.now() - baseTime) / 1000;
+        
+        const remaining = Math.max(0, TURN_TIME_LIMIT - elapsed);
+        const pct = remaining / TURN_TIME_LIMIT;
+        
+        // D. Update Visuals
+        if(timerBar) {
+            timerBar.style.transform = `scaleX(${pct})`;
+            // Color Logic: Green (>50%) -> Orange (>20%) -> Red (<20%)
+            if (pct > 0.5) timerBar.style.background = '#10b981'; 
+            else if (pct > 0.2) timerBar.style.background = '#f59e0b'; 
+            else timerBar.style.background = '#ef4444'; 
+        }
+        
+        // E. Handle Timeout Trigger
+        if (remaining <= 0) {
+            // Only trigger if I am the active player (Authority)
+            // This prevents the timer from firing multiple times or firing on other clients screens
+            if (!isMultiplayer || curP.id === myPlayerId) {
+                // Reset base immediately to prevent rapid-fire loop while function executes
+                lastInteractionTime = Date.now(); 
+                handleTimeoutAction(curP);
+            }
+        }
+        
+    } else {
+        if(timerContainer) timerContainer.style.display = 'none';
+    }
+    // -----------------------------
 
     renderer.render(scene,camera); 
 }
@@ -5504,8 +5629,31 @@ function init() {
     
     AUDIO.init();
 
+    // --- GLOBAL TIMER RESET ON INTERACTION ---
+    document.addEventListener('click', () => {
+        // Cannot reset time while moving
+        if (gameState === 'MOVING') return;
+
+        const p = players[turnIndex];
+        if (!p || p.isAi) return;
+
+        // Multiplayer: If it's MY turn
+        if (isMultiplayer && p.id === myPlayerId) {
+            if (Date.now() - lastInteractionTime > 1000) {
+                lastInteractionTime = Date.now();
+                if(gameId && db) {
+                    db.ref(`games/${gameId}/turnTimer`).set(firebase.database.ServerValue.TIMESTAMP);
+                }
+            }
+        } 
+        // Single Player
+        else if (!isMultiplayer) {
+            lastInteractionTime = Date.now();
+        }
+    });
+    // ----------------------------------------------
+
     // --- TRANSITION LOGIC ---
-// --- TRANSITION LOGIC ---
     window.triggerGameMenu = () => {
         const logo = document.getElementById('logo-screen');
         const splash = document.getElementById('splash-screen');
@@ -5513,8 +5661,7 @@ function init() {
         const logoImg = document.getElementById('logo-img');
         const logoText = document.getElementById('logo-text');
         
-        // VISIBILITY CONTROL: Ensure HUD is hidden during logo fade
-        document.getElementById('top-right-hud').style.display = 'none';
+        document.getElementById('top-right-hud').style.display = 'none'; 
 
         logo.style.display = 'flex';
         logo.style.opacity = '1';
@@ -5530,10 +5677,7 @@ function init() {
                     authScreen.style.display = 'none';
                     splash.style.display = 'flex';
                     splash.style.opacity = '1'; 
-                    
-                    // --- UPDATE: SHOW HUD ONLY HERE ---
-                    document.getElementById('top-right-hud').style.display = 'flex';
-                    // ----------------------------------
+                    document.getElementById('top-right-hud').style.display = 'flex'; 
 
                     const urlParams = new URLSearchParams(window.location.search);
                     const joinId = urlParams.get('join');
@@ -5542,7 +5686,6 @@ function init() {
                 } else {
                     splash.style.display = 'none';
                     authScreen.style.display = 'flex';
-                    // HUD remains hidden for Auth screen
                 }
 
                 logo.style.opacity = '0';
@@ -5556,14 +5699,12 @@ function init() {
         }, 100);
     };
 
-    // 4. Logo Click Listener (Manual Start)
     document.getElementById('logo-screen').addEventListener('click', () => {
         if(document.getElementById('logo-screen').style.opacity !== '0') {
              window.triggerGameMenu();
         }
     }, { once: true });
     
-    // 5. Initialize Auth
     AUTH.init();
     
     setupCreationUI(); 
@@ -5590,7 +5731,7 @@ function init() {
 
     makeDraggable(document.getElementById("p1-sheet"));
     makeDraggable(document.getElementById("leaderboard"));
-	makeDraggable(document.getElementById("dm-window"));
+    makeDraggable(document.getElementById("dm-window"));
 }
 
 function createTileTexture(name, cStr, cost) {
@@ -5774,6 +5915,7 @@ function spawnPlayer(id, n, r, c, actId, pasId, ai, col, startPos = 0) {
         pacifistBuff: false,
         resurrectionUsed: false,
         extraTurn: false,
+		afkStrikes: 0,
         metrics: { spacesMoved: 0, successfulSieges: 0, guardsHired: 0 },
         history: [{ turn: 0, gold: 1000, props: 0 }] 
     };
@@ -5913,6 +6055,84 @@ function manageAiInventory(p) {
     }
 }
 
+// --- MULTIPLAYER TIMER FUNCTIONS ---
+
+function resetTurnTimerMP() {
+    if (!isMultiplayer || !gameId) return;
+    
+    // Only send update if significant time passed (throttle to every 1s) to save bandwidth
+    if (Date.now() - lastInteractionTime > 1000) {
+        lastInteractionTime = Date.now();
+        // Update the 'lastAction' timestamp in DB
+        db.ref(`games/${gameId}/turnTimer`).set(firebase.database.ServerValue.TIMESTAMP);
+    }
+}
+
+// Host runs this loop to enforce rules
+function startHostTimerLoop() {
+    if (afkCheckInterval) clearInterval(afkCheckInterval);
+    
+    afkCheckInterval = setInterval(() => {
+        if (!isMultiplayer || myPlayerId !== 0 || !gameId) return;
+        if (gameState !== 'ROLL' && gameState !== 'END') return; // Don't timeout during animations
+        
+        db.ref(`games/${gameId}/turnTimer`).once('value', snap => {
+            const lastAction = snap.val() || Date.now();
+            const elapsed = (Date.now() - lastAction) / 1000;
+            
+            // If time is up (allow 2s buffer for latency)
+            if (elapsed > TURN_TIME_LIMIT + 2) {
+                const curP = players[turnIndex];
+                if (curP && !curP.isAi && !curP.isDead) {
+                    console.log(`Player ${curP.name} timed out.`);
+                    handleAfkTimeout(curP.id);
+                }
+            }
+        });
+    }, 1000);
+}
+
+// Function called by the Host Loop in Multiplayer
+function handleAfkTimeout(pid) {
+    const p = players.find(pl => pl.id === pid);
+    if (!p) return;
+
+    // Use the unified logic to handle the game state
+    // Note: Since this is Host Logic running in background, it can't manipulate the Client DOM of the AFK player.
+    // Therefore, the Host acts as the ultimate fail-safe to force the turn to end if the client doesn't do it themselves.
+    
+    p.afkStrikes = (p.afkStrikes || 0) + 1;
+    let logMsg = `${p.name} timed out! (${p.afkStrikes}/3)`;
+
+    // Elimination
+    if (p.afkStrikes >= 3) {
+        logMsg = `${p.name} was kicked for AFK!`;
+        db.ref(`games/${gameId}/players/${pid}`).update({ 
+            isDead: true, 
+            gold: 0,
+            afkStrikes: 3
+        });
+        tiles.forEach(t => {
+            if (t.userData.owner === pid) {
+                db.ref(`games/${gameId}/board/${t.userData.id}`).set({
+                    owner: null, level: 0, guardCount: 0
+                });
+            }
+        });
+    } else {
+        db.ref(`games/${gameId}/players/${pid}`).update({ afkStrikes: p.afkStrikes });
+    }
+
+    // HOST FORCE END
+    // Even if they are in a modal, the Host overrides everything and forces Next Turn
+    db.ref(`games/${gameId}/request`).push({
+        type: 'END_TURN',
+        pid: pid,
+        force: true,
+        msg: logMsg
+    });
+}
+
 function attemptAiAbilities(p, phase) {
     if (phase === 'pre-roll') {
         if (p.isSkipping) { 
@@ -5961,9 +6181,22 @@ function rollMove() {
     const p = players[turnIndex]; 
     if(p.isDead) { endTurn(); return; }
 
-    // Disable button immediately to prevent double clicks
+    // Disable button
     const btn = document.getElementById('btn-action');
     if(btn) btn.disabled = true;
+
+    // --- RESET AFK STRIKES (Activity Detected) ---
+    if (!p.isAi) {
+        p.afkStrikes = 0; // Reset local
+        lastInteractionTime = Date.now(); // Reset timer base
+        
+        if (isMultiplayer && db && gameId) {
+            // Sync to DB
+            db.ref(`games/${gameId}/players/${p.id}`).update({ afkStrikes: 0 });
+            db.ref(`games/${gameId}/turnTimer`).set(firebase.database.ServerValue.TIMESTAMP);
+        }
+    }
+    // ---------------------------------------------
 
     // --- SINGLE PLAYER ---
     if (!isMultiplayer) {
@@ -5981,13 +6214,11 @@ function rollMove() {
 
     // --- MULTIPLAYER ---
     const isMyTurn = (p.id === myPlayerId);
-    // Host handles AI, but we must check room slots to ensure it's actually an AI slot
     let isAiTurn = (p.isAi && myPlayerId === 0);
     if (currentRoomData && currentRoomData.slots[p.id].type === 'human') isAiTurn = false;
 
     if (isMyTurn || isAiTurn) {
         if (db && gameId) {
-            // Send Request using .push() to create unique ID
             db.ref(`games/${gameId}/request`).push({
                 type: 'ROLL',
                 pid: p.id
@@ -6158,7 +6389,7 @@ function endTurn(){
         if (prevP.isPolymorphed) cureSheep(prevP);
         recalcStats(prevP);
         
-        // Host manages AI Inventory in both SP and MP
+        // Host manages AI Inventory
         if (prevP.isAi && (!isMultiplayer || myPlayerId === 0)) {
             manageAiInventory(prevP); 
         }
@@ -6167,22 +6398,33 @@ function endTurn(){
         prevP.history.push({ turn: turnCount, gold: prevP.gold, props: props });
     }
 
+    // --- RESET TIMER FOR NEXT TURN ---
+    // Update the base time immediately so the bar fills up for the next person
+    lastInteractionTime = Date.now();
+    // ---------------------------------
+
     setTimeout(() => {
-        // --- MULTIPLAYER REQUEST LOGIC ---
+        // --- MULTIPLAYER LOGIC ---
         if(isMultiplayer && db && gameId) {
             const isMyTurn = (prevP.id === myPlayerId);
             const isAiTurn = (prevP.isAi && myPlayerId === 0);
+            
             if (isMyTurn || isAiTurn) {
                 db.ref(`games/${gameId}/request`).push({
                     type: 'END_TURN',
                     pid: prevP.id
                 });
+                
+                // HOST SYNC: Reset DB Timer
+                if (myPlayerId === 0) {
+                    db.ref(`games/${gameId}/turnTimer`).set(firebase.database.ServerValue.TIMESTAMP);
+                }
             }
             turnProcessing = false;
             return; 
         }
 
-        // --- SINGLE PLAYER / LOCAL LOGIC ---
+        // --- SINGLE PLAYER LOGIC ---
         let nextIndex;
         if (prevP && prevP.extraTurn) {
             nextIndex = turnIndex; 
@@ -6197,23 +6439,19 @@ function endTurn(){
             }
         }
 
-        // --- ROUND COMPLETION LOGIC ---
         if (nextIndex === 0 && !prevP.extraTurn) {
             turnCount++;
             
-            // --- FIX: DAY/NIGHT CYCLE ---
-            // Toggle every 4 rounds (adjust number as desired)
+            // --- FIX: DAY/NIGHT TOGGLE (Every 4 Rounds) ---
             if (turnCount > 0 && turnCount % 4 === 0) {
                 const newNightState = !isNight;
-                
-                // Local transition (MP syncs via listener)
-                isNight = newNightState;
+                isNight = newNightState; // Local update for SP
                 transitionDayNight(isNight);
                 
                 const phaseName = newNightState ? "NIGHT FALLS" : "DAWN BREAKS";
                 addLog(`=== ${phaseName} ===`, "log-epic");
             }
-            // ----------------------------
+            // ----------------------------------------------
 
             if (activeEvent) {
                 activeEvent.turnsLeft--;
@@ -6288,38 +6526,19 @@ function triggerTileEvent(p) {
     const t = tiles[p.pos]; 
     const i = t.userData.info;
     
-    // 1. AI LOGIC
-    if (p.isAi) {
-        if (isMultiplayer) {
-            // Host sends the request for the AI
-            if (myPlayerId === 0) {
-                db.ref(`games/${gameId}/request`).push({
-                    type: 'TILE_EVENT',
-                    pid: p.id,
-                    tileIndex: p.pos
-                });
-            }
-        } else {
-            // Single Player Local Logic
-            processAiTurn(p, t, i); 
-        }
-        return;
-    }
+    // AI Logic... (omitted for brevity)
+    if(p.isAi && !isMultiplayer) { processAiTurn(p, t, i); return; }
     
-    // 2. HUMAN MULTIPLAYER LOGIC
+    // Multiplayer Request... (omitted for brevity)
     if (isMultiplayer) {
-        // If it is ME, I request the event
-        if (p.id === myPlayerId) {
-            db.ref(`games/${gameId}/request`).push({
-                type: 'TILE_EVENT',
-                pid: p.id,
-                tileIndex: p.pos
-            });
+        const isMyTurn = (p.id === myPlayerId);
+        if (isMyTurn || (p.isAi && myPlayerId === 0)) {
+            db.ref(`games/${gameId}/request`).push({ type: 'TILE_EVENT', pid: p.id, tileIndex: p.pos });
         }
         return;
     }
 
-    // 3. HUMAN SINGLE PLAYER LOGIC (Visuals)
+    // SINGLE PLAYER VISUALS
     const m = document.getElementById('arrival-modal');
     if(m) {
         const imgEl = document.getElementById('arrival-image');
@@ -6329,7 +6548,12 @@ function triggerTileEvent(p) {
         }
         const flavorEl = document.getElementById('arrival-flavor');
         if(flavorEl) flavorEl.innerText = i.flavor || "You arrive at " + i.name + ".";
+        
         m.classList.add('active');
+        
+        // --- RESET TIMER ON MODAL OPEN ---
+        lastInteractionTime = Date.now();
+        // ---------------------------------
     }
     AUDIO.playSound('sfx_gold');
 }
@@ -7455,18 +7679,19 @@ function showBankruptcyModal(p, debt, recipient, ownedTiles) {
 function eliminatePlayer(p) { 
     p.isDead = true; 
     
-    // --- RESURRECTION (INHERITANCE) LOGIC ---
+    // --- INHERITANCE LOGIC (Resurrection Passive) ---
     const inheritor = players.find(x => !x.isDead && x.id !== p.id && x.passiveSkillId === 'resurrection');
     if (inheritor && p.gold > 0) {
-        const loot = Math.floor(p.gold * 0.5); // Inherit 50%
+        const loot = Math.floor(p.gold * 0.5); 
         inheritor.gold += loot;
         addLog(`${inheritor.name} inherits ${loot}G from ${p.name}.`, "log-epic");
     }
-    // -----------------------------------------
+    // ------------------------------------------------
     
     p.gold = 0; 
-    scene.remove(p.mesh); 
+    if(p.mesh) scene.remove(p.mesh); 
     
+    // Clear Properties
     tiles.forEach(t => { 
         if(t.userData.owner === p.id) { 
             t.userData.owner = null; 
@@ -7477,7 +7702,13 @@ function eliminatePlayer(p) {
     
     addLog(`${p.name} has been ELIMINATED!`, "log-fail"); 
     updateHUD(); 
-    if (!p.isAi) { showGameOver(false); } else { checkWinCondition(); } 
+    
+    // --- FIX: ONLY SHOW DEFEAT SCREEN IF IT IS ME ---
+    if (p.id === myPlayerId) { 
+        showGameOver(false); // I died, so I see defeat
+    } else { 
+        checkWinCondition(); // Someone else died, check if I won
+    } 
 }
 function checkWinCondition() { const livingAi = players.filter(pl => pl.isAi && !pl.isDead); const human = players[0]; if (livingAi.length === 0 && !human.isDead) { showGameOver(true); } }
 function showGameOver(victory) { 
@@ -9137,6 +9368,17 @@ function setupMultiplayerListeners() {
             }
         }
     });
+
+
+    // 10. TURN TIMER SYNC
+    db.ref(`games/${gameId}/turnTimer`).on('value', snap => {
+        lastInteractionTime = snap.val() || Date.now(); // Sync local base time
+    });
+
+    // Start Host Enforcement Loop if I am Host
+    if (myPlayerId === 0) {
+        startHostTimerLoop();
+    }
 }
 function resolveAiEvent(p, card, t, mode, items) {
     debugLog(`AI ${p.name} resolving event: ${mode}`);
@@ -9421,13 +9663,11 @@ function enableDebugMode() {
     const list = document.getElementById('debug-event-list');
     const logOverlay = document.getElementById('debug-log-overlay'); 
     
-    // Reveal UI
     debugContainer.style.display = 'block';
     logOverlay.style.display = 'flex'; 
-    
     list.innerHTML = ''; 
 
-    // 1. ADMIN TOGGLE BUTTON
+    // 1. ADMIN TOGGLE (Existing)
     const adminBtn = document.createElement('button');
     adminBtn.className = 'debug-btn';
     adminBtn.innerHTML = `TOGGLE ADMIN MODE <span>(OFF)</span>`;
@@ -9436,17 +9676,35 @@ function enableDebugMode() {
         isAdminMode = !isAdminMode;
         adminBtn.innerHTML = `TOGGLE ADMIN MODE <span>(${isAdminMode ? 'ON' : 'OFF'})</span>`;
         adminBtn.style.backgroundColor = isAdminMode ? '#7f1d1d' : '#333';
-        
-        // Refresh lobby if visible to show/hide delete buttons
-        if(document.getElementById('lobby-screen').style.display !== 'none') {
-            LOBBY.refreshList();
-        }
-        
+        if(document.getElementById('lobby-screen').style.display !== 'none') LOBBY.refreshList();
         addLog(`Admin Mode: ${isAdminMode}`);
     };
     list.appendChild(adminBtn);
 
-    // 2. Force End Turn Button
+    // --- NEW: CLEAR ALL GAMES BUTTON ---
+    const clearGamesBtn = document.createElement('button');
+    clearGamesBtn.className = 'debug-btn';
+    clearGamesBtn.innerHTML = `ADMIN: WIPE ALL GAMES <span>⚠</span>`;
+    clearGamesBtn.style.borderColor = '#ef4444';
+    clearGamesBtn.style.color = '#ef4444';
+    clearGamesBtn.onclick = () => {
+        const confirmMsg = "WARNING: This will delete ALL active games in the database. All players will be disconnected. Are you sure?";
+        if (confirm(confirmMsg)) {
+            // Double confirm because this is destructive
+            if (confirm("Really sure? This cannot be undone.")) {
+                db.ref('games').remove()
+                    .then(() => {
+                        addLog("DATABASE WIPED: All games removed.", "log-fail");
+                        alert("All games have been cleared.");
+                    })
+                    .catch(err => alert("Error: " + err.message));
+            }
+        }
+    };
+    list.appendChild(clearGamesBtn);
+    // -----------------------------------
+
+    // 2. Force End Turn (Existing)
     const fixBtn = document.createElement('button');
     fixBtn.className = 'debug-btn';
     fixBtn.innerHTML = `EMERGENCY: FORCE END TURN <span>FIX</span>`;
@@ -9461,7 +9719,7 @@ function enableDebugMode() {
     };
     list.appendChild(fixBtn);
 
-    // 3. Event Triggers
+    // 3. Event Triggers (Existing)
     MAP_EVENTS.forEach((ev, index) => {
         const btn = document.createElement('button');
         btn.className = 'debug-btn';
@@ -9563,6 +9821,62 @@ function copyDebugLog() {
         console.error('Failed to copy log:', err);
         alert("Failed to copy log. Check console permissions.");
     });
+}
+
+function handleTimeoutAction(p) {
+    // 1. Increment Strikes
+    p.afkStrikes = (p.afkStrikes || 0) + 1;
+    
+    // 2. Identify UI Context
+    const arrivalModal = document.getElementById('arrival-modal');
+    const cardModal = document.getElementById('card-modal');
+    const isArrivalOpen = arrivalModal && arrivalModal.classList.contains('active');
+    const isEncounterOpen = cardModal && cardModal.classList.contains('active');
+
+    // CONTEXT A: Space Card (Arrival) is Open
+    if (isArrivalOpen) {
+        addLog(`${p.name} timed out. Auto-continuing.`, "log-entry");
+        // Reset timer implicitly happens in next step, but doing it here prevents double firing
+        lastInteractionTime = Date.now(); 
+        continueFromArrival();
+    }
+    // CONTEXT B: Encounter/Shop Card is Open
+    else if (isEncounterOpen) {
+        addLog(`${p.name} timed out. Encounter FAILED.`, "log-fail");
+        lastInteractionTime = Date.now();
+        // Force fail/leave logic
+        closeEnc(); 
+    }
+    // CONTEXT C: Main Board (Needs to Roll or End Turn)
+    else {
+        addLog(`${p.name} timed out. Turn Skipped.`, "log-fail");
+        lastInteractionTime = Date.now();
+        endTurn();
+    }
+
+    // 3. Sync Strikes (Host handles DB updates for strikes)
+    if (isMultiplayer && (myPlayerId === 0 || p.id === myPlayerId)) {
+        db.ref(`games/${gameId}/players/${p.id}`).update({ afkStrikes: p.afkStrikes });
+    }
+
+    // 4. Check Elimination
+    if (p.afkStrikes >= 3) {
+        addLog(`${p.name} kicked for AFK (3 Strikes).`, "log-fail");
+        eliminatePlayer(p);
+        
+        // If MP Host, sync the death to DB
+        if (isMultiplayer && myPlayerId === 0) {
+            db.ref(`games/${gameId}/players/${p.id}`).update({ isDead: true, gold: 0 });
+            // Clear their board properties in DB
+            tiles.forEach(t => {
+                if (t.userData.owner === p.id) {
+                    db.ref(`games/${gameId}/board/${t.userData.id}`).set({
+                        owner: null, level: 0, guardCount: 0
+                    });
+                }
+            });
+        }
+    }
 }
 
 // Start Engine
