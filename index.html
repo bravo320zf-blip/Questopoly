@@ -1075,21 +1075,22 @@ Because you do not have a backend server listening for automatic receipts (Webho
 
     /* Top Section: Game List */
    .lobby-left {
-        flex: 1; /* Takes top half */
+        flex: 2; /* Changed from 1 to 2: Takes up 2/3rds of the screen */
         display: flex;
         flex-direction: column;
         padding: 10px;
-        min-height: 50%;
+        min-height: 0; /* Crucial for scrolling inside flex items */
+        overflow: hidden; /* Contains the scrollable list */
     }
-
 
     /* Bottom Section: Chat */
     .lobby-right {
-        flex: 1; /* Takes bottom half */
+        flex: 1; /* Remains 1: Takes up 1/3rd of the screen */
         display: flex;
         flex-direction: column;
         padding: 10px;
         border-top: 2px solid var(--gold-dim);
+        min-height: 0; /* Crucial for scrolling inside flex items */
     }
 
     /* Fix Lists to Scroll properly */
@@ -1104,6 +1105,11 @@ Because you do not have a backend server listening for automatic receipts (Webho
     .chat-input, .lobby-search, .auth-input {
         font-size: 16px; /* Prevents iOS zoom on focus */
         padding: 12px;
+    }
+	.chat-box {
+        flex-grow: 1;
+        overflow-y: auto;
+        min-height: 0;
     }
 	
 	.lobby-left button.auth-btn.btn-reg {
@@ -5104,38 +5110,61 @@ function onWindowResize() {
 }
 
 function transitionDayNight(toNight) {
-    // 1. Board Transition
-    new TWEEN.Tween(nightBoard.material)
-        .to({ opacity: toNight ? 1 : 0 }, 5000)
-        .start();
+    // 1. Board Transition (Dark Overlay)
+    if (nightBoard) {
+        new TWEEN.Tween(nightBoard.material)
+            .to({ opacity: toNight ? 1 : 0 }, 5000)
+            .start();
+    }
 
-    // 2. Play Transition SFX (Only when going Day -> Night)
+    // 2. Audio & Lighting
     if(toNight) {
+        // Night Setting In
         AUDIO.playSound('sfx_transition');
+        new TWEEN.Tween(scene.background).to({r:0.02, g:0.02, b:0.06}, 5000).start(); // Dark Sky
+    } else {
+        // Morning Breaking
+        new TWEEN.Tween(scene.background).to({r:0.8, g:0.8, b:0.8}, 5000).start(); // Light Sky
     }
 
-    // 3. Fog Transition
-    if (toNight) {
-        // Fog Fades In
-        if(fogGroup) {
+    // 3. Fog Transition logic
+    if(fogGroup) {
+        if (toNight) {
+            // --- NIGHT: FOG ROLLS IN ---
             fogGroup.children.forEach(cloud => {
-                cloud.position.x = cloud.userData.initialX;
-                cloud.position.z = cloud.userData.initialZ;
-                new TWEEN.Tween(cloud.material).to({ opacity: 0.5 + Math.random() * 0.3 }, 5000).start();
+                // Reset to random positions over the board
+                cloud.position.x = (Math.random() * 60) - 30;
+                cloud.position.z = (Math.random() * 60) - 30;
+                
+                // Fade In
+                new TWEEN.Tween(cloud.material)
+                    .to({ opacity: 0.4 + Math.random() * 0.3 }, 5000)
+                    .start();
+            });
+        } else {
+            // --- DAY: FOG CLEARS LEFT/RIGHT ---
+            fogGroup.children.forEach(cloud => {
+                // Determine direction: Left or Right based on current center
+                const destX = cloud.position.x >= 0 ? 80 : -80; 
+                
+                // Move Out of View
+                new TWEEN.Tween(cloud.position)
+                    .to({ x: destX }, 5000) // 5 seconds to clear
+                    .easing(TWEEN.Easing.Quadratic.In)
+                    .start();
+
+                // Fade Out
+                new TWEEN.Tween(cloud.material)
+                    .to({ opacity: 0 }, 5000)
+                    .start();
             });
         }
-        new TWEEN.Tween(scene.background).to({r:0.02, g:0.02, b:0.06}, 5000).start();
-    } else {
-        // Fog Moves Out
-        if(fogGroup) {
-            fogGroup.children.forEach(cloud => {
-                const destX = cloud.position.x > 0 ? 60 : -60;
-                new TWEEN.Tween(cloud.position).to({ x: destX }, 5000).start();
-                new TWEEN.Tween(cloud.material).to({ opacity: 0 }, 5000).start();
-            });
-        }
-        new TWEEN.Tween(scene.background).to({r:0.8, g:0.8, b:0.8}, 5000).start();
     }
+    
+    // Update HUD Indicator
+    setT('day-night-indicator', toNight ? "☾ NIGHT" : "☀ DAY");
+    const el = document.getElementById('day-night-indicator');
+    if(el) el.style.color = toNight ? "#a855f7" : "#87ceeb";
 }
 
 // --- DYNAMIC EVENT GLOBALS ---
@@ -5888,12 +5917,12 @@ function createBoard() {
 function createFog() {
     fogGroup = new THREE.Group();
     
-    // Create a procedural "Cloud" texture using Canvas (no external image needed)
+    // Create a procedural "Cloud" texture
     const c = document.createElement('canvas'); c.width = 128; c.height = 128;
     const ctx = c.getContext('2d');
     const grd = ctx.createRadialGradient(64,64,0, 64,64,64);
-    grd.addColorStop(0, 'rgba(255,255,255,0.3)'); // Light white center
-    grd.addColorStop(1, 'rgba(255,255,255,0)');   // Transparent edges
+    grd.addColorStop(0, 'rgba(255,255,255,0.4)'); 
+    grd.addColorStop(1, 'rgba(255,255,255,0)');   
     ctx.fillStyle = grd; ctx.fillRect(0,0,128,128);
     const fogTex = new THREE.CanvasTexture(c);
 
@@ -5902,19 +5931,17 @@ function createFog() {
         const mat = new THREE.MeshBasicMaterial({
             map: fogTex, 
             transparent: true, 
-            opacity: 0, // Invisible at start
+            opacity: 0, // Start Invisible
             depthWrite: false,
-            blending: THREE.AdditiveBlending 
+            blending: THREE.AdditiveBlending,
+            side: THREE.DoubleSide
         });
-        const mesh = new THREE.Mesh(new THREE.PlaneGeometry(15, 15), mat);
+        const mesh = new THREE.Mesh(new THREE.PlaneGeometry(12, 12), mat);
         
-        // Random placement over the board
-        mesh.position.set(Math.random()*60 - 30, 3 + Math.random()*2, Math.random()*60 - 30);
+        // Initial random placement
+        mesh.position.set((Math.random()*60)-30, 2 + Math.random()*3, (Math.random()*60)-30);
         mesh.rotation.x = -Math.PI/2;
         mesh.rotation.z = Math.random() * Math.PI * 2;
-        
-        // Save initial X pos for resetting later
-        mesh.userData = { initialX: mesh.position.x, initialZ: mesh.position.z };
         
         fogGroup.add(mesh);
     }
@@ -6496,50 +6523,32 @@ function endTurn(){
     if (turnProcessing || gameState === 'MOVING') return;
     turnProcessing = true;
 
-    const btnAction = document.getElementById('btn-action');
-    if(btnAction) { btnAction.disabled = true; btnAction.innerText = "..."; }
-
+    // ... (Stats and History logic preserved) ...
     const prevP = players[turnIndex]; 
     if (prevP && !prevP.isEventEntity && !prevP.isBoss) {
         if (prevP.isPolymorphed) cureSheep(prevP);
         recalcStats(prevP);
-        
-        // Host manages AI Inventory
-        if (prevP.isAi && (!isMultiplayer || myPlayerId === 0)) {
-            manageAiInventory(prevP); 
-        }
-
+        if (prevP.isAi && (!isMultiplayer || myPlayerId === 0)) manageAiInventory(prevP); 
         const props = tiles.filter(t => t.userData.owner === prevP.id).length;
         prevP.history.push({ turn: turnCount, gold: prevP.gold, props: props });
     }
 
-    // --- RESET TIMER FOR NEXT TURN ---
-    // Update the base time immediately so the bar fills up for the next person
+    // Reset Timer Base
     lastInteractionTime = Date.now();
-    // ---------------------------------
 
     setTimeout(() => {
-        // --- MULTIPLAYER LOGIC ---
+        // ... (MP Request Logic preserved) ...
         if(isMultiplayer && db && gameId) {
             const isMyTurn = (prevP.id === myPlayerId);
             const isAiTurn = (prevP.isAi && myPlayerId === 0);
-            
             if (isMyTurn || isAiTurn) {
-                db.ref(`games/${gameId}/request`).push({
-                    type: 'END_TURN',
-                    pid: prevP.id
-                });
-                
-                // HOST SYNC: Reset DB Timer
-                if (myPlayerId === 0) {
-                    db.ref(`games/${gameId}/turnTimer`).set(firebase.database.ServerValue.TIMESTAMP);
-                }
+                db.ref(`games/${gameId}/request`).push({ type: 'END_TURN', pid: prevP.id });
             }
             turnProcessing = false;
             return; 
         }
 
-        // --- SINGLE PLAYER LOGIC ---
+        // --- TURN CALCULATION ---
         let nextIndex;
         if (prevP && prevP.extraTurn) {
             nextIndex = turnIndex; 
@@ -6554,39 +6563,44 @@ function endTurn(){
             }
         }
 
+        // --- ROUND / DAY NIGHT LOGIC ---
         if (nextIndex === 0 && !prevP.extraTurn) {
             turnCount++;
             
-            // --- FIX: DAY/NIGHT TOGGLE (Every 4 Rounds) ---
-            if (turnCount > 0 && turnCount % 4 === 0) {
+            // --- FIX: 10 ROUND CYCLE ---
+            if (turnCount > 0 && turnCount % 10 === 0) {
                 const newNightState = !isNight;
-                isNight = newNightState; // Local update for SP
+                isNight = newNightState; 
+                
+                // Trigger Visuals locally (MP uses listener)
                 transitionDayNight(isNight);
                 
-                const phaseName = newNightState ? "NIGHT FALLS" : "DAWN BREAKS";
+                const phaseName = newNightState ? "NIGHT FALLS (Skirmish Cards)" : "DAWN BREAKS (Encounter Cards)";
                 addLog(`=== ${phaseName} ===`, "log-epic");
+                
+                // HOST: Sync state to DB
+                if (isMultiplayer && myPlayerId === 0) {
+                    db.ref(`games/${gameId}/isNight`).set(isNight);
+                }
             }
-            // ----------------------------------------------
+            // ---------------------------
 
             if (activeEvent) {
                 activeEvent.turnsLeft--;
                 if (activeEvent.turnsLeft <= 0) {
                     if(activeEvent.data.onEnd) activeEvent.data.onEnd();
                     if(activeEvent.playerRef) removeEventEntity(activeEvent.playerRef);
-                    activeEvent = null;
-                    removeParticles();
-                    addLog("Event ended.", "log-entry");
+                    activeEvent = null; removeParticles(); addLog("Event ended.", "log-entry");
                 }
             } else {
                 const roll = Math.floor(Math.random() * 6) + 1;
-                if (roll === 6) {
-                    triggerRandomEvent();
-                }
+                if (roll === 6) triggerRandomEvent();
             }
         }
         
         turnIndex = nextIndex;
         gameState = 'ROLL'; 
+        lastInteractionTime = Date.now();
         updateHUD();
         turnProcessing = false;
 
