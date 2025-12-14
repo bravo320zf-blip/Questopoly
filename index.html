@@ -527,7 +527,7 @@ Because you do not have a backend server listening for automatic receipts (Webho
     #creator-portrait-frame { position: fixed; right: 5%; top: 50%; transform: translateY(-50%); width: 400px; height: 500px; border: 4px solid var(--gold-main); border-radius: 10px; box-shadow: 0 0 30px #000; background-color: #000; background-size: cover; background-position: top center; background-repeat: no-repeat; display: none; z-index: 5000; transition: all 0.3s ease; }
     #creator-portrait-frame.minimized { width: 80px !important; height: 80px !important; right: 20px !important; top: 20px !important; transform: none !important; border-width: 2px !important; }
 
-    #logo-screen { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #000; z-index: 2000 !important; display: flex; flex-direction: column; align-items: center; justify-content: center; transition: opacity 1.5s ease-out; pointer-events: auto; }
+    #logo-screen { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #000; z-index: 20000 !important; display: flex; flex-direction: column; align-items: center; justify-content: center; transition: opacity 1.5s ease-out; pointer-events: auto; }
     #logo-img { width: 60%; max-width: 800px; height: auto; opacity: 0; animation: logoFadeIn 5s forwards; }
     #logo-text { margin-top: 20px; color: #fff; font-family: 'Cinzel', serif; font-size: 3vmin; opacity: 0; animation: logoFadeIn 2s forwards 5.5s; }
     @keyframes logoFadeIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
@@ -1414,6 +1414,59 @@ Because you do not have a backend server listening for automatic receipts (Webho
     transform-origin: left;
     transition: transform 0.1s linear;
 }
+
+/* --- LOBBY STYLES --- */
+.lobby-item.in-progress {
+    opacity: 0.6;
+    background: #2d3748;
+    border-color: #4a5568;
+    cursor: default;
+    filter: grayscale(0.8);
+}
+.lobby-item.in-progress:hover {
+    background: #2d3748; /* No hover effect */
+    border-color: #4a5568;
+}
+
+/* --- NOTIFICATION STYLES --- */
+.system-update-msg {
+    background: linear-gradient(135deg, #451a03 0%, #000 100%);
+    border: 2px solid var(--gold-main);
+    padding: 15px;
+    margin-bottom: 15px;
+    border-radius: 8px;
+    position: relative;
+    box-shadow: 0 0 15px rgba(245, 158, 11, 0.2);
+}
+.system-update-badge {
+    position: absolute;
+    top: -10px;
+    left: -10px;
+    background: #ef4444;
+    color: white;
+    font-size: 0.7rem;
+    font-weight: bold;
+    padding: 2px 8px;
+    border-radius: 4px;
+    border: 1px solid white;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.5);
+    text-transform: uppercase;
+}
+.system-update-title {
+    color: var(--gold-glow);
+    font-weight: 900;
+    margin-bottom: 5px;
+    font-family: var(--font-head);
+    font-size: 1rem;
+    display: flex;
+    justify-content: space-between;
+}
+.system-update-text {
+    color: #e2e8f0;
+    font-size: 0.9rem;
+    line-height: 1.4;
+    white-space: pre-wrap; /* Keeps line breaks */
+}
 </style>
 </head>
 
@@ -1475,6 +1528,12 @@ Because you do not have a backend server listening for automatic receipts (Webho
         <input type="text" id="lobby-search" class="lobby-search" placeholder="Search games..." onkeyup="LOBBY.refreshList()">
         <button class="auth-btn btn-reg" style="width:auto; padding:8px 15px; margin:0;" onclick="LOBBY.refreshList()">↻</button>
     </div>
+	
+    <div style="display:flex; align-items:center; gap:10px; margin-bottom:10px; font-size:0.8rem; color:#aaa;">
+        <input type="checkbox" id="chk-show-progress" class="toggle-chk" onchange="LOBBY.refreshList()">
+        <label for="chk-show-progress" style="cursor:pointer;">See "In Progress" Games</label>
+    </div>
+
     <button class="auth-btn btn-login" style="width:100%; margin-bottom:10px;" onclick="createGameLogic()">Create Game</button>
     
     <div id="lobby-list" class="lobby-list">
@@ -3053,64 +3112,82 @@ exit: function() {
     },
 // Inside LOBBY object
 refreshList: function() {
-    if(!db) return;
-    const list = document.getElementById('lobby-list');
-    const searchVal = document.getElementById('lobby-search').value.toLowerCase();
-    
-    list.innerHTML = '<div style="padding:20px; text-align:center;">Loading...</div>';
-    
-    db.ref('games').once('value').then(snap => {
-        list.innerHTML = '';
-        const games = snap.val();
+        if(!db) return;
+        const list = document.getElementById('lobby-list');
+        const searchVal = document.getElementById('lobby-search').value.toLowerCase();
+        // Check state of the new checkbox
+        const showInProgress = document.getElementById('chk-show-progress').checked;
         
-        if(!games) { 
-            list.innerHTML = '<div style="padding:20px; text-align:center;">No games found.</div>'; 
-            return; 
-        }
+        list.innerHTML = '<div style="padding:20px; text-align:center;">Loading...</div>';
         
-        const now = Date.now();
-        const EIGHT_HOURS_MS = 8 * 60 * 60 * 1000;
-
-        Object.keys(games).forEach(k => {
-            const g = games[k];
+        db.ref('games').once('value').then(snap => {
+            list.innerHTML = '';
+            const games = snap.val();
             
-            // --- NEW: CLEANUP LOGIC ---
-            // If game has no createdAt (legacy) or is older than 8 hours
-            if (!g.createdAt || (now - g.createdAt > EIGHT_HOURS_MS)) {
-                console.log("Cleaning up expired game:", k);
-                // We delete it. Since anyone can read/write in this demo setup, this works.
-                db.ref(`games/${k}`).remove();
-                return; // Skip rendering this one
+            if(!games) { 
+                list.innerHTML = '<div style="padding:20px; text-align:center;">No games found.</div>'; 
+                return; 
             }
-            // ---------------------------
+            
+            const now = Date.now();
+            const EIGHT_HOURS_MS = 8 * 60 * 60 * 1000;
 
-            if(g.status === 'waiting') {
-                if(searchVal && !g.hostName.toLowerCase().includes(searchVal)) return;
-
-                const playerCount = g.players ? Object.keys(g.players).length : 1;
-                const locked = g.password ? '🔒 ' : '';
-                const isMine = (g.host === currentUser.uid);
-
-                const div = document.createElement('div');
-                div.className = 'lobby-item';
+            Object.keys(games).forEach(k => {
+                const g = games[k];
                 
-                let deleteBtn = '';
-                if (isAdminMode || isMine) {
-                    deleteBtn = `<button style="background:transparent; border:none; color:#ef4444; font-weight:bold; cursor:pointer; margin-left:10px; font-size:1.2rem;" onclick="event.stopPropagation(); LOBBY.deleteGame('${k}', ${isMine})" title="Delete Game">×</button>`;
+                // Cleanup Logic
+                if (!g.createdAt || (now - g.createdAt > EIGHT_HOURS_MS)) {
+                    db.ref(`games/${k}`).remove();
+                    return; 
                 }
 
-                div.innerHTML = `
-                    <div style="flex-grow:1; display:flex; justify-content:space-between;" onclick="LOBBY.attemptJoin('${k}', '${g.password}')">
-                        <span>${locked}${g.hostName}'s Game</span>
-                        <span>${playerCount}/4</span>
-                    </div>
-                    ${deleteBtn}
-                `;
-                list.appendChild(div);
+                // Filter Search
+                if(searchVal && !g.hostName.toLowerCase().includes(searchVal)) return;
+
+                // --- NEW VISIBILITY LOGIC ---
+                // Show if Waiting OR (ShowInProgress is true AND status is playing)
+                if(g.status === 'waiting' || (showInProgress && g.status === 'playing')) {
+
+                    const playerCount = g.players ? Object.keys(g.players).length : 1;
+                    const locked = g.password ? '🔒 ' : '';
+                    const isMine = (g.host === currentUser.uid);
+                    const isPlaying = (g.status === 'playing');
+
+                    const div = document.createElement('div');
+                    
+                    // Add 'in-progress' class if playing
+                    div.className = 'lobby-item' + (isPlaying ? ' in-progress' : '');
+                    
+                    let deleteBtn = '';
+                    if (isAdminMode || isMine) {
+                        deleteBtn = `<button style="background:transparent; border:none; color:#ef4444; font-weight:bold; cursor:pointer; margin-left:10px; font-size:1.2rem;" onclick="event.stopPropagation(); LOBBY.deleteGame('${k}', ${isMine})" title="Delete Game">×</button>`;
+                    }
+
+                    // Dynamic Text
+                    let statusText = isPlaying ? `<span style="color:#aaa; font-style:italic; font-size:0.8rem; margin-left:10px;">GAME IN PROGRESS</span>` : `<span>${playerCount}/4</span>`;
+
+                    div.innerHTML = `
+                        <div style="flex-grow:1; display:flex; justify-content:space-between; align-items:center;">
+                            <span>${locked}${g.hostName}'s Game</span>
+                            ${statusText}
+                        </div>
+                        ${deleteBtn}
+                    `;
+                    
+                    // Only allow clicking join if NOT playing
+                    if (!isPlaying) {
+                        div.onclick = () => LOBBY.attemptJoin(k, g.password);
+                    }
+
+                    list.appendChild(div);
+                }
+            });
+            
+            if (list.innerHTML === '') {
+                list.innerHTML = '<div style="padding:20px; text-align:center;">No games match filter.</div>';
             }
         });
-    });
-},
+    },
     
     deleteGame: function(gid, isMine) {
         const msg = isMine ? "Delete your game room?" : "Delete this game room? (Admin Action)";
@@ -5494,47 +5571,57 @@ function createItemInstance(templateItem) {
 
 // --- UNIFIED NOTIFICATION SYSTEM ---
 const NOTIFICATIONS = {
+    systemMsg: null, // Stores current fetched system message
+
     init: function() {
         if(!currentUser) return;
-        
-        // Show the bell
         document.getElementById('global-notify-btn').style.display = 'block';
 
-        // Listen for new items in 'inbox'
+        // 1. Listen for User Inbox (Existing)
         db.ref(`users/${currentUser.uid}/inbox`).on('child_added', snap => {
             const note = snap.val();
-            const noteKey = snap.key;
-            
-            // LOGIC: Are we in a Game Room?
             const inGameRoom = (document.getElementById('gameroom-screen').style.display === 'flex');
             
             if (inGameRoom && note.type === 'dm') {
-                // OPTION A: Show Purple Text in Room Chat
                 this.injectWhisperToRoom(note);
-                
-                // Remove from database so it doesn't persist as "unread" since we saw it
-                db.ref(`users/${currentUser.uid}/inbox/${noteKey}`).remove();
+                db.ref(`users/${currentUser.uid}/inbox/${snap.key}`).remove();
             } else {
-                // OPTION B: Increment Badge
                 this.updateBadge();
-                AUDIO.playSound('sfx_click'); // Small sound cue
+                AUDIO.playSound('sfx_click');
             }
         });
         
-        // Also listen for removals to update badge count down
-        db.ref(`users/${currentUser.uid}/inbox`).on('child_removed', () => {
+        db.ref(`users/${currentUser.uid}/inbox`).on('child_removed', () => this.updateBadge());
+
+        // 2. NEW: Listen for Global System Updates
+        db.ref('system/update').on('value', snap => {
+            this.systemMsg = snap.val(); // { text: "...", timestamp: 12345678 }
             this.updateBadge();
         });
     },
 
     updateBadge: function() {
+        // Count Inbox Items
         db.ref(`users/${currentUser.uid}/inbox`).once('value').then(snap => {
-            const count = snap.numChildren();
+            let count = snap.numChildren();
+            
+            // Check System Message "Read" Status
+            // We store the last read timestamp in LocalStorage
+            let hasUnreadSystem = false;
+            if (this.systemMsg && this.systemMsg.text) {
+                const lastRead = localStorage.getItem('sys_update_read_time');
+                // If we haven't read it, or the current message is newer than what we read
+                if (!lastRead || this.systemMsg.timestamp > parseInt(lastRead)) {
+                    hasUnreadSystem = true;
+                    count++; 
+                }
+            }
+
             const badge = document.getElementById('notify-badge-count');
             if(count > 0) {
-                badge.innerText = count;
+                // Show Red Exclamation Point if it's just the system update, else number
+                badge.innerText = (hasUnreadSystem && count === 1) ? "!" : count;
                 badge.style.display = 'flex';
-                // Pulse animation
                 badge.style.transform = 'scale(1.3)';
                 setTimeout(()=>badge.style.transform='scale(1)', 200);
             } else {
@@ -5548,7 +5635,6 @@ const NOTIFICATIONS = {
         if(chatBox) {
             const d = document.createElement('div'); 
             d.className = 'chat-msg whisper';
-            // W: SenderName: Message
             d.innerHTML = `<span class="whisper-name">W: ${note.senderName}:</span> <span class="whisper-text">${note.text}</span>`;
             chatBox.appendChild(d);
             chatBox.scrollTop = chatBox.scrollHeight;
@@ -5561,13 +5647,43 @@ const NOTIFICATIONS = {
         modal.style.display = 'flex';
         list.innerHTML = 'Loading...';
 
+        // --- RENDER SYSTEM MESSAGE PINNED AT TOP ---
+        const renderSystemMsg = () => {
+            if (this.systemMsg && this.systemMsg.text) {
+                // Mark as read immediately when opened
+                localStorage.setItem('sys_update_read_time', this.systemMsg.timestamp);
+                
+                // Recalculate badge (remove the red dot)
+                this.updateBadge();
+
+                const dateStr = new Date(this.systemMsg.timestamp).toLocaleDateString();
+                const div = document.createElement('div');
+                div.className = 'system-update-msg';
+                div.innerHTML = `
+                    <div class="system-update-badge">DEV UPDATE</div>
+                    <div class="system-update-title">
+                        <span>LATEST NEWS</span>
+                        <span style="font-size:0.7rem; color:#aaa; font-weight:normal;">${dateStr}</span>
+                    </div>
+                    <div class="system-update-text">${this.systemMsg.text}</div>
+                `;
+                // Use prepend to ensure it's always top
+                list.prepend(div);
+            }
+        };
+
         db.ref(`users/${currentUser.uid}/inbox`).once('value').then(snap => {
-            list.innerHTML = '';
-            if(!snap.exists()) {
-                list.innerHTML = '<div style="color:#aaa; text-align:center;">No new notifications.</div>';
+            list.innerHTML = ''; // Clear loading text
+            
+            // Render System Msg First
+            renderSystemMsg();
+
+            if(!snap.exists() && (!this.systemMsg || !this.systemMsg.text)) {
+                list.innerHTML += '<div style="color:#aaa; text-align:center; padding:20px;">No new notifications.</div>';
                 return;
             }
 
+            // Render Inbox Items
             snap.forEach(child => {
                 const n = child.val();
                 const div = document.createElement('div');
@@ -5585,20 +5701,19 @@ const NOTIFICATIONS = {
                         </div>
                     `;
                 }
-                list.prepend(div); // Newest top
+                // Append (so they appear below the system message)
+                list.appendChild(div); 
             });
         });
     },
 
     delete: function(key) {
         db.ref(`users/${currentUser.uid}/inbox/${key}`).remove();
-        // UI updates automatically via openModal re-render or manual logic? 
-        // For simplicity, just hide the specific element or re-open.
         setTimeout(() => this.openModal(), 100);
     },
 
     clearAll: function() {
-        if(confirm("Clear all notifications?")) {
+        if(confirm("Clear all personal notifications? (System Update will remain)")) {
             db.ref(`users/${currentUser.uid}/inbox`).remove();
             this.openModal();
         }
@@ -9667,7 +9782,8 @@ function enableDebugMode() {
     logOverlay.style.display = 'flex'; 
     list.innerHTML = ''; 
 
-    // 1. ADMIN TOGGLE (Existing)
+    // ... (Existing Buttons: Admin Toggle, Clear All Games) ...
+    // ADMIN TOGGLE
     const adminBtn = document.createElement('button');
     adminBtn.className = 'debug-btn';
     adminBtn.innerHTML = `TOGGLE ADMIN MODE <span>(OFF)</span>`;
@@ -9681,59 +9797,64 @@ function enableDebugMode() {
     };
     list.appendChild(adminBtn);
 
-    // --- NEW: CLEAR ALL GAMES BUTTON ---
+    // --- NEW: POST UPDATE BUTTON ---
+    const updateBtn = document.createElement('button');
+    updateBtn.className = 'debug-btn';
+    updateBtn.innerHTML = `ADMIN: POST GLOBAL UPDATE <span>📝</span>`;
+    updateBtn.style.borderColor = '#3b82f6'; 
+    updateBtn.style.color = '#3b82f6';
+    
+    updateBtn.onclick = () => {
+        const text = prompt("Enter the Global Update text (Use \\n for new lines):");
+        if (text && text.trim().length > 0) {
+            // Replace \n with actual newlines if typed literally
+            const formatted = text.replace(/\\n/g, '\n');
+            
+            db.ref('system/update').set({
+                text: formatted,
+                timestamp: firebase.database.ServerValue.TIMESTAMP
+            }).then(() => {
+                alert("Global Update Posted!");
+                // Also reset my own read status so I can see it
+                localStorage.removeItem('sys_update_read_time');
+            });
+        }
+    };
+    list.appendChild(updateBtn);
+    // -------------------------------
+
+    // ... (Rest of existing buttons: Wipe Games, Force End Turn, Event Triggers) ...
+    
+    // WIPE GAMES
     const clearGamesBtn = document.createElement('button');
     clearGamesBtn.className = 'debug-btn';
     clearGamesBtn.innerHTML = `ADMIN: WIPE ALL GAMES <span>⚠</span>`;
     clearGamesBtn.style.borderColor = '#ef4444';
     clearGamesBtn.style.color = '#ef4444';
     clearGamesBtn.onclick = () => {
-        const confirmMsg = "WARNING: This will delete ALL active games in the database. All players will be disconnected. Are you sure?";
-        if (confirm(confirmMsg)) {
-            // Double confirm because this is destructive
-            if (confirm("Really sure? This cannot be undone.")) {
-                db.ref('games').remove()
-                    .then(() => {
-                        addLog("DATABASE WIPED: All games removed.", "log-fail");
-                        alert("All games have been cleared.");
-                    })
-                    .catch(err => alert("Error: " + err.message));
+        if (confirm("WARNING: Delete ALL active games?")) {
+            if (confirm("Really sure?")) {
+                db.ref('games').remove().then(() => alert("All games cleared."));
             }
         }
     };
     list.appendChild(clearGamesBtn);
-    // -----------------------------------
 
-    // 2. Force End Turn (Existing)
+    // Force End Turn (Existing)
     const fixBtn = document.createElement('button');
     fixBtn.className = 'debug-btn';
     fixBtn.innerHTML = `EMERGENCY: FORCE END TURN <span>FIX</span>`;
     fixBtn.style.borderColor = '#f59e0b';
     fixBtn.onclick = () => {
-        debugLog("Force Ending Turn...");
-        gameState = 'END'; 
-        turnProcessing = false;
+        gameState = 'END'; turnProcessing = false;
         if (activeEvent && activeEvent.mesh) scene.remove(activeEvent.mesh);
         document.getElementById('card-modal').classList.remove('active');
         endTurn();
     };
     list.appendChild(fixBtn);
 
-    // 3. Event Triggers (Existing)
-    MAP_EVENTS.forEach((ev, index) => {
-        const btn = document.createElement('button');
-        btn.className = 'debug-btn';
-        btn.innerHTML = `${ev.name} <span>INPUT</span>`;
-        btn.onclick = () => {
-            forceTriggerEvent(index);
-            toggleSettingsModal(); 
-        };
-        list.appendChild(btn);
-    });
-    
     debugLog("Debug Mode Enabled.");
 }
-
 function disableDebugMode() {
     // 1. Hide Debug UI elements
     document.getElementById('debug-controls').style.display = 'none';
