@@ -3508,7 +3508,7 @@ renderSlots: function() {
                     slotEl.innerHTML = `<div style="color:#666; width:100%; text-align:center;">Waiting for player...</div>`;
                 }
             } 
-            // --- AI ---
+            // --- AI (WITH COLOR PICKER) ---
             else if (data.type === 'ai') {
                  aiCount++;
                  
@@ -4081,35 +4081,53 @@ function cureSheep(p) {
 
 // --- VISUAL FX ENGINE ---
 const VFX = {
-    // Placeholder for Sound Files
     audioMap: {
-        power_strike: 'https://static.wixstatic.com/mp3/b16479_716ab5cae758429ab7934fb34a5af25b.mp3',
+        burst_up: 'https://static.wixstatic.com/mp3/b16479_716ab5cae758429ab7934fb34a5af25b.mp3',
         fireball: 'https://static.wixstatic.com/mp3/b16479_25a95001f779487f8f2642c61567791e.mp3',
-        smite: 'https://static.wixstatic.com/mp3/b16479_4f1d45f090934d53ae5b954042a3b096.mp3',
-        heal: 'https://static.wixstatic.com/mp3/b16479_8389128a7bca475c9a3819e863daf5ba.mp3',
-        teleport: 'https://static.wixstatic.com/mp3/b16479_9623c35f05c0470eade0e66ae0de62f1.mp3',
-        coins: 'https://static.wixstatic.com/mp3/b16479_9b93cbf306ce4f348428b60b3ac521b1.wav',
-        buff: 'https://static.wixstatic.com/mp3/b16479_bfe1b99e8e5f4ce1885c9944dcaf6894.mp3',
-        debuff: 'https://static.wixstatic.com/mp3/b16479_2e33d6685faf47269d73af40f44ed61e.mp3'
+        lightning: 'https://static.wixstatic.com/mp3/b16479_4f1d45f090934d53ae5b954042a3b096.mp3',
+        spiral_up: 'https://static.wixstatic.com/mp3/b16479_8389128a7bca475c9a3819e863daf5ba.mp3',
+        implode: 'https://static.wixstatic.com/mp3/b16479_9623c35f05c0470eade0e66ae0de62f1.mp3',
+        projectile_coin: 'https://static.wixstatic.com/mp3/b16479_9b93cbf306ce4f348428b60b3ac521b1.wav',
+        pillar: 'https://static.wixstatic.com/mp3/b16479_bfe1b99e8e5f4ce1885c9944dcaf6894.mp3',
+        shockwave: 'https://static.wixstatic.com/mp3/b16479_2e33d6685faf47269d73af40f44ed61e.mp3',
+        smoke: 'https://static.wixstatic.com/mp3/b16479_9623c35f05c0470eade0e66ae0de62f1.mp3'
     },
 
     playAudio: function(key) {
-        // Placeholder: Hook up your real audio system here later
-        // const url = this.audioMap[key];
-        // if(url) new Audio(url).play().catch(e=>{});
+        const url = this.audioMap[key];
+        if(url) {
+            const audio = new Audio(url);
+            audio.volume = 0.6; 
+            audio.play().catch(e => { });
+        }
     },
 
-    trigger: function(type, startPos, endPos, color) {
+    // UPDATED TRIGGER: Accepts 'isRemote' to handle MP sync
+    trigger: function(type, startPos, endPos, color, isRemote = false) {
+        // 1. Play Sound Locally
         this.playAudio(type);
         
-        // Ensure we have Vector3s
-        const s = startPos ? startPos.clone() : new THREE.Vector3();
-        const e = endPos ? endPos.clone() : new THREE.Vector3();
+        // 2. Ensure Vectors
+        const s = startPos ? new THREE.Vector3(startPos.x, startPos.y, startPos.z) : new THREE.Vector3();
+        const e = endPos ? new THREE.Vector3(endPos.x, endPos.y, endPos.z) : new THREE.Vector3();
 
+        // 3. BROADCAST TO DB (If Multiplayer and I originated this effect)
+        if (isMultiplayer && !isRemote && gameId && db) {
+            db.ref(`games/${gameId}/vfxLog`).push({
+                type: type,
+                // Flatten vectors to simple objects for Firebase
+                start: {x: s.x, y: s.y, z: s.z},
+                end: {x: e.x, y: e.y, z: e.z},
+                color: color || null,
+                timestamp: firebase.database.ServerValue.TIMESTAMP
+            });
+        }
+
+        // 4. Play Animation Locally
         switch(type) {
             case 'lightning': this.lightningBolt(e); break;
             case 'fireball': this.projectile(s, e, 0xff4500, 'explode'); break;
-            case 'projectile_coin': this.projectile(e, s, 0xffd700, 'sparkle'); break; // Coins fly to player
+            case 'projectile_coin': this.projectile(e, s, 0xffd700, 'sparkle'); break; 
             case 'burst_up': this.burstUp(s, color || 0xff0000); break;
             case 'spiral_up': this.spiralUp(s, color || 0x00ff00); break;
             case 'shockwave': this.shockwave(s, color || 0x000000); break;
@@ -4119,7 +4137,7 @@ const VFX = {
         }
     },
 
-    // 1. LIGHTNING (Smite)
+    // --- PRIMITIVES (Same as before) ---
     lightningBolt: function(pos) {
         const h = 40;
         const geo = new THREE.CylinderGeometry(0.5, 0.5, h, 8);
@@ -4137,7 +4155,6 @@ const VFX = {
         this.explode(pos, 0xffff00);
     },
 
-    // 2. PROJECTILE (Fireball / Arrows)
     projectile: function(start, end, color, onHit) {
         const orb = new THREE.Mesh(new THREE.SphereGeometry(0.5), new THREE.MeshBasicMaterial({color: color}));
         orb.position.copy(start);
@@ -4152,7 +4169,6 @@ const VFX = {
             }).start();
     },
 
-    // 3. BURST UP (Buffs)
     burstUp: function(pos, color) {
         const cone = new THREE.Mesh(new THREE.ConeGeometry(1, 5, 8), new THREE.MeshBasicMaterial({color:color, transparent:true, opacity:0.8}));
         cone.position.set(pos.x, 0, pos.z);
@@ -4162,7 +4178,6 @@ const VFX = {
         this.sparkle(pos, color);
     },
 
-    // 4. SHOCKWAVE (Intimidate/Stun)
     shockwave: function(pos, color) {
         const ring = new THREE.Mesh(new THREE.RingGeometry(0.5, 1, 32), new THREE.MeshBasicMaterial({ color: color, transparent: true, opacity: 0.8, side: THREE.DoubleSide }));
         ring.rotation.x = -Math.PI / 2;
@@ -4172,7 +4187,6 @@ const VFX = {
         new TWEEN.Tween(ring.material).to({opacity: 0}, 600).start();
     },
 
-    // 5. IMPLODE (Teleport Start)
     implode: function(pos, color) {
         const sphere = new THREE.Mesh(new THREE.SphereGeometry(4), new THREE.MeshBasicMaterial({color:color, wireframe:true, transparent:true}));
         sphere.position.copy(pos);
@@ -4180,7 +4194,6 @@ const VFX = {
         new TWEEN.Tween(sphere.scale).to({x:0.01, y:0.01, z:0.01}, 400).onComplete(()=>scene.remove(sphere)).start();
     },
 
-    // 6. SPIRAL (Heal)
     spiralUp: function(pos, color) {
         const count = 30;
         const geom = new THREE.BufferGeometry();
@@ -4197,7 +4210,7 @@ const VFX = {
             for(let i=0; i<count; i++) {
                 const angle = f + (i * 0.5);
                 arr[i*3] = pos.x + Math.cos(angle) * 1.5;
-                arr[i*3+1] += 0.1; // Rise
+                arr[i*3+1] += 0.1; 
                 arr[i*3+2] = pos.z + Math.sin(angle) * 1.5;
             }
             pts.geometry.attributes.position.needsUpdate = true;
@@ -4206,7 +4219,6 @@ const VFX = {
         anim();
     },
 
-    // 7. PARTICLES
     explode: function(pos, color) { this.spawnParticles(pos, color, 20, 1); },
     sparkle: function(pos, color) { this.spawnParticles(pos, color, 10, 0.2); },
     cloud: function(pos, color) { this.spawnParticles(pos, color, 30, 0.5, true); },
@@ -4262,7 +4274,7 @@ const ABILITY_LIBRARY = {
             const targets=players.filter(t=>t.id!==p.id&&!t.isDead); 
             if(targets.length>0){
                 const t=targets[Math.floor(Math.random()*targets.length)]; 
-                VFX.trigger('shockwave', p.mesh.position, null, 0x000000); // Black shockwave
+                VFX.trigger('shockwave', p.mesh.position, null, 0x000000); 
                 addLog(`${p.name} intimidates ${t.name}!`, "log-accent"); 
                 pay(t,50,p); return true;
             } return false; 
@@ -4280,7 +4292,7 @@ const ABILITY_LIBRARY = {
             const targets = players.filter(t=>t.id!==p.id&&!t.isDead); 
             if(targets.length){
                 const t=targets[Math.floor(Math.random()*targets.length)]; 
-                VFX.trigger('shockwave', t.mesh.position, null, 0xffffff); // White shockwave on target
+                VFX.trigger('shockwave', t.mesh.position, null, 0xffffff);
                 t.isSkipping=true; 
                 addLog(`Shield Bash stunned ${t.name}!`, "log-epic"); 
                 if (isMultiplayer && db && gameId) db.ref(`games/${gameId}/players/${t.id}`).update({ isSkipping: true });
@@ -4309,14 +4321,10 @@ const ABILITY_LIBRARY = {
             if(ts.length){ 
                 p.gold-=100; 
                 const t=ts[Math.floor(Math.random()*ts.length)]; 
-                // VFX
                 VFX.trigger('fireball', p.mesh.position, t.position);
-                
-                // Logic
                 if(t.userData.buildingLevel>1) t.userData.buildingLevel=1; 
                 else {t.userData.owner=null; if(t.userData.prop)t.remove(t.userData.prop);} 
-                
-                setTimeout(() => addLog(`Fireball hit ${t.userData.info.name}!`, "log-epic"), 500); // Sync log with hit
+                setTimeout(() => addLog(`Fireball hit ${t.userData.info.name}!`, "log-epic"), 500); 
                 return true;
             } return false;
         }, 
@@ -4326,7 +4334,7 @@ const ABILITY_LIBRARY = {
         name: "Transmute", desc: "Pay 50G: Destroy item -> Draw Treasure.", 
         fn: (p) => { 
             if(p.inventory.length>0 && p.gold>=50){
-                VFX.trigger('pillar', p.mesh.position, null, 0xffd700); // Gold Pillar
+                VFX.trigger('pillar', p.mesh.position, null, 0xffd700);
                 p.gold-=50; p.inventory.splice(0,1); 
                 const c=DECK_TREASURE[Math.floor(Math.random()*DECK_TREASURE.length)]; 
                 p.inventory.push(createItemInstance(c)); 
@@ -4338,7 +4346,7 @@ const ABILITY_LIBRARY = {
     blink: { 
         name: "Blink", desc: "Move 1-6 spaces immediately.", 
         fn: (p) => { 
-            VFX.trigger('implode', p.mesh.position, null, 0x00ffff); // Cyan vanish
+            VFX.trigger('implode', p.mesh.position, null, 0x00ffff);
             const d=Math.floor(Math.random()*6)+1; 
             addLog(`Blinked ${d} spaces!`, "log-rare"); 
             animateMove(p,d); return true; 
@@ -4348,7 +4356,7 @@ const ABILITY_LIBRARY = {
     time_warp: { 
         name: "Time Warp", desc: "Roll 1d6. On 5-6, take another turn immediately.", 
         fn: (p) => { 
-            VFX.trigger('spiral_up', p.mesh.position, null, 0x800080); // Purple spiral
+            VFX.trigger('spiral_up', p.mesh.position, null, 0x800080);
             const r = Math.floor(Math.random() * 6) + 1; 
             if (r > 4) { addLog(`Time Warp [${r}]: SUCCESS!`, "log-epic"); p.extraTurn = true; if(typeof AUDIO !== 'undefined') AUDIO.playSound('sfx_win'); } 
             else { addLog(`Time Warp [${r}]: Failed.`, "log-fail"); if(typeof AUDIO !== 'undefined') AUDIO.playSound('sfx_fail'); }
@@ -4362,7 +4370,7 @@ const ABILITY_LIBRARY = {
             const targets = players.filter(x => x.id !== p.id && !x.isDead && !x.isBoss && !x.isEventEntity); 
             if(targets.length > 0) { 
                 const t = targets[Math.floor(Math.random() * targets.length)]; 
-                VFX.trigger('smoke', t.mesh.position); // Poof
+                VFX.trigger('smoke', t.mesh.position); 
                 makeSheep(t); 
                 addLog(`${p.name} turned ${t.name} into a sheep!`, "log-epic"); 
                 if (isMultiplayer && db && gameId) db.ref(`games/${gameId}/players/${t.id}`).update({ isPolymorphed: true });
@@ -4372,16 +4380,30 @@ const ABILITY_LIBRARY = {
         }, 
         img: "https://static.wixstatic.com/media/b16479_fbec81995dd34d0ebeb4b837d2e26b8d~mv2.jpg" 
     },
-    arcane_eye: { name: "Arcane Eye", desc: "Teleport to the nearest Chest.", fn: (p) => { 
-        const chest = tiles.find(t => t.userData.info.type === 'chest'); 
-        if(chest) {
-            VFX.trigger('implode', p.mesh.position, null, 0x0000ff);
-            addLog("Arcane Eye reveals treasure!", "log-rare"); 
-            p.pos = chest.userData.id; gameState = 'MOVING';
-            animateTeleport(p, chest, () => { resolveLanding(p); }); 
-            return true;
-        } return false; 
-    }, img: "https://static.wixstatic.com/media/b16479_2605208fcc3946a5b0373ea5fabeacc4~mv2.jpg" },
+    
+    // --- UPDATED: ARCANE EYE (Teleport Fix) ---
+    arcane_eye: { 
+        name: "Arcane Eye", desc: "Teleport to the nearest Chest.", 
+        fn: (p) => { 
+            const chest = tiles.find(t => t.userData.info.type === 'chest'); 
+            if(chest) {
+                VFX.trigger('implode', p.mesh.position, null, 0x0000ff);
+                addLog("Arcane Eye reveals treasure!", "log-rare"); 
+                
+                // MP Sync
+                if(isMultiplayer && db && gameId) {
+                    db.ref(`games/${gameId}/players/${p.id}/pos`).set(chest.userData.id);
+                    db.ref(`games/${gameId}/teleportLog`).push({ pid: p.id, targetPos: chest.userData.id, timestamp: firebase.database.ServerValue.TIMESTAMP });
+                } else {
+                    p.pos = chest.userData.id; 
+                    gameState = 'MOVING';
+                    animateTeleport(p, chest, () => { resolveLanding(p); }); 
+                }
+                return true;
+            } return false; 
+        }, 
+        img: "https://static.wixstatic.com/media/b16479_2605208fcc3946a5b0373ea5fabeacc4~mv2.jpg" 
+    },
 
     // ================= ROGUE SKILLS =================
     pickpocket: { 
@@ -4390,7 +4412,7 @@ const ABILITY_LIBRARY = {
             const ts=players.filter(x=>x.id!==p.id&&!x.isDead); 
             if(ts.length){
                 const t=ts[Math.floor(Math.random()*ts.length)]; 
-                VFX.trigger('projectile_coin', t.mesh.position, p.mesh.position); // Coins fly to me
+                VFX.trigger('projectile_coin', t.mesh.position, p.mesh.position);
                 const amt=Math.min(t.gold, tiles.filter(l=>l.userData.owner===t.id).length*10); 
                 t.gold-=amt; p.gold+=amt; 
                 addLog(`Pickpocketed ${amt}G from ${t.name}`, "log-gold"); return true;
@@ -4399,14 +4421,34 @@ const ABILITY_LIBRARY = {
         img: "https://static.wixstatic.com/media/b16479_13ee3ae3151c40f58f7152857c4d97ff~mv2.jpg" 
     },
     sprint_act: { name: "Sprint", desc: "Move 3 spaces.", fn: (p) => { VFX.trigger('burst_up', p.mesh.position, null, 0x00ff00); animateMove(p,3); return true; }, img: "https://static.wixstatic.com/media/b16479_2a97d38d75f14a7c96eb980178f1bdf6~mv2.jpg" },
-    smoke_bomb_act: { name: "Smoke Bomb", desc: "Teleport to random space (Escape).", fn: (p) => { VFX.trigger('smoke', p.mesh.position); const r=Math.floor(Math.random()*40); animateTeleport(p, tiles[r], ()=>{resolveLanding(p)}); addLog("Vanished in smoke!", "log-rare"); return true; }, img: "https://static.wixstatic.com/media/b16479_6c7a5d29595e42cdbc625397ad4a9a7d~mv2.jpeg" },
+    
+    // --- UPDATED: SMOKE BOMB (Teleport Fix) ---
+    smoke_bomb_act: { 
+        name: "Smoke Bomb", desc: "Teleport to random space (Escape).", 
+        fn: (p) => { 
+            VFX.trigger('smoke', p.mesh.position); 
+            const r=Math.floor(Math.random()*40); 
+            addLog("Vanished in smoke!", "log-rare"); 
+            
+            // MP Sync
+            if(isMultiplayer && db && gameId) {
+                db.ref(`games/${gameId}/players/${p.id}/pos`).set(r);
+                db.ref(`games/${gameId}/teleportLog`).push({ pid: p.id, targetPos: r, timestamp: firebase.database.ServerValue.TIMESTAMP });
+            } else {
+                p.pos = r;
+                animateTeleport(p, tiles[r], ()=>{resolveLanding(p)}); 
+            }
+            return true; 
+        }, 
+        img: "https://static.wixstatic.com/media/b16479_6c7a5d29595e42cdbc625397ad4a9a7d~mv2.jpeg" 
+    },
     sabotage: { 
         name: "Sabotage", desc: "Target Tavern becomes a Camp.", 
         fn: (p) => { 
             const ts=tiles.filter(t=>t.userData.buildingLevel===2 && t.userData.owner!==p.id); 
             if(ts.length){
                 const t=ts[Math.floor(Math.random()*ts.length)]; 
-                VFX.trigger('fireball', p.mesh.position, t.position); // Sabotage explosion
+                VFX.trigger('fireball', p.mesh.position, t.position);
                 t.userData.buildingLevel=1; 
                 addLog(`Sabotaged tavern at ${t.userData.info.name}!`, "log-fail"); return true;
             } return false; 
@@ -4415,20 +4457,29 @@ const ABILITY_LIBRARY = {
     },
     gamble_act: { name: "Gamble", desc: "Pay 50G. 50% chance to win 200G.", fn: (p) => { if(p.gold<50)return false; p.gold-=50; VFX.trigger('projectile_coin', p.mesh.position, p.mesh.position); if(Math.random()>0.5){p.gold+=200; addLog("Gamble won: +200G!", "log-gold");}else{addLog("Gamble lost.", "log-fail");} updateHUD(); return true; }, img: "https://static.wixstatic.com/media/b16479_613c6b72c1984c8d93398e7f00ae2ee0~mv2.jpeg" },
     
+    // --- UPDATED: SHADOW STRIKE (Teleport Fix) ---
     shadow_strike: { 
-        name: "Shadow Strike", desc: "Teleport to target, Steal 100G. -1 Stats until recharge.", 
+        name: "Shadow Strike", desc: "Teleport to target, Steal 100G. -1 Stats.", 
         fn: (p) => { 
             const enemies = players.filter(x => x.id !== p.id && !x.isDead && !x.isEventEntity);
             if (enemies.length === 0) return false;
             showPlayerPicker("Shadow Strike Target", enemies, (target) => {
-                VFX.trigger('implode', p.mesh.position, null, 0x000000); // Black vanish
+                VFX.trigger('implode', p.mesh.position, null, 0x000000); 
                 const amt = Math.min(100, target.gold);
                 target.gold -= amt; p.gold += amt;
                 p.shadowStrikeDebuff = true;
-                p.pos = target.pos;
-                gameState = 'MOVING';
                 addLog(`${p.name} Shadow Strikes ${target.name}! Stole ${amt}G.`, "log-epic");
-                animateTeleport(p, tiles[target.pos], () => { resolveLanding(p); });
+                
+                // MP Sync
+                if(isMultiplayer && db && gameId) {
+                    db.ref(`games/${gameId}/players/${p.id}/pos`).set(target.pos);
+                    db.ref(`games/${gameId}/teleportLog`).push({ pid: p.id, targetPos: target.pos, timestamp: firebase.database.ServerValue.TIMESTAMP });
+                } else {
+                    p.pos = target.pos;
+                    gameState = 'MOVING';
+                    animateTeleport(p, tiles[target.pos], () => { resolveLanding(p); });
+                }
+                
                 p.classSkillDepleted = true; updateHUD();
             });
             return true;
@@ -4443,9 +4494,7 @@ const ABILITY_LIBRARY = {
         desc: "Instant Capture (or Upgrade Camp to Tavern) on current tile.", 
         fn: (p) => { 
             const t = tiles[p.pos]; 
-            // Check if valid property
             if (t.userData.info.cost > 0) {
-                // 1. TRIGGER VISUALS FIRST
                 VFX.trigger('lightning', null, t.position);
 
                 let lvl = 1;
@@ -4455,11 +4504,10 @@ const ABILITY_LIBRARY = {
                     logMsg = "Smite: Upgraded to Tavern!";
                 }
                 
-                // 2. DELAY LOGIC so lightning strikes before building appears
                 setTimeout(() => {
                     capture(t, p, lvl); 
                     addLog(logMsg, "log-epic"); 
-                }, 800); // 800ms delay
+                }, 800); 
 
                 return true;
             } 
@@ -4469,22 +4517,32 @@ const ABILITY_LIBRARY = {
     },
     bless: { name: "Bless", desc: "Gain +5 INT for this turn.", fn: (p) => { VFX.trigger('pillar', p.mesh.position, null, 0xffffff); p.stats.int+=5; addLog("Blessed!", "log-success"); updateHUD(); return true; }, img: "https://static.wixstatic.com/media/b16479_75752aecbee444ada136a1d9c923b8f8~mv2.jpg" },
     divine_intervention: { name: "Intervention", desc: "Roll 1d6. On 6, Gain 500G.", fn: (p) => { VFX.trigger('pillar', p.mesh.position, null, 0xffffff); if(Math.floor(Math.random()*6)+1===6){ VFX.trigger('pillar', p.mesh.position, null, 0xffd700); p.gold+=500; addLog("Divine Gift: +500G!", "log-epic"); updateHUD(); return true;} addLog("Prayers unanswered.", "log-fail"); return true; }, img: "https://static.wixstatic.com/media/b16479_17b9cb42fac041e6ab622b3a45d6b3f0~mv2.jpg" },
+    
+    // --- UPDATED: SANCTUARY (Teleport Fix) ---
     sanctuary: { 
         name: "Sanctuary", desc: "Place Shrine. If Shrine exists, Teleport to it.", 
         fn: (p) => { 
             if (p.sanctuaryPos !== undefined && p.sanctuaryPos !== null) {
                 VFX.trigger('implode', p.mesh.position, null, 0xffff00);
                 const target = tiles[p.sanctuaryPos];
-                p.pos = p.sanctuaryPos; gameState = 'MOVING';
-                animateTeleport(p, target, () => { 
-                    resolveLanding(p);
-                    if (p.sanctuaryMesh) { scene.remove(p.sanctuaryMesh); p.sanctuaryMesh = null; }
-                    p.sanctuaryPos = null;
-                    addLog("Returned to Sanctuary.", "log-success");
-                });
+                addLog("Returned to Sanctuary.", "log-success");
+                
+                // MP Sync
+                if(isMultiplayer && db && gameId) {
+                    db.ref(`games/${gameId}/players/${p.id}/pos`).set(p.sanctuaryPos);
+                    db.ref(`games/${gameId}/teleportLog`).push({ pid: p.id, targetPos: p.sanctuaryPos, timestamp: firebase.database.ServerValue.TIMESTAMP });
+                } else {
+                    p.pos = p.sanctuaryPos; gameState = 'MOVING';
+                    animateTeleport(p, target, () => { 
+                        resolveLanding(p);
+                        if (p.sanctuaryMesh) { scene.remove(p.sanctuaryMesh); p.sanctuaryMesh = null; }
+                        p.sanctuaryPos = null;
+                    });
+                }
+                
                 p.classSkillDepleted = true; updateHUD(); return true;
             } else {
-                VFX.trigger('pillar', p.mesh.position, null, 0xffff00); // Holy light
+                VFX.trigger('pillar', p.mesh.position, null, 0xffff00);
                 p.sanctuaryPos = p.pos;
                 p.sanctuaryMesh = createShrineMesh();
                 p.sanctuaryMesh.position.copy(tiles[p.pos].position);
@@ -4501,7 +4559,7 @@ const ABILITY_LIBRARY = {
             const enemies = players.filter(x => x.id !== p.id && !x.isDead && !x.isEventEntity);
             if (enemies.length === 0) return false;
             showPlayerPicker("Exorcism Target", enemies, (target) => {
-                VFX.trigger('shockwave', target.mesh.position, null, 0x00ffff); // Cyan shock
+                VFX.trigger('shockwave', target.mesh.position, null, 0x00ffff);
                 const slots = ['head', 'body', 'main', 'off'].filter(s => target.equipment[s]);
                 if (slots.length > 0) {
                     const slot = slots[Math.floor(Math.random() * slots.length)];
@@ -4519,7 +4577,7 @@ const ABILITY_LIBRARY = {
         img: "https://static.wixstatic.com/media/b16479_fa1402ef5d59495c93b503d0284a6ee8~mv2.jpg" 
     },
 
-    // --- PASSIVES (No Visuals needed for passive stats) ---
+    // --- PASSIVES (Same) ---
     veteran: { name: "Veteran", desc: "Permanent +1 STR. 20% Discount at Merchants.", type: 'passive', effect: (s) => { s.str += 1; }, img: "https://static.wixstatic.com/media/b16479_9418e25969754a69a13b825cc2e70bbf~mv2.jpeg" },
     iron_skin: { name: "Iron Skin", desc: "Reduce all gold penalties by 20G.", type:'passive', img: "https://static.wixstatic.com/media/b16479_c3d88e0d6986494d914fd12047d258ca~mv2.jpeg" },
     executioner: { name: "Executioner", desc: "Rolling a 6 in combat counts as 2 Successes.", type:'passive', img: "https://static.wixstatic.com/media/b16479_cee24d678cfa47568f5f632c40743626~mv2.jpeg" },
@@ -4545,9 +4603,24 @@ const ABILITY_LIBRARY = {
     pacifist: { name: "Pacifist", desc: "Fleeing gives +30G and +1 All Stats (Temp).", type:'passive', img: "https://static.wixstatic.com/media/b16479_203666cbf52f4677ad7eb5a9ab696105~mv2.jpg" },
     resurrection: { name: "Resurrection", desc: "Survive Bankruptcy once (+500G, -1 Stats).", type:'passive', img: "https://static.wixstatic.com/media/b16479_0da06ce557fe4487a6d48a0a174bee56~mv2.jpg" },
 
-    // --- GENERIC/ITEM ABILITIES ---
+    // --- UPDATED: TELEPORT (Inn) ---
+    teleport: { 
+        name: "Teleport", desc: "Warp to Inn.", 
+        fn: (p) => { 
+            VFX.trigger('implode', p.mesh.position, null, 0x00ffff); 
+            if(isMultiplayer && db && gameId) {
+                db.ref(`games/${gameId}/players/${p.id}/pos`).set(0);
+                db.ref(`games/${gameId}/teleportLog`).push({ pid: p.id, targetPos: 0, timestamp: firebase.database.ServerValue.TIMESTAMP });
+            } else {
+                p.pos=0; animateTeleport(p,tiles[0],()=>{resolveLanding(p)}); 
+            }
+            return true; 
+        }, 
+        img: "https://static.wixstatic.com/media/b16479_e2653f032408459ea8d64eb87faf86fb~mv2.jpeg" 
+    },
+    
+    // --- GENERIC ITEMS ---
     dash: { name: "Dash", desc: "Move 3 spaces.", fn: (p) => { VFX.trigger('burst_up', p.mesh.position, null, 0x00ff00); animateMove(p,3); return true; }, img: "https://static.wixstatic.com/media/b16479_41cfe447b8eb4376a3b8d87b7adc1fbe~mv2.jpeg" },
-    teleport: { name: "Teleport", desc: "Warp to Inn.", fn: (p) => { VFX.trigger('implode', p.mesh.position, null, 0x00ffff); p.pos=0; animateTeleport(p,tiles[0],()=>{resolveLanding(p)}); return true; }, img: "https://static.wixstatic.com/media/b16479_e2653f032408459ea8d64eb87faf86fb~mv2.jpeg" },
     heal: { name: "Heal Potion", desc: "Cure status.", fn: (p) => { VFX.trigger('spiral_up', p.mesh.position, null, 0x00ff00); p.isSkipping=false; addLog("Healed!", "log-success"); return true; }, img: "https://static.wixstatic.com/media/b16479_6fbb98ea84a9479b98dd0441fd7152b6~mv2.jpg" },
     transmute: { name: "Transmute", desc: "Item to Gold.", fn: (p) => { VFX.trigger('pillar', p.mesh.position, null, 0xffd700); if(p.inventory.length){p.gold+=300; p.inventory.shift(); return true;} return false; }, img: "https://static.wixstatic.com/media/b16479_6c7a5d29595e42cdbc625397ad4a9a7d~mv2.jpeg" }
 };
@@ -6340,26 +6413,20 @@ function recalcStats(p) {
 }
 
 function processTax(victim, amount) {
-    // --- FIX: BOSS IMMUNITY ---
+    // Check Boss Immunity
     if (victim.isBoss) {
         addLog(`${victim.name} scares the Tax Collector away!`, "log-rare");
         return; 
     }
-    // --------------------------
 
-    // 1. Check Immunity (Self)
+    // Check Player Immunity (Court Mage)
     if (victim.passiveSkillId === 'court_mage' || victim.activeSkillId === 'court_mage') {
         addLog(`${victim.name} (Court Mage) is Tax Exempt!`, "log-rare");
         return; 
     }
 
-    // 2. Check for Court Mage to siphon gold (Other players)
-    const mage = players.find(p => 
-        !p.isDead && 
-        p.id !== victim.id && 
-        (p.passiveSkillId === 'court_mage' || p.activeSkillId === 'court_mage')
-    );
-
+    // Siphon logic (Court Mage steals tax)
+    const mage = players.find(p => !p.isDead && p.id !== victim.id && (p.passiveSkillId === 'court_mage' || p.activeSkillId === 'court_mage'));
     let taxAmount = amount;
 
     if (mage) {
@@ -6369,10 +6436,31 @@ function processTax(victim, amount) {
         addLog(`Court Mage (${mage.name}) took ${siphon}G tax cut.`, "log-epic");
     }
 
-    // 3. Pay the rest to Treasury
+    // Pay Logic
     if (taxAmount > 0) {
-        pay(victim, taxAmount); 
+        // 1. Deduct Gold
+        victim.gold -= taxAmount;
+        
+        // 2. Handle Debt or Payment
+        if (victim.gold < 0) { 
+            handleDebt(victim, Math.abs(victim.gold)); 
+        } else {
+            treasuryGold += taxAmount;
+            addLog(`${victim.name} paid ${taxAmount}G Tax.`, "log-fail");
+            
+            // --- FIX: ONLY SYNC IF AUTHORITY ---
+            if (isMultiplayer) {
+                syncPlayerState(); // Updates Victim's gold
+                
+                // Only Host updates Treasury to prevent race conditions
+                if (myPlayerId === 0) {
+                    db.ref(`games/${gameId}/treasury`).set(treasuryGold);
+                }
+            }
+            updateHUD(); 
+        }
     }
+    AUDIO.playSound('sfx_gold');
 }
 
 function manageAiInventory(p) {
@@ -6753,11 +6841,26 @@ function endTurn(){
     if (turnProcessing || gameState === 'MOVING') return;
     turnProcessing = true;
 
-    // ... (Stats and History logic preserved) ...
+    const btnAction = document.getElementById('btn-action');
+    if(btnAction) { btnAction.disabled = true; btnAction.innerText = "..."; }
+
     const prevP = players[turnIndex]; 
     if (prevP && !prevP.isEventEntity && !prevP.isBoss) {
         if (prevP.isPolymorphed) cureSheep(prevP);
+        
+        // 1. Reset Stats Locally
         recalcStats(prevP);
+        
+        // --- FIX: SYNC CLEAN STATS TO DB ---
+        // We must tell the DB that the temporary buffs are gone
+        if (isMultiplayer && db && gameId) {
+            // Only the owner of the player (or Host for AI) writes this to prevent conflicts
+            if (prevP.id === myPlayerId || (prevP.isAi && myPlayerId === 0)) {
+                db.ref(`games/${gameId}/players/${prevP.id}/stats`).set(prevP.stats);
+            }
+        }
+        // -----------------------------------
+
         if (prevP.isAi && (!isMultiplayer || myPlayerId === 0)) manageAiInventory(prevP); 
         const props = tiles.filter(t => t.userData.owner === prevP.id).length;
         prevP.history.push({ turn: turnCount, gold: prevP.gold, props: props });
@@ -6767,7 +6870,7 @@ function endTurn(){
     lastInteractionTime = Date.now();
 
     setTimeout(() => {
-        // ... (MP Request Logic preserved) ...
+        // --- MULTIPLAYER REQUEST LOGIC ---
         if(isMultiplayer && db && gameId) {
             const isMyTurn = (prevP.id === myPlayerId);
             const isAiTurn = (prevP.isAi && myPlayerId === 0);
@@ -6797,23 +6900,18 @@ function endTurn(){
         if (nextIndex === 0 && !prevP.extraTurn) {
             turnCount++;
             
-            // --- FIX: 10 ROUND CYCLE ---
+            // 10 Round Cycle
             if (turnCount > 0 && turnCount % 10 === 0) {
                 const newNightState = !isNight;
                 isNight = newNightState; 
-                
-                // Trigger Visuals locally (MP uses listener)
                 transitionDayNight(isNight);
-                
                 const phaseName = newNightState ? "NIGHT FALLS (Skirmish Cards)" : "DAWN BREAKS (Encounter Cards)";
                 addLog(`=== ${phaseName} ===`, "log-epic");
                 
-                // HOST: Sync state to DB
                 if (isMultiplayer && myPlayerId === 0) {
                     db.ref(`games/${gameId}/isNight`).set(isNight);
                 }
             }
-            // ---------------------------
 
             if (activeEvent) {
                 activeEvent.turnsLeft--;
@@ -6882,22 +6980,39 @@ function resolveLanding(p) {
 
 // Helper to separate Logic from the Authority Check
 function triggerTileEvent(p) {
+    // --- FIX: PREVENT DOUBLE TRIGGER ---
+    if (p.isProcessingEvent) return;
+    p.isProcessingEvent = true;
+    // Release the lock after 2 seconds safely
+    setTimeout(() => { p.isProcessingEvent = false; }, 2000); 
+    // -----------------------------------
+
     const t = tiles[p.pos]; 
     const i = t.userData.info;
     
-    // AI Logic... (omitted for brevity)
-    if(p.isAi && !isMultiplayer) { processAiTurn(p, t, i); return; }
+    // 1. AI Logic (Host Local)
+    if(p.isAi && !isMultiplayer) { 
+        processAiTurn(p, t, i); 
+        return; 
+    }
     
-    // Multiplayer Request... (omitted for brevity)
+    // 2. MULTIPLAYER REQUEST
     if (isMultiplayer) {
         const isMyTurn = (p.id === myPlayerId);
-        if (isMyTurn || (p.isAi && myPlayerId === 0)) {
-            db.ref(`games/${gameId}/request`).push({ type: 'TILE_EVENT', pid: p.id, tileIndex: p.pos });
+        const isAiTurn = (p.isAi && myPlayerId === 0);
+        
+        if (isMyTurn || isAiTurn) {
+            // Ask Host to generate the card/shop
+            db.ref(`games/${gameId}/request`).push({
+                type: 'TILE_EVENT',
+                pid: p.id,
+                tileIndex: p.pos
+            });
         }
         return;
     }
 
-    // SINGLE PLAYER VISUALS
+    // 3. SINGLE PLAYER (Local Generation)
     const m = document.getElementById('arrival-modal');
     if(m) {
         const imgEl = document.getElementById('arrival-image');
@@ -6907,12 +7022,9 @@ function triggerTileEvent(p) {
         }
         const flavorEl = document.getElementById('arrival-flavor');
         if(flavorEl) flavorEl.innerText = i.flavor || "You arrive at " + i.name + ".";
-        
         m.classList.add('active');
         
-        // --- RESET TIMER ON MODAL OPEN ---
         lastInteractionTime = Date.now();
-        // ---------------------------------
     }
     AUDIO.playSound('sfx_gold');
 }
@@ -6962,41 +7074,35 @@ function triggerTileEvent(p) {
 
 function continueFromArrival() {
     document.getElementById('arrival-modal').classList.remove('active');
-    const p = players[turnIndex]; 
-    const t = tiles[p.pos]; 
-    const i = t.userData.info;
+    const p = players[turnIndex]; const t = tiles[p.pos]; const i = t.userData.info;
     
-    // 1. MYSTERY SPACE CHECK
+    // 1. MYSTERY SPACE
     if(i.type === 'mystery') {
         const deckType = isNight ? 'skirmish' : 'normal';
         drawCardAnim(deckType, () => showEncounter(p, i, t, 'mystery_event'));
         return;
     }
 
-    // --- CORNER 1: START (Old Crooks Inn) ---
-    // Pass = +200G (Handled in animateMove). Land = Shop.
-    if(i.type === 'start') { 
-        if(p.id === 0) {
-            showEncounter(p, i, t, 'shop'); 
-        } else {
-            endStep(); 
-        }
-        return; 
-    }
+    // 2. CORNER SPACES
+    if(i.type === 'start') { if(p.id === 0) showEncounter(p, i, t, 'shop'); else endStep(); return; }
     
-    // --- CORNER 3: CAPITAL CITY (Free Parking) ---
+    // --- FIX: CAPITAL CITY / PARK ---
     if(i.type === 'park') { 
         if(treasuryGold > 0){ 
             const pot = treasuryGold;
             p.gold += pot; 
-            treasuryGold = 0; 
             
             addLog(`JACKPOT! ${p.name} collected ${pot}G from Treasury!`, "log-gold"); 
             AUDIO.playSound('sfx_win');
             
-            // Sync Empty Treasury
+            // 1. Reset Local
+            treasuryGold = 0; 
+            
+            // 2. Sync to DB (Critical Step)
             if(isMultiplayer && gameId) {
+                // Set Global Treasury to 0
                 db.ref(`games/${gameId}/treasury`).set(0);
+                // Save my new Gold balance
                 syncPlayerState(); 
             }
             updateHUD(); 
@@ -7004,83 +7110,45 @@ function continueFromArrival() {
         else { 
             addLog("Treasury is empty.", "log-entry"); 
         } 
-        endStep(); 
-        return; 
+        endStep(); return; 
     }
-    
-    // --- CORNER 4: GO TO DUNGEON ---
-    if(i.type === 'goto') { 
-        // Check for Immunity (Skeleton Key passive)
-        if (p.passiveSkillId === 'smoke_bomb' || p.activeSkillId === 'smoke_bomb') { 
-            addLog("Skeleton Key: Evaded Dungeon!", "log-epic"); 
-            endStep(); 
-        } 
-        else { 
-            addLog("ARRESTED! You are going to the Dungeon.", "log-fail"); 
-            
-            // 1. Set Penalty Flags
-            p.isSkipping = true; 
-            
-            // 2. Sync to DB
-            if (isMultiplayer) {
-                db.ref(`games/${gameId}/players/${p.id}`).update({ 
-                    isSkipping: true, 
-                    pos: 10 
-                });
-            }
+    // --------------------------------
 
-            // 3. VISUAL TELEPORT (Fixes "Nothing Happened")
-            const jailTile = tiles[10]; // Space 10 is Jail
-            p.pos = 10; // Logic Update
-            
-            gameState = 'MOVING'; // Lock Input
-            
-            // Animate moving to jail
-            animateTeleport(p, jailTile, () => {
-                addLog("Locked up! Skip next turn.", "log-fail");
-                endStep(); // End turn after animation lands
-            });
+    if(i.type === 'tax') { processTax(p, 50); endStep(); return; } 
+    
+    if(i.type === 'goto') { 
+        if (p.passiveSkillId === 'smoke_bomb' || p.activeSkillId === 'smoke_bomb') { addLog("Skeleton Key: Evaded Dungeon!", "log-epic"); endStep(); } 
+        else { 
+            addLog("ARRESTED!", "log-fail"); 
+            p.isSkipping = true; 
+            if (isMultiplayer) {
+                db.ref(`games/${gameId}/players/${p.id}`).update({ isSkipping: true, pos: 10 });
+                // Push animation to log so others see you move to jail
+                db.ref(`games/${gameId}/teleportLog`).push({ pid: p.id, targetPos: 10, timestamp: firebase.database.ServerValue.TIMESTAMP });
+                return;
+            }
+            p.pos = 10; gameState = 'MOVING';
+            animateTeleport(p, tiles[10], () => { addLog("Locked up!", "log-fail"); endStep(); });
         }
         return; 
     } 
     
-    // --- CORNER 2: DUNGEON (Just Visiting) ---
-    if(i.type === 'jail') { 
-        // If we landed here naturally, we are just visiting.
-        // If we were sent here by 'goto', p.isSkipping is already true from the block above.
-        if (!p.isSkipping) {
-            addLog("Just visiting the Dungeon.", "log-entry");
-        }
-        endStep(); 
-        return; 
-    }
+    if(i.type === 'jail') { if (!p.isSkipping) addLog("Just visiting."); endStep(); return; }
     
-    // --- TAX SPACES ---
-    if(i.type === 'tax') { 
-        processTax(p, 50); 
-        endStep(); 
-        return; 
-    } 
-    
-    // --- CHEST ---
     if(i.type === 'chest') { 
         const card = DECK_TREASURE[Math.floor(Math.random() * DECK_TREASURE.length)]; 
-        
         p.inventory.push(createItemInstance(card)); 
         addLog(`${p.name} found ${card.name}.`, "log-success"); 
-        
         if (card.name === "Pouch of Gold" && p.passiveSkillId === 'alchemist_pas') { 
             const extra = DECK_TREASURE[Math.floor(Math.random() * DECK_TREASURE.length)]; 
             p.inventory.push(createItemInstance(extra)); 
             addLog(`Alchemist Bonus: Found ${extra.name}!`, "log-epic"); 
         } 
-        
         if(isMultiplayer) syncPlayerState();
-        endStep(); 
-        return; 
+        endStep(); return; 
     }
 
-    // --- STANDARD PROPERTY LOGIC ---
+    // 3. PROPERTY LOGIC
     const deckType = isNight ? 'skirmish' : 'normal'; 
     const modeType = isNight ? 'wild_skirmish' : 'wild'; 
     const owner = t.userData.owner;
@@ -7116,12 +7184,11 @@ function continueFromArrival() {
             ]); 
         } 
     } else if(owner !== null) { 
-        drawCardAnim('normal', () => showEncounter(p, i, t, "enemy")); 
+        showEncounter(p, i, t, "enemy"); 
     } else { 
         drawCardAnim(deckType, () => showEncounter(p, i, t, modeType)); 
     }
 }
-
 function processAiTurn(p, t, i) {
     // Security: Only Host runs AI
     if (isMultiplayer && myPlayerId !== 0) return;
@@ -7213,24 +7280,49 @@ function processAiTurn(p, t, i) {
 function syncPlayerState() {
     if (!isMultiplayer || !db || !gameId) return;
     
-    const p = players.find(pl => pl.id === myPlayerId);
-    if (!p) return;
+    // 1. Sync Myself
+    const me = players.find(pl => pl.id === myPlayerId);
+    if (me) {
+        db.ref(`games/${gameId}/players/${myPlayerId}`).update({
+            gold: me.gold,
+            stats: me.stats,
+            activeSkillId: me.activeSkillId,
+            passiveSkillId: me.passiveSkillId
+        });
+    }
 
-    // We only sync essential data to save bandwidth
-    db.ref(`games/${gameId}/players/${myPlayerId}`).update({
-        gold: p.gold,
-        stats: p.stats,
-        // We serialize inventory/equipment to ensure syncing
-        // (Simplified for performance: assumes other clients generate same item IDs or just view names)
-        // If your items are complex, you might need a deeper sync strategy, 
-        // but for Stats/Gold (most skills), this is sufficient.
-        activeSkillId: p.activeSkillId,
-        passiveSkillId: p.passiveSkillId
-    });
+    // 2. If Host, Sync ALL AI Players
+    if (myPlayerId === 0) {
+        players.forEach(p => {
+            if (p.isAi) {
+                // Serialize inventory to avoid function errors
+                const cleanEquip = {};
+                ['head','body','main','off'].forEach(s => {
+                    if(p.equipment[s]) cleanEquip[s] = serializeItem(p.equipment[s]);
+                });
+                const cleanInv = p.inventory.map(i => serializeItem(i));
+
+                db.ref(`games/${gameId}/players/${p.id}`).update({
+                    gold: p.gold,
+                    stats: p.stats,
+                    activeSkillId: p.activeSkillId,
+                    passiveSkillId: p.passiveSkillId,
+                    equipment: cleanEquip,
+                    inventory: cleanInv
+                });
+            }
+        });
+    }
 }
 
 // NEW HELPER: Headless Combat for AI (No UI)
 function resolveAiCombat(p, stat, tn, req, t, mode, rewardVal, failCost) {
+    // --- FIX: CHECK LOCK AGAIN ---
+    if (p.combatLocked) return;
+    p.combatLocked = true;
+    setTimeout(() => { p.combatLocked = false; }, 2000);
+    // -----------------------------
+
     let poolSize = p.stats[stat] || 1;
     let wins = 0;
     
@@ -7241,7 +7333,6 @@ function resolveAiCombat(p, stat, tn, req, t, mode, rewardVal, failCost) {
     if(wins >= req) {
         addLog(`${p.name} Succeeded! (${wins} wins)`, "log-success");
         
-        // --- AI TELEPORT SYNC ---
         if(mode === 'teleport') {
             const newPos = Math.floor(Math.random() * 40);
             if (isMultiplayer && db && gameId) {
@@ -7250,16 +7341,13 @@ function resolveAiCombat(p, stat, tn, req, t, mode, rewardVal, failCost) {
                     targetPos: newPos,
                     timestamp: firebase.database.ServerValue.TIMESTAMP
                 });
-                // Do NOT call endStep(); listener handles animation -> resolveLanding -> endStep
                 return;
             } else {
                 p.pos = newPos;
                 gameState = 'MOVING';
-                animateMove(p, 0); // Snap visual
+                animateMove(p, 0); 
             }
         } 
-        // ------------------------
-        
         else if(mode === 'capture' || mode === 'upgrade') {
             const lvl = (mode === 'upgrade') ? 2 : 1;
             capture(t, p, lvl, () => checkForBonusLoot(p));
@@ -7389,6 +7477,14 @@ function showEncounter(p, i, t, mode, preDeterminedCard = null) {
                 { txt: `Siege | Risk: -${failCost}G`, stat: defStat, tn: 3, req: 1, mode: 'capture', penalty: false, failCost: failCost, isSiege: true } 
              ];
              
+			 if (p.isAi && myPlayerId === 0) {
+                 const owner = players.find(pl => pl.id === t.userData.owner);
+                 const rentCost = (i.cost * ((t.userData.buildingLevel > 1) ? 2 : 1)) + ((t.userData.guardCount || 0) * 20);
+                 pay(p, rentCost, owner);
+                 endStep();
+                 return;
+             }
+			 
              if (p.activeSkillId === 'siege_breaker' && !p.classSkillDepleted) {
                  opts.unshift({ txt: "★ Siege Breaker", act: () => { 
                      p.classSkillDepleted = true; updateHUD();
@@ -7509,10 +7605,10 @@ function rollCombat(p, stat, tn, req, t, mode, penalty, rewardVal, failCost, isS
 
         setTimeout(() => {
             let autoClose = true;
-            // Check if this is the local player or host-managed AI
             const isLocalControl = (p.id === myPlayerId) || (p.isAi && myPlayerId === 0);
 
             if(wins >= req) { 
+                // --- SUCCESS ---
                 addLog(`Success! (${wins} wins)`, "log-success"); 
                 if (isLocalControl) AUDIO.playSound('sfx_win');
                 
@@ -7522,7 +7618,6 @@ function rollCombat(p, stat, tn, req, t, mode, penalty, rewardVal, failCost, isS
                 }
                 const lootCallback = () => checkForBonusLoot(p);
 
-                // --- TELEPORT LOGIC ---
                 if (mode === 'teleport') {
                     const newPos = Math.floor(Math.random() * 40);
                     if (isMultiplayer && db && gameId) {
@@ -7537,7 +7632,6 @@ function rollCombat(p, stat, tn, req, t, mode, penalty, rewardVal, failCost, isS
                         animateTeleport(p, tiles[newPos], () => { resolveLanding(p); });
                     }
                 }
-                // ----------------------
                 else if(isSiege) { 
                     let guards = t.userData.guardCount || 0; 
                     if (guards > 0) { 
@@ -7559,14 +7653,30 @@ function rollCombat(p, stat, tn, req, t, mode, penalty, rewardVal, failCost, isS
                 }
 
             } else { 
+                // --- FAILURE ---
                 if (p.passiveSkillId === 'pacifist') {
                      addLog("Pacifist retreat: +30G.", "log-success");
                      p.gold += 30;
                 } else {
                     addLog("Failure!", "log-fail"); 
                     if (isLocalControl) AUDIO.playSound('sfx_fail');
-                    if(isSiege) { pay(p, failCost, players[t.userData.owner]); } 
-                    else { pay(p, failCost); } 
+                    
+                    // --- FIX: PAY OWNER IF SIEGE ---
+                    if(isSiege) { 
+                        // Explicitly find the owner object to ensure payment goes to them
+                        const owner = players.find(pl => pl.id === t.userData.owner);
+                        if (owner) {
+                            addLog(`Paid double rent to ${owner.name}.`, "log-fail");
+                            pay(p, failCost, owner); 
+                        } else {
+                            // Fallback to treasury if owner left/invalid
+                            pay(p, failCost);
+                        }
+                    } 
+                    else { 
+                        // Standard encounter fail -> Treasury
+                        pay(p, failCost); 
+                    } 
                 }
             }
             
@@ -7585,7 +7695,7 @@ function rollCombat(p, stat, tn, req, t, mode, penalty, rewardVal, failCost, isS
         }, 600);
     };
 
-    // Gamblers Luck Logic
+    // Gamblers Luck Logic (UI Trigger)
     const hasOnes = results.includes(1);
     const isLocalControl = (p.id === myPlayerId); 
     if (isLocalControl && hasOnes && !p.isPolymorphed) {
@@ -9509,13 +9619,14 @@ function setupMultiplayerListeners() {
                 db.ref(`games/${gameId}/request/${reqKey}`).remove();
             }
 
-            // 2. TILE_EVENT
+// 2. TILE_EVENT (Host Decision Logic)
             if (req.type === 'TILE_EVENT') {
                 const p = players.find(pl => pl.id === req.pid);
                 const tile = tiles[req.tileIndex];
                 const info = tile.userData.info;
                 let eventData = { pid: req.pid, tileIndex: req.tileIndex, timestamp: firebase.database.ServerValue.TIMESTAMP, mode: 'normal' };
 
+                // Priority 1: Check Corners and special types
                 if (info.type === 'goto') eventData.mode = 'goto';
                 else if (info.type === 'jail') eventData.mode = 'jail';
                 else if (info.type === 'park') eventData.mode = 'park';
@@ -9535,19 +9646,30 @@ function setupMultiplayerListeners() {
                     eventData.mode = 'mystery_event';
                     eventData.card = JSON.parse(JSON.stringify((isNight ? DECK_SKIRMISH : DECK_ENCOUNTER)[Math.floor(Math.random() * 15)]));
                 }
+                // Priority 2: Check Ownership (THE FIX)
                 else {
-                    const owner = tile.userData.owner;
-                    if (owner !== null && owner !== req.pid) { eventData.mode = 'enemy'; eventData.card = JSON.parse(JSON.stringify(DECK_ENCOUNTER[0])); }
+                    const ownerId = tile.userData.owner;
+                    if (ownerId !== null && ownerId !== req.pid) { 
+                        // LANDED ON ENEMY LAND
+                        // Mode 'enemy' tells showEncounter to generate Rent/Siege UI instead of drawing a card
+                        eventData.mode = 'enemy'; 
+                        // We send a dummy card object so the client-side check doesn't crash
+                        eventData.card = { name: "Siege or Pay", desc: "Choose your action." };
+                    } 
                     else { 
+                        // LANDED ON EMPTY OR OWNED LAND
+                        // If owned by self, continueFromArrival handles the Upgrade UI, 
+                        // but we need a 'wild' mode trigger to get past the request phase.
                         eventData.mode = (isNight ? 'wild_skirmish' : 'wild'); 
                         eventData.card = JSON.parse(JSON.stringify((isNight ? DECK_SKIRMISH : DECK_ENCOUNTER)[Math.floor(Math.random() * 15)]));
                     }
                 }
+                
                 db.ref(`games/${gameId}/currentEvent`).set(eventData);
                 db.ref(`games/${gameId}/request/${reqKey}`).remove();
             }
 
-            // 3. END_TURN
+// 3. END_TURN
             if (req.type === 'END_TURN') {
                 const prevP = players[turnIndex];
                 let nextIndex = turnIndex;
@@ -9565,27 +9687,48 @@ function setupMultiplayerListeners() {
                     while(players[nextIndex].isDead && safety < 4) { nextIndex = (nextIndex + 1) % players.length; safety++; }
                 }
 
+                // --- ROUND COMPLETION & DAY/NIGHT LOGIC ---
+                // If we wrapped back to player 0 (and they aren't taking an extra turn)
                 if (nextIndex === 0 && !prevP.extraTurn) {
-                    db.ref(`games/${gameId}/globalEvent`).once('value', snap => {
-                        const currentEv = snap.val();
-                        if (currentEv) {
-                            const newDur = currentEv.turns - 1;
-                            if (newDur <= 0) db.ref(`games/${gameId}/globalEvent`).remove(); 
-                            else db.ref(`games/${gameId}/globalEvent`).update({ turns: newDur });
-                        } else {
-                            if (Math.floor(Math.random() * 6) + 1 === 6) {
-                                const idx = Math.floor(Math.random() * MAP_EVENTS.length);
-                                db.ref(`games/${gameId}/globalEvent`).set({
-                                    idx: idx,
-                                    turns: MAP_EVENTS[idx].duration,
-                                    timestamp: firebase.database.ServerValue.TIMESTAMP
+                    
+                    // 1. Increment Round Count Transactionally
+                    db.ref(`games/${gameId}/roundCount`).transaction(count => {
+                        return (count || 0) + 1;
+                    }, (error, committed, snapshot) => {
+                        if (committed) {
+                            const newCount = snapshot.val();
+                            
+                            // 2. CHECK DAY/NIGHT (Every 10 Rounds)
+                            if (newCount > 0 && newCount % 10 === 0) {
+                                db.ref(`games/${gameId}/isNight`).once('value', nightSnap => {
+                                    const isCurrentlyNight = nightSnap.val();
+                                    db.ref(`games/${gameId}/isNight`).set(!isCurrentlyNight);
                                 });
                             }
+
+                            // 3. GLOBAL EVENTS
+                            db.ref(`games/${gameId}/globalEvent`).once('value', snap => {
+                                const currentEv = snap.val();
+                                if (currentEv) {
+                                    const newDur = currentEv.turns - 1;
+                                    if (newDur <= 0) db.ref(`games/${gameId}/globalEvent`).remove(); 
+                                    else db.ref(`games/${gameId}/globalEvent`).update({ turns: newDur });
+                                } else {
+                                    if (Math.floor(Math.random() * 6) + 1 === 6) {
+                                        const idx = Math.floor(Math.random() * MAP_EVENTS.length);
+                                        db.ref(`games/${gameId}/globalEvent`).set({
+                                            idx: idx,
+                                            turns: MAP_EVENTS[idx].duration,
+                                            timestamp: firebase.database.ServerValue.TIMESTAMP
+                                        });
+                                    }
+                                }
+                            });
                         }
                     });
                 }
                 
-                // HOST: Reset Timer DB for new player immediately
+                // HOST: Reset Timer DB for new player
                 db.ref(`games/${gameId}/turnTimer`).set(firebase.database.ServerValue.TIMESTAMP);
                 
                 db.ref(`games/${gameId}`).update({ turnIndex: nextIndex });
@@ -9612,13 +9755,7 @@ function setupMultiplayerListeners() {
             animateMove(p, move.finalSteps);
         }
     });
-	
-	// 8. TREASURY SYNC
-    db.ref(`games/${gameId}/treasury`).on('value', snap => {
-        const val = snap.val();
-        treasuryGold = val || 0;
-        updateHUD();
-    });
+
 
     // 2. EVENTS
     db.ref(`games/${gameId}/currentEvent`).on('value', snap => {
@@ -9651,15 +9788,28 @@ function setupMultiplayerListeners() {
             else {
                 const executeNextStep = () => {
                     document.getElementById('arrival-modal').classList.remove('active'); 
-                    if(ev.mode === 'goto') { 
-                        if (p.passiveSkillId === 'smoke_bomb') { addLog("Skeleton Key!", "log-epic"); endStep(); }
-                        else { 
-                            p.pos=10; p.mesh.position.copy(tiles[10].position); addLog("Jailed!", "log-fail"); 
-                            p.isSkipping=true; 
-                            if(isMultiplayer) db.ref(`games/${gameId}/players/${p.id}`).update({ isSkipping: true, pos: 10 });
-                            endStep(); 
-                        }
-                    }
+            if(ev.mode === 'goto') {
+                 if (p.passiveSkillId === 'smoke_bomb') {
+                     addLog("Skeleton Key Used!", "log-epic");
+                     endStep();
+                 } else { 
+                     // AI is arrested
+                     p.isSkipping = true; 
+                     
+                     // 1. Update State
+                     db.ref(`games/${gameId}/players/${p.id}`).update({ isSkipping: true, pos: 10 }); 
+                     addLog(`${p.name} sent to Dungeon!`, "log-fail");
+                     
+                     // 2. Push Animation (So clients see AI move)
+                     db.ref(`games/${gameId}/teleportLog`).push({
+                        pid: p.id,
+                        targetPos: 10,
+                        timestamp: firebase.database.ServerValue.TIMESTAMP
+                     });
+                     // Note: We do NOT call endStep() here. The teleportLog listener will fire,
+                     // move the piece, land on Jail, trigger 'jail' event, and THAT will call endStep.
+                 }
+            }
                     else if(ev.mode === 'jail') { addLog("Just visiting."); endStep(); }
                     else if(ev.mode === 'park') { if(treasuryGold>0){ p.gold+=treasuryGold; addLog(`Won ${treasuryGold}G!`, "log-success"); treasuryGold=0; updateHUD(); if(isMultiplayer) syncPlayerState(); } else addLog("Treasury empty."); endStep(); }
                     else if (ev.mode === 'tax_card') {
@@ -9732,18 +9882,26 @@ function setupMultiplayerListeners() {
         }
     });
 
-    // 4. PLAYERS SYNC
+// 4. PLAYERS SYNC
     db.ref(`games/${gameId}/players`).on('child_changed', snap => {
         const pData = snap.val();
         const pId = parseInt(snap.key);
         const p = players.find(pl => pl.id === pId);
         
         if(p && pData) {
+            // Update Basic Stats
             if(pData.gold !== undefined) p.gold = pData.gold;
             if(pData.stats !== undefined) p.stats = pData.stats;
             if(pData.extraTurn !== undefined) p.extraTurn = pData.extraTurn;
             if(pData.isSkipping !== undefined) p.isSkipping = pData.isSkipping;
+
+            // Update Position (Teleport Logic)
+            if(pData.pos !== undefined) {
+                p.pos = pData.pos;
+                // Snap visual if needed, though animations usually handle this
+            }
             
+            // Update Visuals (Polymorph)
             if(pData.isPolymorphed !== undefined) {
                 if (p.isPolymorphed !== pData.isPolymorphed) {
                     if (pData.isPolymorphed) {
@@ -9754,9 +9912,9 @@ function setupMultiplayerListeners() {
                     }
                     p.isPolymorphed = pData.isPolymorphed;
                     recalcStats(p); 
-                    updateHUD();
                 }
             }
+			updateHUD();
         }
     });
 
@@ -9795,6 +9953,15 @@ function setupMultiplayerListeners() {
             updateHUD();
         }
     });
+	
+		// 8. TREASURY SYNC
+    db.ref(`games/${gameId}/treasury`).on('value', snap => {
+        const val = snap.val();
+        // Update global variable
+        treasuryGold = val || 0;
+        // Force visual update immediately
+        updateHUD();
+    });
 
     // 10. TURN TIMER SYNC
     db.ref(`games/${gameId}/turnTimer`).on('value', snap => {
@@ -9807,6 +9974,25 @@ function setupMultiplayerListeners() {
     if (myPlayerId === 0) {
         startHostTimerLoop();
     }
+	
+	// 11. VFX SYNC LISTENER (Add this to setupMultiplayerListeners)
+    db.ref(`games/${gameId}/vfxLog`).orderByChild('timestamp').startAt(connectionTime).on('child_added', snap => {
+        const data = snap.val();
+        if(!data) return;
+
+        // Ensure we don't replay old effects on load
+        if (Date.now() - data.timestamp > 5000) return;
+
+        // Call Trigger with isRemote = true to prevent echo loop
+        // Also note: we need to pass basic objects, the VFX function will convert them back to Vectors
+        VFX.trigger(
+            data.type, 
+            data.start, 
+            data.end, 
+            data.color, 
+            true // <--- This flag stops it from sending back to DB
+        );
+    });
 }
 function resolveAiEvent(p, card, t, mode, items) {
     debugLog(`AI ${p.name} resolving event: ${mode}`);
@@ -9823,23 +10009,89 @@ function resolveAiEvent(p, card, t, mode, items) {
             p.inventory.push(createItemInstance(card));
             addLog(`${p.name} found ${card.name}.`, "log-success");
             
+            // Check Alchemist Passive
             if (card.name === "Pouch of Gold" && p.passiveSkillId === 'alchemist_pas') {
                 const extra = DECK_TREASURE[Math.floor(Math.random() * DECK_TREASURE.length)];
                 p.inventory.push(createItemInstance(extra));
                 addLog(`Alchemist Bonus: ${extra.name}!`, "log-epic");
             }
-            if (isMultiplayer) syncPlayerState(); 
+            
+            // Sync Inventory changes
+            if (isMultiplayer && myPlayerId === 0) syncPlayerState(); 
         }
         endStep();
         return;
     }
+    
+    // 3. PARK / CAPITAL CITY (Treasury Logic)
+    if(mode === 'park') { 
+        if(treasuryGold > 0){ 
+            const pot = treasuryGold;
+            p.gold += pot; 
+            addLog(`${p.name} wins Treasury (${pot}G)!`, "log-gold"); 
+            
+            // Reset Local
+            treasuryGold = 0; 
+            updateHUD(); 
+            
+            // Sync to DB (Host Authority)
+            if(isMultiplayer && myPlayerId === 0) {
+                db.ref(`games/${gameId}/treasury`).set(0);
+                syncPlayerState(); 
+            }
+        } else {
+            addLog("Treasury is empty.");
+        }
+        endStep(); 
+        return; 
+    }
 
-    // 3. COMBAT / MYSTERY / SKIRMISH
+    // 4. TAX
+    if(mode === 'tax_card') { 
+        processTax(p, card ? card.cost : 50); 
+        endStep(); 
+        return; 
+    }
+
+    // 5. GO TO DUNGEON
+    if(mode === 'goto') { 
+         if (p.passiveSkillId === 'smoke_bomb') {
+             addLog("Skeleton Key Used!", "log-epic");
+         } else { 
+             // AI Teleports instantly
+             p.pos = 10; 
+             if(tiles[10]) p.mesh.position.copy(tiles[10].position); 
+             p.isSkipping = true; 
+             
+             // Sync State & Visuals
+             if(isMultiplayer && myPlayerId === 0) {
+                 db.ref(`games/${gameId}/players/${p.id}`).update({ isSkipping: true, pos: 10 }); 
+                 db.ref(`games/${gameId}/teleportLog`).push({
+                    pid: p.id,
+                    targetPos: 10,
+                    timestamp: firebase.database.ServerValue.TIMESTAMP
+                 });
+             }
+             addLog(`${p.name} sent to Dungeon!`, "log-fail");
+         }
+         endStep(); 
+         return;
+    }
+
+    // 6. VISITING JAIL
+    if(mode === 'jail') { 
+        if(!p.isSkipping) addLog(`${p.name} visits the Dungeon.`);
+        endStep(); 
+        return; 
+    }
+
+    // 7. COMBAT / MYSTERY / SKIRMISH
     if (card && card.choices) {
         // AI Logic: Pick best option based on Stats
         let best = card.choices[0];
         
         if (card.choices[1]) {
+            // If Fog Event, pick random
             if (activeEvent && activeEvent.data && activeEvent.data.id === 'event_fog') {
                 best = card.choices[Math.floor(Math.random() * card.choices.length)];
             } else {
@@ -9852,7 +10104,7 @@ function resolveAiEvent(p, card, t, mode, items) {
             }
         }
 
-        // Execute "Headless" Combat
+        // Execute "Headless" Combat (No UI)
         setTimeout(() => {
             const actionStat = best.stat;
             const tn = best.tn;
@@ -9860,16 +10112,17 @@ function resolveAiEvent(p, card, t, mode, items) {
             const failCost = best.fail || 50;
             
             let resultMode = best.mode;
+            // Handle Mystery/Upgrade mappings
             if (mode === 'mystery_event' && !resultMode) resultMode = 'teleport';
             if (mode === 'upgrade') resultMode = 'upgrade';
             if (mode === 'enemy') resultMode = 'capture'; 
 
-            resolveAiCombat(p, actionStat, tn, req, t, resultMode, 0, failCost);
+            resolveAiCombat(p, actionStat, tn, req, t, resultMode, best.val || 0, failCost);
         }, 800);
         return;
     }
 
-    // 4. Default
+    // Default Fallback
     endStep();
 }
 
