@@ -2093,58 +2093,53 @@ Because you do not have a backend server listening for automatic receipts (Webho
         
         <div style="padding: 20px;">
             
-<!-- OPTION 1: REMOVE ADS -->
-<div class="choice-btn" id="remove-ads-container" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; padding:20px; cursor:default; background:#1a202c; border-color:#10b981;">
-    <div style="text-align:left;">
-        <div style="color:#10b981; font-weight:bold; font-size:1.1rem;">REMOVE ADS</div>
-        <div style="font-size:0.8rem; color:#aaa;">Permanently remove all ads</div>
-    </div>
-    
-    <!-- SINGLE BUTTON -->
-    <button id="btn-buy-ads" class="auth-btn" 
-        style="width:auto; padding:10px 30px; margin:0; background:#10b981; color:#fff; border:none; font-weight:900; font-size:1.1rem; cursor:pointer;" 
-        onclick="window.open('https://www.paypal.com/cgi-bin/webscr?cmd=_s-xclick&hosted_button_id=3NNGM4THBVXPL', '_blank')">
-        $3.00
-    </button>
-</div>
+            <!-- OPTION 1: REMOVE ADS -->
+            <div class="choice-btn" id="remove-ads-container" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; padding:20px; cursor:default; background:#1a202c; border-color:#10b981;">
+                <div style="text-align:left;">
+                    <div style="color:#10b981; font-weight:bold; font-size:1.1rem;">REMOVE ADS</div>
+                    <div style="font-size:0.8rem; color:#aaa;">Permanently remove all ads</div>
+                </div>
+                
+                <!-- SINGLE BUTTON -->
+                <button id="btn-buy-ads" class="auth-btn" 
+                    style="width:auto; padding:10px 30px; margin:0; background:#10b981; color:#fff; border:none; font-weight:900; font-size:1.1rem; cursor:pointer;" 
+                    onclick="window.open('https://www.paypal.com/cgi-bin/webscr?cmd=_s-xclick&hosted_button_id=3NNGM4THBVXPL', '_blank')">
+                    $3.00
+                </button>
+            </div>
 
-<!-- OPTION 2: SUPPORT / DONATE -->
-<div class="choice-btn" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; padding:20px; cursor:default; background:#1a202c; border-color:#f59e0b;">
-    <div style="text-align:left;">
-        <div style="color:#f59e0b; font-weight:bold; font-size:1.1rem;">SUPPORT DEV</div>
-        <div style="font-size:0.8rem; color:#aaa;">Buy the dev a coffee! ☕</div>
-    </div>
-    
-    <!-- FIXED: Added missing ' after the URL -->
-    <button class="auth-btn btn-login" style="width:auto; padding:10px 20px; margin:0;" 
-        onclick="window.open('https://ko-fi.com/deathforgegames', '_blank')">
-        Donate
-    </button>
-</div>
+            <!-- OPTION 2: SUPPORT / DONATE -->
+            <div class="choice-btn" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; padding:20px; cursor:default; background:#1a202c; border-color:#f59e0b;">
+                <div style="text-align:left;">
+                    <div style="color:#f59e0b; font-weight:bold; font-size:1.1rem;">SUPPORT DEV</div>
+                    <div style="font-size:0.8rem; color:#aaa;">Buy the dev a coffee! ☕</div>
+                </div>
+                
+                <button class="auth-btn btn-login" style="width:auto; padding:10px 20px; margin:0;" 
+                    onclick="window.open('https://ko-fi.com/deathforgegames', '_blank')">
+                    Donate
+                </button>
+            </div>
 
-<div style="border-top:1px solid #333; margin-top:15px; padding-top:15px;">
+            <div style="border-top:1px solid #333; margin-top:15px; padding-top:15px;">
                 <p style="font-size:0.8rem; color:#888;">Already purchased?</p>
                 <button class="choice-btn" style="width:100%; justify-content:center; padding:10px;" onclick="STORE.restorePurchase()">
                     ↻ Restore Purchase / Check Status
                 </button>
             </div>
             
-            <!-- ADD THIS BUTTON HERE -->
             <button id="btn-debug-sim-purchase" class="choice-btn" style="display:none; width:100%; justify-content:center; margin-top:15px; background:#065f46; border:2px dashed #10b981;" onclick="STORE.processSuccessfulPurchase()">
                 [TESTY] SIMULATE $0 PURCHASE
             </button>
-            <!-- END OF NEW BUTTON -->
 
-        </div>
-    </div>
-</div>
+            <!-- PayPal Button (Moved INSIDE the padding div) -->
+            <div id="paypal-button-container" style="margin-top: 10px;"></div>
+            
+            <div style="font-size:0.7rem; color:#666; margin-top:10px;">One-time purchase of $3.00</div>
 
-<!-- PayPal Button will appear here -->
-<div id="paypal-button-container" style="margin-top: 10px;"></div>
-        
-        <div style="font-size:0.7rem; color:#666; margin-top:10px;">One-time purchase of $3.00</div>
-    </div>
-</div>
+        </div> <!-- End Padding Div -->
+    </div> <!-- End Modal Content -->
+</div> <!-- End Store Modal -->
 
 <!-- PROFILE MODAL -->
 <div id="profile-modal" class="modal-overlay">
