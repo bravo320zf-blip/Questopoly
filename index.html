@@ -10715,11 +10715,19 @@ function resolveAiEvent(p, card, t, mode, items) {
             const req = best.req || 1;
             const failCost = best.fail || 50;
             
-            let resultMode = best.mode;
-            // Handle Mystery/Upgrade mappings
-            if (mode === 'mystery_event' && !resultMode) resultMode = 'teleport';
-            if (mode === 'upgrade') resultMode = 'upgrade';
-            if (mode === 'enemy') resultMode = 'capture'; 
+            let resultMode = best.mode; // This usually says 'capture' from the card data
+
+            // --- CRITICAL FIX: FORCE TELEPORT FOR MYSTERY SPACES ---
+            // In MP, we must override the card's default 'capture' mode 
+            // if the context is a Mystery Event.
+            if (mode === 'mystery_event') {
+                resultMode = 'teleport';
+            }
+            // -------------------------------------------------------
+            
+            // Handle Upgrade/Enemy mappings
+            else if (mode === 'upgrade') resultMode = 'upgrade';
+            else if (mode === 'enemy') resultMode = 'capture'; 
 
             resolveAiCombat(p, actionStat, tn, req, t, resultMode, best.val || 0, failCost);
         }, 800);
