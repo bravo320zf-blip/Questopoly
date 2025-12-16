@@ -5550,62 +5550,51 @@ function onWindowResize() {
     updateCamera(); 
 }
 
-function transitionDayNight(toNight) {
-    // 1. Board Transition (Dark Overlay)
+// Replace the old transitionDayNight function with this one
+function updateEnvironmentVisuals() {
+    // 1. Determine Desired State
+    const isFogEvent = activeEvents.some(e => e.data && e.data.id === 'event_fog');
+    const shouldBeDark = isNight; // Night takes priority for darkness
+    const shouldHaveFog = isFogEvent; // Fog event controls clouds
+
+    // 2. Animate Board Overlay (Darkness)
     if (nightBoard) {
         new TWEEN.Tween(nightBoard.material)
-            .to({ opacity: toNight ? 1 : 0 }, 5000)
+            .to({ opacity: shouldBeDark ? 1 : 0 }, 2000)
             .start();
     }
 
-    // 2. Audio & Lighting
-    if(toNight) {
-        // Night Setting In
-        AUDIO.playSound('sfx_transition');
-        new TWEEN.Tween(scene.background).to({r:0.02, g:0.02, b:0.06}, 5000).start(); // Dark Sky
-    } else {
-        // Morning Breaking
-        new TWEEN.Tween(scene.background).to({r:0.8, g:0.8, b:0.8}, 5000).start(); // Light Sky
-    }
+    // 3. Animate Skybox
+    const skyColor = shouldBeDark ? {r:0.02, g:0.02, b:0.06} : {r:0.8, g:0.8, b:0.8};
+    new TWEEN.Tween(scene.background)
+        .to(skyColor, 2000)
+        .start();
 
-    // 3. Fog Transition logic
-    if(fogGroup) {
-        if (toNight) {
-            // --- NIGHT: FOG ROLLS IN ---
+    // 4. Animate Fog Clouds
+    if (fogGroup) {
+        if (shouldHaveFog) {
+            // Fade In
             fogGroup.children.forEach(cloud => {
-                // Reset to random positions over the board
-                cloud.position.x = (Math.random() * 60) - 30;
-                cloud.position.z = (Math.random() * 60) - 30;
-                
-                // Fade In
                 new TWEEN.Tween(cloud.material)
-                    .to({ opacity: 0.4 + Math.random() * 0.3 }, 5000)
+                    .to({ opacity: 0.6 + Math.random() * 0.2 }, 2000)
                     .start();
             });
         } else {
-            // --- DAY: FOG CLEARS LEFT/RIGHT ---
+            // Fade Out
             fogGroup.children.forEach(cloud => {
-                // Determine direction: Left or Right based on current center
-                const destX = cloud.position.x >= 0 ? 80 : -80; 
-                
-                // Move Out of View
-                new TWEEN.Tween(cloud.position)
-                    .to({ x: destX }, 5000) // 5 seconds to clear
-                    .easing(TWEEN.Easing.Quadratic.In)
-                    .start();
-
-                // Fade Out
                 new TWEEN.Tween(cloud.material)
-                    .to({ opacity: 0 }, 5000)
+                    .to({ opacity: 0 }, 2000)
                     .start();
             });
         }
     }
     
-    // Update HUD Indicator
-    setT('day-night-indicator', toNight ? "☾ NIGHT" : "☀ DAY");
-    const el = document.getElementById('day-night-indicator');
-    if(el) el.style.color = toNight ? "#a855f7" : "#87ceeb";
+    // Update HUD Text
+    const elDayNight = document.getElementById('day-night-indicator'); 
+    if(elDayNight) {
+        setT('day-night-indicator', isNight ? "☾ NIGHT" : "☀ DAY");
+        elDayNight.style.color = isNight ? "#a855f7" : "#87ceeb";
+    }
 }
 
 // --- DYNAMIC EVENT GLOBALS ---
@@ -5756,7 +5745,15 @@ const MAP_EVENTS = [
     // ... (Keep existing Weather/Global events exactly as they were) ...
     { id: 'weather_blizzard', name: "Great Blizzard", type: 'weather', duration: 3, desc: "Heavy snow slows everyone down (-1 Move).", onStart: () => createParticleSystem('snow'), onTurn: () => {}, onEnd: () => { removeParticles(); addLog(" The blizzard clears."); } },
     { id: 'weather_goldrain', name: "Golden Rain", type: 'weather', duration: 1, desc: "Magical rain! Gain 10G per step taken.", onStart: () => createParticleSystem('gold'), onTurn: () => {}, onEnd: () => { removeParticles(); addLog(" The gold rain stops."); } },
-    { id: 'event_fog', name: "Dense Fog", type: 'weather', duration: 3, desc: "Visibility reduced. Encounter requirements (Stats/TN) are hidden!", onStart: () => transitionDayNight(true), onEnd: () => transitionDayNight(false) },
+{ 
+        id: 'event_fog', 
+        name: "Dense Fog", 
+        type: 'weather', 
+        duration: 3, 
+        desc: "Visibility reduced. Encounter requirements are hidden!", 
+        onStart: () => updateEnvironmentVisuals(), 
+        onEnd: () => updateEnvironmentVisuals() 
+    },
     { id: 'event_market', name: "Market Boom", type: 'global', duration: 3, desc: "All properties generate +50% Rent.", onStart: () => addLog("Real estate prices skyrocket!", "log-success") },
     { id: 'event_tax', name: "Royal Audit", type: 'global', duration: 1, desc: "The King demands a tribute instantly.", onStart: () => { players.forEach(pl => { if(!pl.isDead && !pl.isEventEntity) { const tax = Math.floor(pl.gold * 0.1); pl.gold -= tax; treasuryGold += tax; } }); addLog("Royal Audit: Everyone lost 10% Gold.", "log-fail"); updateHUD(); } }
 ];
@@ -6846,7 +6843,24 @@ function useSkillAi(p, slotIdx) {
 function rollMove() { 
     if(gameState !== 'ROLL') return; 
     
+    // --- FIX: DEFINE 'p' FIRST ---
     const p = players[turnIndex]; 
+    if(!p) return; // Safety check in case something went wrong
+    // -----------------------------
+
+    // --- FAIL-SAFE: Fix Dungeon Position ---
+    // Now valid because 'p' exists
+    const tileInfo = tiles[p.pos].userData.info;
+    if (tileInfo.type === 'goto') {
+        console.log(`[FIX] Player ${p.name} incorrectly at GoToDungeon. Teleporting to Jail.`);
+        p.pos = 10;
+        if (tiles[10]) p.mesh.position.copy(tiles[10].position);
+        // Sync correction
+        if (isMultiplayer && (p.id === myPlayerId || (p.isAi && myPlayerId === 0))) {
+             db.ref(`games/${gameId}/players/${p.id}/pos`).set(10);
+        }
+    }
+    
     if(p.isDead) { endTurn(); return; }
 
     // Disable button
@@ -7157,13 +7171,28 @@ function endTurn(){
         const curP = players[turnIndex];
         if(curP.isDead) { endTurn(); return; }
 
-        if(curP.isAi) { 
+if(curP.isAi) { 
             zoomToPiece(curP);
-            if (curP.isEventEntity) setTimeout(() => processBossTurn(curP), 800);
-            else setTimeout(() => { 
-                const didMove = attemptAiAbilities(curP, 'pre-roll'); 
-                if (!didMove) setTimeout(rollMove, 500); 
-            }, 1000);
+            if (curP.isEventEntity) {
+                setTimeout(() => processBossTurn(curP), 800);
+            }
+            else {
+                setTimeout(() => { 
+                    // 1. Attempt to use a skill
+                    const didAction = attemptAiAbilities(curP, 'pre-roll'); 
+                    
+                    // 2. Decide next step
+                    // If they did an action, wait 1.5s (to read log/see FX), otherwise wait 0.5s
+                    setTimeout(() => {
+                        // CRITICAL FIX:
+                        // Only roll if the action didn't already start a movement (like Blink or Sprint)
+                        // Pickpocket does NOT change gameState, so this will now correctly trigger rollMove()
+                        if (gameState === 'ROLL') {
+                            rollMove(); 
+                        }
+                    }, didAction ? 1500 : 500); 
+                }, 1000);
+            }
         } 
         else {
             if(curP.id === myPlayerId) {
@@ -7503,7 +7532,11 @@ function processAiTurn(p, t, i) {
                             if (stat2 > stat1) best = card.choices[1];
                         }
                     }
-                    resolveAiCombat(p, best.stat, best.tn, best.req || 1, t, best.mode, best.val || 0, best.fail || 50);
+                    
+                    // --- FORCE TELEPORT MODE ---
+                    // This ensures the AI uses 'teleport' logic regardless of what the card says (usually 'capture')
+                    const actualMode = 'teleport'; 
+                    resolveAiCombat(p, best.stat, best.tn, best.req || 1, t, actualMode, best.val || 0, best.fail || 50);
                     return;
                 }
                 endStep(); return;
@@ -7546,9 +7579,11 @@ function processAiTurn(p, t, i) {
                 } else {
                     addLog(`${p.name} sent to Dungeon!`, "log-fail");
                     p.isSkipping = true;
-                    p.pos = 10; 
+                    p.pos = 10; // Update local immediately
                     if(tiles[10]) p.mesh.position.copy(tiles[10].position);
+                    
                     if (isMultiplayer) {
+                        // Update both flags specifically
                         db.ref(`games/${gameId}/players/${p.id}`).update({ isSkipping: true, pos: 10 });
                         db.ref(`games/${gameId}/teleportLog`).push({
                             pid: p.id, targetPos: 10, timestamp: firebase.database.ServerValue.TIMESTAMP
@@ -7718,6 +7753,7 @@ function syncPlayerState() {
 }
 
 // NEW HELPER: Headless Combat for AI (No UI)
+// NEW HELPER: Headless Combat for AI (No UI)
 function resolveAiCombat(p, stat, tn, req, t, mode, rewardVal, failCost) {
     // Prevent double triggers
     if (p.combatLocked) return;
@@ -7743,16 +7779,24 @@ function resolveAiCombat(p, stat, tn, req, t, mode, rewardVal, failCost) {
         
         if(mode === 'teleport') {
             const newPos = Math.floor(Math.random() * 40);
+            
+            // --- FIX START: Proper Teleport Handling ---
             if (isMultiplayer && db && gameId) {
+                // Multiplayer: Push to DB, let listeners handle visuals
                 db.ref(`games/${gameId}/teleportLog`).push({
                     pid: p.id, targetPos: newPos, timestamp: firebase.database.ServerValue.TIMESTAMP
                 });
             } else {
+                // Single Player: Trigger Animation & Callback locally
                 p.pos = newPos;
                 gameState = 'MOVING';
-                animateMove(p, 0); 
+                
+                // Use animateTeleport so the camera follows the AI
+                animateTeleport(p, tiles[newPos], () => {
+                    resolveLanding(p);
+                });
             }
-            // Teleport handles its own end step via animation or listener
+            // --- FIX END ---
             return;
         } 
         else if(mode === 'capture' || mode === 'upgrade') {
