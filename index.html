@@ -1615,6 +1615,7 @@ Because you do not have a backend server listening for automatic receipts (Webho
     </div>
 </div>
 
+
 <!-- PASSWORD MODAL -->
 <div id="password-modal" class="modal-overlay">
     <div class="modal-content" style="width:300px;">
@@ -2030,19 +2031,28 @@ Because you do not have a backend server listening for automatic receipts (Webho
 </div>
 
 <div id="game-over-modal" class="modal-overlay">
-    <div class="modal-content">
+    <div class="modal-content" style="max-width: 700px;">
         <h1 id="go-title" style="font-size:3rem; margin:20px 0; text-shadow:0 0 10px #000;">GAME OVER</h1>
         <p id="go-msg" style="color:#ccc;">...</p>
-        <div id="go-stats" style="text-align:left; padding:20px; background:#111; margin:20px 0; border-radius:8px;"></div>
-        <div id="graph-legend" style="display:flex; justify-content:center; gap:10px; margin-bottom:10px;"></div>
-        <div id="graph-container" style="display:none; width:100%; height:200px; background:#222; border:1px solid #444;">
-            <canvas id="game-chart"></canvas>
+        
+        <!-- Scoreboard / Stats -->
+        <div id="go-stats" style="text-align:left; padding:15px; background:#111; margin:10px 0; border-radius:8px; max-height: 150px; overflow-y: auto;"></div>
+        
+        <!-- Graph Tabs -->
+        <div style="display:flex; justify-content:center; gap:10px; margin-bottom:10px;">
+            <button class="choice-btn" style="padding:8px 15px; font-size:0.8rem; width:auto; margin:0;" onclick="setGraphMode('gold')">💰 Gold History</button>
+            <button class="choice-btn" style="padding:8px 15px; font-size:0.8rem; width:auto; margin:0;" onclick="setGraphMode('props')">🏰 Property History</button>
         </div>
-        <div style="display:flex; gap:10px; justify-content:center;">
-            <button class="choice-btn" onclick="toggleGraph()">View Graph</button>
-            <button class="choice-btn" style="background:var(--gold-dim);" onclick="resetGame()">PLAY AGAIN</button>
+        
+        <!-- Graph Canvas -->
+        <div id="graph-container" style="display:none; width:100%; height:250px; background:#222; border:1px solid #444; margin-bottom:20px;">
+            <canvas id="game-chart" width="600" height="250" style="width:100%; height:100%;"></canvas>
         </div>
-        <div style="display:none;"><input type="checkbox" id="chk-gold" checked><input type="checkbox" id="chk-props" checked></div>
+
+        <!-- Action Buttons -->
+        <div style="display:flex; gap:10px; justify-content:center; padding-bottom: 20px;">
+            <button class="choice-btn" style="background:var(--gold-dim); border-color: var(--gold-main); font-size: 1.2rem; padding: 12px 40px; width: auto;" onclick="resetGame()">PLAY AGAIN</button>
+        </div>
     </div>
 </div>
 
@@ -2112,19 +2122,25 @@ Because you do not have a backend server listening for automatic receipts (Webho
     </button>
 </div>
 
-            <div style="border-top:1px solid #333; margin-top:15px; padding-top:15px;">
+<div style="border-top:1px solid #333; margin-top:15px; padding-top:15px;">
                 <p style="font-size:0.8rem; color:#888;">Already purchased?</p>
                 <button class="choice-btn" style="width:100%; justify-content:center; padding:10px;" onclick="STORE.restorePurchase()">
                     ↻ Restore Purchase / Check Status
                 </button>
             </div>
+            
+            <!-- ADD THIS BUTTON HERE -->
+            <button id="btn-debug-sim-purchase" class="choice-btn" style="display:none; width:100%; justify-content:center; margin-top:15px; background:#065f46; border:2px dashed #10b981;" onclick="STORE.processSuccessfulPurchase()">
+                [TESTY] SIMULATE $0 PURCHASE
+            </button>
+            <!-- END OF NEW BUTTON -->
 
         </div>
     </div>
 </div>
 
-        <!-- PayPal Button will appear here -->
-        <div id="paypal-button-container" style="margin-top: 10px;"></div>
+<!-- PayPal Button will appear here -->
+<div id="paypal-button-container" style="margin-top: 10px;"></div>
         
         <div style="font-size:0.7rem; color:#666; margin-top:10px;">One-time purchase of $3.00</div>
     </div>
@@ -2150,18 +2166,28 @@ Because you do not have a backend server listening for automatic receipts (Webho
                 </div>
 
                 <!-- Right Column: Inputs -->
+<!-- Right Column: Inputs -->
                 <div class="profile-right">
-                    <!-- Static Account Name (Email) -->
+                    <!-- Static Account Name (Legacy ID) -->
                     <div style="margin-bottom:5px;">
-                        <div class="profile-label">Account</div>
+                        <div class="profile-label">Account ID</div>
                         <div id="prof-username" style="font-weight:bold; font-size:0.9rem; color:#888;">-</div>
                     </div>
 
-                    <!-- NEW: Display Name Field -->
+                    <!-- Display Name Field -->
                     <div style="margin-bottom:10px;">
                         <div class="profile-label">Display Name</div>
                         <input type="text" id="prof-display-name" class="auth-input" style="padding:8px; margin:0; border-color:var(--gold-main);" placeholder="Enter Name">
                     </div>
+
+                    <!-- NEW: READ-ONLY EMAIL FIELD -->
+                    <div style="margin-bottom:10px;">
+                        <div class="profile-label">Email</div>
+                        <input type="text" id="prof-email-display" class="auth-input" 
+                               style="padding:8px; margin:0; background:#222; color:#666; border:1px solid #333; cursor: not-allowed;" 
+                               readonly>
+                    </div>
+                    <!-- END NEW -->
 
                     <!-- Avatar URL Input -->
                     <div style="margin-bottom:10px;">
@@ -2286,7 +2312,7 @@ Because you do not have a backend server listening for automatic receipts (Webho
 </div> 
 
 <!-- PayPal SDK -->
-<script src="https://www.paypal.com/sdk/js?client-id=YOUR_CLIENT_ID&currency=USD"></script>
+<script src="https://www.paypal.com/sdk/js?client-id=AZ04wE8JlxNM7L16Pz-QHojHupJJfjpC0XNaeIFgcDvbLFGDc6T6rGTaMrB-UQinXW6vwCROq8kqZw_N&currency=USD"></script>
 
 <div id="ad-container">
     <div id="google-ad-slot" style="width:100%; height:100%; display:flex; justify-content:center; align-items:center; color:#aaa; font-size:0.8rem;">
@@ -2346,6 +2372,7 @@ const firebaseConfig = {
 
 // Initialize Firebase
 let app, db, auth;
+let isStoreTestMode = false;
 if(firebaseConfig.apiKey) {
     app = firebase.initializeApp(firebaseConfig);
     db = firebase.database();
@@ -2363,6 +2390,7 @@ let currentRoomData = null; // Stores real-time room data
 let pendingJoinId = null;
 let isAdminMode = false;
 let listenersActive = false;
+let currentGraphMode = 'gold';
 
 // --- TIMER GLOBALS ---
 let turnTimerValue = 15; // Seconds
@@ -2443,35 +2471,29 @@ const AUTH = {
         auth.onAuthStateChanged(user => {
             currentUser = user;
             if(user) {
-                // 1. INITIALIZE NOTIFICATIONS & SHOW BELL
                 if (typeof NOTIFICATIONS !== 'undefined') {
                     NOTIFICATIONS.init();
                     const bell = document.getElementById('global-notify-btn');
                     if(bell) bell.style.display = 'flex'; 
                 }
 
-                // 2. PRESENCE SYSTEM (Online/Offline Status)
                 const userRef = db.ref(`users/${user.uid}`);
                 const amOnline = db.ref('.info/connected');
                 
                 amOnline.on('value', (snapshot) => {
                     if (snapshot.val() == false) return;
-                    
                     userRef.onDisconnect().update({ status: 'offline' }).then(() => {
                         userRef.update({ 
                             status: 'online',
-                            name: user.email.split('@')[0], // Default name fallback
+                            name: user.email.split('@')[0], 
                             email: user.email
                         });
                     });
                 });
 
-                // 3. LOAD PROFILE BUTTONS (Start Screen & Lobby)
                 const profBtn = document.getElementById('start-profile-btn');
                 if(profBtn) {
-                     profBtn.style.display = 'block'; // Show profile button
-                     
-                     // Fetch Avatar URL
+                     profBtn.style.display = 'block'; 
                      userRef.child('avatar').once('value').then(s => {
                          if(s.val()) {
                              const url = `url('${s.val()}')`;
@@ -2482,20 +2504,13 @@ const AUTH = {
                      });
                 }
                 
-                // 4. UI TRANSITION
-                // Hide login screen
                 document.getElementById('auth-screen').style.display = 'none';
-                
-                // Trigger the main menu animation (Logo fade -> Splash)
                 if(window.triggerGameMenu) window.triggerGameMenu();
 
             } else {
-                // --- LOGGED OUT STATE ---
                 document.getElementById('auth-screen').style.display = 'flex';
                 document.getElementById('logo-screen').style.display = 'none';
                 document.getElementById('splash-screen').style.display = 'none';
-                
-                // Hide Notification Bell
                 const bell = document.getElementById('global-notify-btn');
                 if(bell) bell.style.display = 'none';
             }
@@ -2507,16 +2522,33 @@ const AUTH = {
         const p = document.getElementById('auth-pass').value;
         auth.signInWithEmailAndPassword(e, p).catch(err => document.getElementById('auth-msg').innerText = err.message);
     },
+    
+    // --- UPDATED REGISTER FUNCTION ---
     register: function() {
         const e = document.getElementById('auth-email').value;
         const p = document.getElementById('auth-pass').value;
+        
         auth.createUserWithEmailAndPassword(e, p).then(cred => {
+            // 1. Check for Pre-Approved Premium (VIP List)
+            const sanitizedEmail = e.replace(/\./g, ','); // Firebase keys can't have dots
+            
+            db.ref(`preapproved_premium/${sanitizedEmail}`).once('value').then(snap => {
+                if (snap.exists()) {
+                    // Grant Premium immediately
+                    db.ref(`users/${cred.user.uid}/isPremium`).set(true);
+                    // Remove from VIP list to clean up
+                    db.ref(`preapproved_premium/${sanitizedEmail}`).remove();
+                }
+            });
+
             cred.user.sendEmailVerification();
             alert("Account created! Please check your email to verify, then log in.");
             auth.signOut(); 
             location.reload();
         }).catch(err => document.getElementById('auth-msg').innerText = err.message);
     },
+    // --------------------------------
+    
     recover: function() {
         const e = document.getElementById('auth-email').value;
         if(!e) { alert("Enter email first."); return; }
@@ -2526,7 +2558,9 @@ const AUTH = {
 };
 
 const STORE = {
-    open: function() {
+    buttonRendered: false,
+
+open: function() {
         if (!currentUser) {
             alert("Please log in to access the store.");
             return;
@@ -2534,12 +2568,71 @@ const STORE = {
         
         document.getElementById('store-modal').style.display = 'flex';
         
-        // Check Status immediately when opening to update UI
+        // --- TESTY CHECK ---
+        const devBtn = document.getElementById('btn-debug-sim-purchase');
+        if (isStoreTestMode) {
+            if(devBtn) devBtn.style.display = 'flex';
+        } else {
+            if(devBtn) devBtn.style.display = 'none';
+        }
+        // ------------------------
+        
         db.ref(`users/${currentUser.uid}/isPremium`).once('value').then(snap => {
             if (snap.val() === true) {
                 this.applyPremiumVisuals();
+            } else {
+                this.renderPayPalButton();
             }
         });
+    },
+
+    // NEW: Centralized Success Logic
+    processSuccessfulPurchase: function() {
+        const uid = firebase.auth().currentUser.uid;
+        console.log("Processing Purchase for: " + uid);
+        
+        db.ref('users/' + uid).update({ 
+            isPremium: true 
+        }).then(() => {
+            alert("Payment Successful! Ads removed. The game will now restart.");
+            window.location.reload(); 
+        }).catch(err => {
+            console.error("Database update failed", err);
+            alert("Database update failed: " + err.message);
+        });
+    },
+
+    renderPayPalButton: function() {
+        if (this.buttonRendered) return;
+        const container = document.getElementById('paypal-button-container');
+        if (!container) return;
+
+        try {
+            paypal.Buttons({
+                createOrder: function(data, actions) {
+                    return actions.order.create({
+                        purchase_units: [{
+                            description: "Questopoly Premium (Remove Ads)",
+                            amount: { value: '3.00' }
+                        }]
+                    });
+                },
+                onApprove: function(data, actions) {
+                    return actions.order.capture().then(function(details) {
+                        // Call the centralized logic
+                        STORE.processSuccessfulPurchase();
+                    });
+                },
+                onError: function (err) {
+                    console.error('PayPal Error:', err);
+                    alert("An error occurred with PayPal.");
+                }
+            }).render('#paypal-button-container');
+            
+            this.buttonRendered = true;
+        } catch (e) {
+            console.error("PayPal SDK Error", e);
+        }
     },
 
     restorePurchase: function() {
@@ -2551,8 +2644,8 @@ const STORE = {
         db.ref(`users/${currentUser.uid}/isPremium`).once('value').then(snap => {
             if (snap.val() === true) {
                 alert("Premium Verified! Ads removed.");
-                this.applyPremiumFeatures(); // Logic (Hide Ad Bar)
-                this.applyPremiumVisuals();  // UI (Gray out button)
+                this.applyPremiumFeatures(); 
+                this.applyPremiumVisuals();
             } else {
                 alert("No premium purchase found.");
             }
@@ -2560,24 +2653,24 @@ const STORE = {
         });
     },
 
-    // Logic: Hides the bottom Ad bar
     applyPremiumFeatures: function() {
         document.body.classList.add('premium-user');
         setTimeout(() => { onWindowResize(); }, 100);
     },
 
-    // UI: Grays out the button
     applyPremiumVisuals: function() {
-        const btn = document.getElementById('btn-buy-ads');
-        const container = document.getElementById('remove-ads-container'); // Uses the ID added above
+        const container = document.getElementById('remove-ads-container');
+        if(container) container.classList.add('disabled');
         
-        if(btn) {
-            btn.innerText = "OWNED";
-            btn.onclick = null; // Remove the link
-            
-            // Apply the disabled style to the whole row
-            if(container) container.classList.add('disabled');
-        }
+        const btn = document.getElementById('btn-buy-ads');
+        if(btn) btn.innerText = "OWNED";
+
+        // Hide buttons if owned
+        const ppContainer = document.getElementById('paypal-button-container');
+        if(ppContainer) ppContainer.style.display = 'none';
+        
+        const devBtn = document.getElementById('btn-debug-sim-purchase');
+        if(devBtn) devBtn.style.display = 'none';
     },
     
     checkOnLogin: function() {
@@ -2585,7 +2678,6 @@ const STORE = {
         db.ref(`users/${currentUser.uid}/isPremium`).once('value').then(snap => {
             if (snap.val() === true) {
                 this.applyPremiumFeatures();
-                // We don't call applyPremiumVisuals here because the modal isn't open yet
             } else {
                 document.body.classList.remove('premium-user');
                 onWindowResize();
@@ -2599,9 +2691,7 @@ const PROFILE = {
     open: function() {
         // 1. Check if user is logged in
         if(!currentUser) {
-            // New: Give feedback instead of doing nothing
             alert("Please log in to view your profile.");
-            // Optional: Re-open auth screen if they are stuck
             document.getElementById('auth-screen').style.display = 'flex';
             return;
         }
@@ -2613,13 +2703,18 @@ const PROFILE = {
         db.ref(`users/${currentUser.uid}`).once('value').then(snap => {
             const data = snap.val() || {};
             
-            // Set Username
+            // Set Account ID (Top Label)
             const nameLabel = document.getElementById('prof-username');
-            if(nameLabel) nameLabel.innerText = data.displayName || data.name || "Hero";
+            if(nameLabel) nameLabel.innerText = "ID: " + currentUser.uid.substring(0, 8) + "...";
 
             // Populate Inputs
             const nameInput = document.getElementById('prof-display-name');
-            if(nameInput) nameInput.value = data.displayName || "";
+            if(nameInput) nameInput.value = data.displayName || data.name || "Hero";
+            
+            // --- NEW: SET EMAIL FIELD ---
+            const emailInput = document.getElementById('prof-email-display');
+            if(emailInput) emailInput.value = currentUser.email;
+            // ----------------------------
             
             const avatarInput = document.getElementById('prof-avatar-input');
             if(avatarInput) avatarInput.value = data.avatar || "";
@@ -2638,7 +2733,8 @@ const PROFILE = {
             FRIENDS.renderList('profile-friends-list');
         });
     },
-
+    
+    // ... rest of PROFILE object (save, changePassword) remains the same ...
     save: function() {
         if(!currentUser) return;
         
@@ -2651,7 +2747,7 @@ const PROFILE = {
         const updates = {
             avatar: avatar,
             about: about,
-            displayName: dName // Explicitly save display name
+            displayName: dName 
         };
         
         // Update Database
@@ -2660,7 +2756,6 @@ const PROFILE = {
             
             // Update visual elements immediately
             document.getElementById('prof-avatar-display').style.backgroundImage = avatar ? `url('${avatar}')` : 'none';
-            document.getElementById('prof-username').innerText = dName || "Hero";
             
             // Update Floating Buttons
             const floatBtn = document.getElementById('start-profile-btn');
@@ -4623,7 +4718,32 @@ const ABILITY_LIBRARY = {
     // --- GENERIC ITEMS ---
     dash: { name: "Dash", desc: "Move 3 spaces.", fn: (p) => { VFX.trigger('burst_up', p.mesh.position, null, 0x00ff00); animateMove(p,3); return true; }, img: "https://static.wixstatic.com/media/b16479_41cfe447b8eb4376a3b8d87b7adc1fbe~mv2.jpeg" },
     heal: { name: "Heal Potion", desc: "Cure status.", fn: (p) => { VFX.trigger('spiral_up', p.mesh.position, null, 0x00ff00); p.isSkipping=false; addLog("Healed!", "log-success"); return true; }, img: "https://static.wixstatic.com/media/b16479_6fbb98ea84a9479b98dd0441fd7152b6~mv2.jpg" },
-    transmute: { name: "Transmute", desc: "Item to Gold.", fn: (p) => { VFX.trigger('pillar', p.mesh.position, null, 0xffd700); if(p.inventory.length){p.gold+=300; p.inventory.shift(); return true;} return false; }, img: "https://static.wixstatic.com/media/b16479_6c7a5d29595e42cdbc625397ad4a9a7d~mv2.jpeg" }
+    transmute: { 
+        name: "Transmute", 
+        desc: "Destroy Item -> Gain Random Treasure.", 
+        fn: (p) => { 
+            VFX.trigger('pillar', p.mesh.position, null, 0xffd700); 
+            if(p.inventory.length){
+                // 1. Destroy First Item
+                const oldItem = p.inventory.shift(); 
+                
+                // 2. Draw New Item
+                const newItem = createItemInstance(DECK_TREASURE[Math.floor(Math.random()*DECK_TREASURE.length)]);
+                p.inventory.push(newItem);
+                
+                addLog(`Transmuted ${oldItem.name} into ${newItem.name}!`, "log-gold"); 
+                
+                // 3. Sync
+                updateHUD();
+                if(isMultiplayer) syncPlayerState();
+                
+                return true;
+            } 
+            addLog("Inventory empty!", "log-fail");
+            return false; 
+        }, 
+        img: "https://static.wixstatic.com/media/b16479_6c7a5d29595e42cdbc625397ad4a9a7d~mv2.jpeg" 
+    }
 };
 
 // --- ABILITY NAMING & IMAGE CONFIG ---
@@ -5232,7 +5352,28 @@ function animate() {
     }
     // -------------------------------
 
-    if(activeEvent && activeEvent.mesh) activeEvent.mesh.rotation.y += 0.01;
+// Process all active events
+activeEvents.forEach(ev => {
+    // Update visual effects like boss animations or weather
+    if (ev.mesh) {
+        // Example: Rotate boss mesh
+        ev.mesh.rotation.y += 0.01; 
+    }
+    
+    // Update weather effects like snow particles
+    if (ev.data.type === 'weather' && ev.data.id === 'weather_blizzard' && particleSystem) {
+        const positions = particleSystem.geometry.attributes.position.array;
+        for(let i=1; i<positions.length; i+=3) {
+            positions[i] -= 0.05; // Make snow fall faster
+            if(positions[i] < -5) { // Reset if it goes below the ground
+                 positions[i] = 10 + Math.random() * 5; // Reset height
+                 positions[i-1] = (Math.random()-0.5)*60; // Random X
+                 positions[i+1] = (Math.random()-0.5)*60; // Random Z
+            }
+        }
+        particleSystem.geometry.attributes.position.needsUpdate = true;
+    }
+});
 
     // 4. Camera Tracking
     if(isZoomed && cameraTarget) camera.lookAt(cameraTarget.position.x, 0, cameraTarget.position.z);
@@ -5315,8 +5456,6 @@ function zoomToPiece(p) {
 // Moves Player and Camera together to a specific tile
 function animateTeleport(p, targetTile, onComplete) {
     gameState = 'MOVING';
-    
-    // Ensure tracking player
     isZoomed = true;
     cameraTarget = p.mesh;
 
@@ -5328,19 +5467,25 @@ function animateTeleport(p, targetTile, onComplete) {
         .to({ x: endPos.x, y: endPos.y, z: endPos.z }, 1500)
         .easing(TWEEN.Easing.Quadratic.InOut)
         .onComplete(() => {
+            // FIX: If we teleported TO a mystery space, treating it as a landing causes a loop.
+            // However, we WANT to trigger other spaces (like properties).
+            // The fix is to ensure the MYSTERY logic in 'continueFromArrival' checks if we just teleported.
+            
+            // Actually, simplest fix: Teleporting consumes your 'action' for the turn. 
+            // So we don't call resolveLanding if it's a mystery/teleport result.
+            
             if (onComplete) {
                 setTimeout(() => onComplete(), 100); 
             }
         })
         .start();
 
-    // Move Camera (Offset)
+    // Move Camera
     const offset = { x: 0, y: 22, z: 18 }; 
-
     new TWEEN.Tween(camera.position)
         .to({
             x: endPos.x + offset.x,
-            y: offset.y, // Maintain steady height
+            y: offset.y, 
             z: endPos.z + offset.z 
         }, 1500)
         .easing(TWEEN.Easing.Quadratic.InOut)
@@ -5464,6 +5609,7 @@ function transitionDayNight(toNight) {
 }
 
 // --- DYNAMIC EVENT GLOBALS ---
+let activeEvents = [];
 let activeEvent = null; // Stores current event data { id, mesh, pos, type }
 let particleSystem = null; // For weather
 let eventTurnCounter = 0; // Duration tracker
@@ -5495,6 +5641,10 @@ function spawnEventEntity(data) {
         stats: { str: 0, dex: 0, int: 0 }, 
         race: null, 
         class: null,
+        // FIX: Initialize these to null
+        activeSkillId: null,
+        passiveSkillId: null,
+        // -----------------------------
         inventory: [],
         equipment: {},
         metrics: { spacesMoved: 0, successfulSieges: 0, guardsHired: 0 },
@@ -5684,27 +5834,39 @@ function removeParticles() {
 
 // --- LOGIC HELPERS ---
 function triggerRandomEvent() {
-    // 1. Cleanup old event
-    if(activeEvent) {
-        if(activeEvent.data.onEnd) activeEvent.data.onEnd(); // Removes boss from array
-        // Note: we don't need scene.remove here because removeBossPlayer handles it
-        activeEvent = null;
-    }
-
-    // 2. Roll Event
+    // 1. Roll Event
     const idx = Math.floor(Math.random() * MAP_EVENTS.length);
     const evData = MAP_EVENTS[idx];
     
-    // 3. Initialize
-    activeEvent = {
+    // 2. Initialize Instance
+    const newEvent = {
+        id: Date.now() + Math.random(), // Unique internal ID
         data: evData,
-        mesh: null, // Mesh is now inside the player object
         turnsLeft: evData.duration,
-        playerRef: null // Will store the boss player object
+        playerRef: null 
     };
 
-    // 4. Start (Spawns Boss/Particles)
+    // 3. Start (Spawns Boss/Particles)
+    if(evData.onStart) {
+        // We set the global activeEvent temporarily so spawn functions referencing it work
+        // (This preserves compatibility with your existing spawnEventEntity logic)
+if (isMultiplayer && db && gameId) {
+    // Push event data to Firebase
+    db.ref(`games/${gameId}/activeEvents`).push({
+        idx: idx, // Index to look up in MAP_EVENTS
+        turns: evData.duration,
+        timestamp: firebase.database.ServerValue.TIMESTAMP
+    });
+} else {
+    // For single player, we can still use the global variable temporarily
+    activeEvent = newEvent; 
     if(evData.onStart) evData.onStart();
+    activeEvent = null; // Clear temp
+}
+    }
+
+    // 4. Add to List
+    activeEvents.push(newEvent);
 
     addLog(`EVENT: ${evData.name}!`, "log-epic");
     addLog(evData.desc, "log-rare");
@@ -6414,6 +6576,11 @@ function recalcStats(p) {
 }
 
 function processTax(victim, amount) {
+    // --- SAFETY CHECK: Prevent Double Payment ---
+    if (victim.taxLocked) return; 
+    victim.taxLocked = true;
+    setTimeout(() => { victim.taxLocked = false; }, 2000);
+
     // Check Boss Immunity
     if (victim.isBoss) {
         addLog(`${victim.name} scares the Tax Collector away!`, "log-rare");
@@ -6449,10 +6616,8 @@ function processTax(victim, amount) {
             treasuryGold += taxAmount;
             addLog(`${victim.name} paid ${taxAmount}G Tax.`, "log-fail");
             
-            // --- FIX: ONLY SYNC IF AUTHORITY ---
             if (isMultiplayer) {
-                syncPlayerState(); // Updates Victim's gold
-                
+                syncPlayerState(); // Update Victim's gold
                 // Only Host updates Treasury to prevent race conditions
                 if (myPlayerId === 0) {
                     db.ref(`games/${gameId}/treasury`).set(treasuryGold);
@@ -6595,29 +6760,51 @@ function handleAfkTimeout(pid) {
 }
 
 function attemptAiAbilities(p, phase) {
+    if (p.classSkillDepleted || !p.activeSkillId) return false;
+
+    const skill = ABILITY_LIBRARY[p.activeSkillId];
+    if (!skill) return false;
+
+    // --- PHASE 1: PRE-ROLL (Buffs, Attacks, Movement) ---
     if (phase === 'pre-roll') {
-        if (p.isSkipping) { 
-            // Try to heal status
-            if (p.activeSkillId === 'heal_light' && !p.classSkillDepleted) useSkillAi(p, 0); 
-            checkItemSkills(p, ['heal', 'teleport']);
-            return false; 
-        }
         
-        // Check for Class Skill (Active)
-        if (!p.classSkillDepleted && Math.random() > 0.6) {
-            const skill = ABILITY_LIBRARY[p.activeSkillId];
-            // If the skill is a movement skill, we return TRUE to stop the standard roll
-            if (skill && (skill.name === 'Blink' || skill.name === 'Sprint' || skill.name === 'Teleport' || skill.name === 'Town Portal')) {
-                useSkillAi(p, 0); 
-                return true; // MOVEMENT OCCURRED
+        // A. AGGRESSIVE SPELLS (Fireball, Pickpocket, Intimidate)
+        if (['Fireball', 'Pickpocket', 'Intimidate', 'Shadow Strike'].includes(skill.name)) {
+            // FIREBALL: Only use if rich (>150G) and there are enemy tiles
+            if (skill.name === 'Fireball') {
+                const hasTargets = tiles.some(t => t.userData.owner !== null && String(t.userData.owner) !== String(p.id));
+                if (p.gold >= 150 && hasTargets) {
+                    return useSkillAi(p, 0); 
+                }
             }
-            // Other non-movement skills (buffs, etc) just fire and continue
-            useSkillAi(p, 0); 
+            // PICKPOCKET/INTIMIDATE: Use if there are other players
+            else if (players.length > 1) {
+                return useSkillAi(p, 0);
+            }
+        }
+
+        // B. MOVEMENT SPELLS (Sprint, Blink, Teleport)
+        // Use if we are currently on a "Bad" space (Jail, Tax) OR just randomly to speed up
+        else if (['Sprint', 'Blink', 'Teleport', 'Town Portal', 'Dash'].includes(skill.name)) {
+            const currentTileInfo = tiles[p.pos].userData.info;
+            // High chance if in jail or tax, moderate chance otherwise
+            if (currentTileInfo.type === 'jail' || currentTileInfo.type === 'tax' || Math.random() > 0.5) {
+                return useSkillAi(p, 0);
+            }
+        }
+
+        // C. BUFFS (Power Strike, Rally, Bless)
+        // Almost always use these if available to maximize turn
+        else if (['Power Strike', 'Rally', 'Bless', 'Second Wind', 'Divine Intervention'].includes(skill.name)) {
+            return useSkillAi(p, 0);
+        }
+
+        // D. HEALING
+        else if (skill.name === 'Heal' || skill.name === 'Royal Pardon') {
+            if (p.isSkipping) return useSkillAi(p, 0);
         }
     }
-    // Combat phase logic remains...
-    if (phase === 'combat') { checkItemSkills(p, ['might', 'focus', 'agility', 'fireball', 'smite']); }
-    
+
     return false;
 }
 
@@ -6632,7 +6819,27 @@ function checkItemSkills(p, skillKeys) {
 }
 
 function useSkillAi(p, slotIdx) {
-    if(slotIdx === 0 && !p.classSkillDepleted) { const skill = ABILITY_LIBRARY[p.activeSkillId]; if(skill && skill.fn) { skill.fn(p); p.classSkillDepleted = true; updateHUD(); } }
+    // Slot 0 is Class Skill
+    if (slotIdx === 0 && !p.classSkillDepleted) {
+        const skill = ABILITY_LIBRARY[p.activeSkillId];
+        if (skill && skill.fn) {
+            
+            console.log(`[AI] ${p.name} using ${skill.name}...`);
+            const success = skill.fn(p); // This triggers VFX
+            
+            if (success === true) {
+                p.classSkillDepleted = true;
+                updateHUD();
+                
+                // HOST SYNC: Update AI state (cooldowns/gold) for everyone
+                if (isMultiplayer && myPlayerId === 0) {
+                    syncPlayerState();
+                }
+                return true;
+            }
+        }
+    }
+    return false;
 }
 
 // --- REGION 5: LOGIC (Turns, Move, Combat) ---
@@ -6695,19 +6902,24 @@ function finishRollLogic(p, r) {
         addLog("Shadow Step: +1 Move"); 
     }
 
-    // --- WEATHER MODIFIERS ---
-    if (activeEvent && activeEvent.data.id === 'weather_blizzard') {
+    // --- 1. CHECK FOR BLIZZARD (Slow) ---
+    // We check the array to see if ANY active event is a blizzard
+    const isBlizzard = activeEvents.some(e => e.data && e.data.id === 'weather_blizzard');
+    if (isBlizzard) {
         r = Math.max(1, r - 1);
         addLog("Blizzard slows you down! (-1)", "log-fail");
     }
     
-    // Capture the distance for animation logic
-    if (activeEvent && activeEvent.data.id === 'weather_goldrain') {
+    // --- 2. CHECK FOR GOLDEN RAIN (Gold per step) ---
+    const isGoldRain = activeEvents.some(e => e.data && e.data.id === 'weather_goldrain');
+    if (isGoldRain) {
         const bonus = r * 10; // 10G per step
         p.gold += bonus;
         addLog(`Golden Rain: +${bonus}G`, "log-gold");
+        // Sync the gold gain immediately in MP
+        if (isMultiplayer) syncPlayerState();
+        updateHUD();
     }
-    // -------------------------
 
     gameState='MOVING'; 
     animateMove(p,r); 
@@ -6914,17 +7126,26 @@ function endTurn(){
                 }
             }
 
-            if (activeEvent) {
-                activeEvent.turnsLeft--;
-                if (activeEvent.turnsLeft <= 0) {
-                    if(activeEvent.data.onEnd) activeEvent.data.onEnd();
-                    if(activeEvent.playerRef) removeEventEntity(activeEvent.playerRef);
-                    activeEvent = null; removeParticles(); addLog("Event ended.", "log-entry");
+// 1. Process Existing Events (Loop backwards to safe remove)
+            for (let i = activeEvents.length - 1; i >= 0; i--) {
+                let ev = activeEvents[i];
+                ev.turnsLeft--;
+                
+                if (ev.turnsLeft <= 0) {
+                    if (ev.data.onEnd) ev.data.onEnd();
+                    if (ev.playerRef) removeEventEntity(ev.playerRef);
+                    activeEvents.splice(i, 1);
+                    addLog(`${ev.data.name} ended.`, "log-entry");
+                    
+                    // Only clear particles if no other weather events are running
+                    const hasWeather = activeEvents.some(e => e.data.type === 'weather');
+                    if(!hasWeather) removeParticles(); 
                 }
-            } else {
-                const roll = Math.floor(Math.random() * 6) + 1;
-                if (roll === 6) triggerRandomEvent();
             }
+
+            // 2. ALWAYS Roll for New Event
+            const roll = Math.floor(Math.random() * 6) + 1;
+            if (roll === 6) triggerRandomEvent();
         }
         
         turnIndex = nextIndex;
@@ -6981,17 +7202,14 @@ function resolveLanding(p) {
 
 // Helper to separate Logic from the Authority Check
 function triggerTileEvent(p) {
-    // --- FIX: PREVENT DOUBLE TRIGGER ---
     if (p.isProcessingEvent) return;
     p.isProcessingEvent = true;
-    // Release the lock after 2 seconds safely
     setTimeout(() => { p.isProcessingEvent = false; }, 2000); 
-    // -----------------------------------
 
     const t = tiles[p.pos]; 
     const i = t.userData.info;
     
-    // 1. AI Logic (Host Local)
+    // 1. AI Logic (Host handles locally for speed)
     if(p.isAi && !isMultiplayer) { 
         processAiTurn(p, t, i); 
         return; 
@@ -7003,7 +7221,6 @@ function triggerTileEvent(p) {
         const isAiTurn = (p.isAi && myPlayerId === 0);
         
         if (isMyTurn || isAiTurn) {
-            // Ask Host to generate the card/shop
             db.ref(`games/${gameId}/request`).push({
                 type: 'TILE_EVENT',
                 pid: p.id,
@@ -7013,7 +7230,47 @@ function triggerTileEvent(p) {
         return;
     }
 
-    // 3. SINGLE PLAYER (Local Generation)
+    // 3. SINGLE PLAYER LOGIC
+
+    // --- A. CHECK FOR DYNAMIC MERCHANT (The Fix) ---
+    // Look through active events to see if a merchant entity is on this tile
+    const merchantEvent = activeEvents.find(e => 
+        e.data.type === 'merchant' && 
+        e.playerRef && 
+        e.playerRef.pos === p.pos
+    );
+
+    if (merchantEvent) {
+        // Determine stock based on merchant type
+        let stock = [];
+        if (merchantEvent.data.id === 'merch_alchemist') {
+            stock = DECK_TREASURE.filter(it => it.type === 'scroll' && !it.name.includes('Gold'));
+        } else if (merchantEvent.data.id === 'merch_armorer') {
+            stock = DECK_TREASURE.filter(it => ['head', 'body', 'off'].includes(it.slot) && !it.name.includes('Gold'));
+        } else if (merchantEvent.data.id === 'merch_weaponsmith') {
+            stock = DECK_TREASURE.filter(it => it.slot === 'main' && !it.name.includes('Gold'));
+        }
+
+        const items = [];
+        for(let k=0; k<3; k++) items.push(createItemInstance(stock[Math.floor(Math.random()*stock.length)]));
+        
+        // Open Shop Directly (Skip Arrival Modal)
+        openCustomShop(p, items, merchantEvent.data.name, () => endStep());
+        AUDIO.playSound('sfx_gold');
+        return;
+    }
+
+    // --- B. OLD CROOKS INN (General Store) ---
+    if (i.type === 'start') {
+        const stock = DECK_TREASURE.filter(it => !it.name.includes('Gold')); // General goods
+        const items = [];
+        for(let k=0; k<3; k++) items.push(createItemInstance(stock[Math.floor(Math.random()*stock.length)]));
+        openCustomShop(p, items, "Old Crooks General Store", () => endStep());
+        AUDIO.playSound('sfx_gold');
+        return;
+    }
+
+    // --- C. STANDARD ARRIVAL MODAL ---
     const m = document.getElementById('arrival-modal');
     if(m) {
         const imgEl = document.getElementById('arrival-image');
@@ -7023,8 +7280,15 @@ function triggerTileEvent(p) {
         }
         const flavorEl = document.getElementById('arrival-flavor');
         if(flavorEl) flavorEl.innerText = i.flavor || "You arrive at " + i.name + ".";
-        m.classList.add('active');
         
+        // Ensure buttons are reset
+        const btn = m.querySelector('button.primary');
+        const closeBtn = m.querySelector('.close-x');
+        const nextAction = () => continueFromArrival(); // Standard continuation
+        btn.onclick = nextAction;
+        closeBtn.onclick = nextAction;
+
+        m.classList.add('active');
         lastInteractionTime = Date.now();
     }
     AUDIO.playSound('sfx_gold');
@@ -7155,6 +7419,7 @@ function continueFromArrival() {
     const owner = t.userData.owner;
     
     if(owner === p.id) { 
+        // OPEN UPGRADE MENU
         if(t.userData.buildingLevel === 1) { 
             showModal("Upgrade?", `Build Tavern ${i.cost*2}G? (Skirmish)`, [ 
                 { txt: "Upgrade", act: () => { 
@@ -7191,60 +7456,160 @@ function continueFromArrival() {
     }
 }
 function processAiTurn(p, t, i) {
-    // Security: Only Host runs AI
-    if (isMultiplayer && myPlayerId !== 0) return;
-    
-    // Prevent AI logic for Humans
+    if (isMultiplayer && myPlayerId !== 0) return; 
     if (isMultiplayer && currentRoomData && currentRoomData.slots[p.id].type === 'human') return;
 
-    debugLog(`AI (${p.name}) processing tile...`);
-    
+    // DEBUG: Force logs to see what's happening
+    console.log(`[AI DEBUG] ${p.name} on ${i.name}. TileOwner: ${t.userData.owner}, MyID: ${p.id}`);
+
     setTimeout(() => {
         try {
-            // --- MYSTERY TILE (Headless Resolution) ---
-            if (i.type === 'mystery') {
-                addLog(`${p.name} explores the mystery...`, "log-rare");
+		            // --- 0. POST-MOVE ABILITIES (Smite, Sanctuary) ---
+            if (!p.classSkillDepleted && p.activeSkillId) {
+                const skillName = ABILITY_LIBRARY[p.activeSkillId].name;
                 
-                // 1. Select Card (Logic only, no visual deck draw)
+                // SMITE: Use if land is expensive and unowned, OR to upgrade own land
+                if (skillName === 'Smite') {
+                    const isUnowned = t.userData.owner === null && i.cost > 50;
+                    const isMine = String(t.userData.owner) === String(p.id) && t.userData.buildingLevel === 1;
+                    
+                    if (isUnowned || isMine) {
+                        useSkillAi(p, 0);
+                        return; // Smite handles the capture/end turn
+                    }
+                }
+                
+                // SANCTUARY: Set a checkpoint if we don't have one
+                if (skillName === 'Sanctuary' && (p.sanctuaryPos === undefined || p.sanctuaryPos === null)) {
+                    useSkillAi(p, 0);
+                    // Continue turn (Sanctuary doesn't end turn)
+                }
+            }
+            // --- 1. EVENT ENTITIES (Do nothing) ---
+            if (p.isEventEntity) { endStep(); return; }
+
+            // --- 2. MYSTERY TILE ---
+            if (i.type === 'mystery') {
                 const deck = isNight ? DECK_SKIRMISH : DECK_ENCOUNTER;
                 const card = deck[Math.floor(Math.random() * deck.length)] || DECK_ENCOUNTER[0];
-                
                 if (card && card.choices) {
-                    // 2. AI Chooses Best Option
                     let best = card.choices[0];
                     if (card.choices[1]) {
-                        const stat1 = p.stats[best.stat] || 0;
-                        const stat2 = p.stats[card.choices[1].stat] || 0;
-                        if (stat2 > stat1) best = card.choices[1];
+                        const isFoggy = activeEvents.some(e => e.data && e.data.id === 'event_fog');
+                        if (isFoggy) best = card.choices[Math.floor(Math.random() * card.choices.length)];
+                        else {
+                            const stat1 = p.stats[best.stat] || 0;
+                            const stat2 = p.stats[card.choices[1].stat] || 0;
+                            if (stat2 > stat1) best = card.choices[1];
+                        }
                     }
-                    
-                    // 3. Resolve Combat silently (headless)
-                    // We need a version of rollCombat that doesn't touch the DOM
                     resolveAiCombat(p, best.stat, best.tn, best.req || 1, t, best.mode, best.val || 0, best.fail || 50);
                     return;
                 }
                 endStep(); return;
             }
             
-            // --- CHEST (Headless) ---
+            // --- 3. CHEST ---
             if(i.type === 'chest') {
                 const card = DECK_TREASURE[Math.floor(Math.random() * DECK_TREASURE.length)];
                 p.inventory.push(createItemInstance(card));
                 addLog(`${p.name} found ${card.name}.`, "log-success");
+                if (isMultiplayer) syncPlayerState();
                 endStep(); return;
             }
 
-            // --- SHOPS / TAX / PARK ---
-            if(i.type === 'shop' || i.type === 'start') { endStep(); return; } // AI skips shops
-            if(i.type === 'tax') { processTax(p, 50); endStep(); return; }
-            if(i.type === 'park') { 
-                if(treasuryGold > 0) { p.gold += treasuryGold; addLog(`${p.name} wins Treasury!`, "log-gold"); treasuryGold=0; updateHUD(); }
+            // --- 4. SHOPS ---
+            if(i.type === 'shop' || i.type === 'start') {
+                const stock = DECK_TREASURE.filter(it => !it.name.includes('Gold'));
+                const shopItems = [];
+                for(let k=0; k<3; k++) shopItems.push(createItemInstance(stock[Math.floor(Math.random()*stock.length)]));
+                evaluateAndBuy(p, shopItems);
                 endStep(); return; 
             }
 
-            // --- STANDARD CAPTURE LOGIC ---
-            // (Same as before, but ensure capture() doesn't trigger UI callbacks)
-            if(i.cost > 0 && t.userData.owner === null) {
+            // --- 5. TAX & PARK ---
+            if(i.type === 'tax') { processTax(p, 50); endStep(); return; }
+            if(i.type === 'park') { 
+                if(treasuryGold > 0) { 
+                    p.gold += treasuryGold; 
+                    addLog(`${p.name} wins Treasury!`, "log-gold"); 
+                    treasuryGold=0; updateHUD(); 
+                    if (isMultiplayer) syncPlayerState();
+                }
+                endStep(); return; 
+            }
+
+            // --- 6. DUNGEON ---
+            if (i.type === 'goto') {
+                if (p.passiveSkillId === 'smoke_bomb') {
+                    addLog("Skeleton Key Used!", "log-epic");
+                } else {
+                    addLog(`${p.name} sent to Dungeon!`, "log-fail");
+                    p.isSkipping = true;
+                    p.pos = 10; 
+                    if(tiles[10]) p.mesh.position.copy(tiles[10].position);
+                    if (isMultiplayer) {
+                        db.ref(`games/${gameId}/players/${p.id}`).update({ isSkipping: true, pos: 10 });
+                        db.ref(`games/${gameId}/teleportLog`).push({
+                            pid: p.id, targetPos: 10, timestamp: firebase.database.ServerValue.TIMESTAMP
+                        });
+                    }
+                }
+                endStep(); return;
+            }
+            if (i.type === 'jail') { endStep(); return; }
+
+            // --- 7. OWN PROPERTY ---
+            // Use String comparison for safety
+            if (String(t.userData.owner) === String(p.id)) {
+                if (t.userData.buildingLevel === 1 && p.gold >= i.cost * 2) {
+                    p.gold -= i.cost * 2;
+                    capture(t, p, 2);
+                    addLog(`${p.name} upgraded to Tavern!`, "log-success");
+                    if(isMultiplayer) syncPlayerState();
+                } 
+                else if (t.userData.buildingLevel === 2) {
+                    const guards = t.userData.guardCount || 0;
+                    if (guards < 2 && p.gold >= 150) {
+                        p.gold -= 50;
+                        t.userData.guardCount = guards + 1;
+                        addLog(`${p.name} hired a guard.`, "log-gold");
+                        applyCaptureVisuals(t, p, 2);
+                        if(isMultiplayer) {
+                            syncPlayerState();
+                            db.ref(`games/${gameId}/board/${t.userData.id}/guardCount`).set(t.userData.guardCount);
+                        }
+                    }
+                }
+                endStep(); return;
+            }
+
+            // --- 8. ENEMY LAND (Strict Fix) ---
+            // Ensure owner is NOT null/undefined AND NOT me
+            if (t.userData.owner != null && String(t.userData.owner) !== String(p.id)) {
+                console.log("[AI DEBUG] Entering Enemy Land Logic");
+                
+                const owner = players.find(pl => String(pl.id) === String(t.userData.owner));
+                const rentCost = (i.cost * ((t.userData.buildingLevel > 1) ? 2 : 1)) + ((t.userData.guardCount || 0) * 20);
+                const defStat = t.userData.defendingStat || 'str';
+                
+                let myStatVal = p.stats[defStat] || 0;
+                let shouldSiege = (p.gold < rentCost) || (myStatVal >= 4);
+
+                if (shouldSiege) {
+                    addLog(`${p.name} attacks the property!`, "log-accent");
+                    const failCost = rentCost * 2; 
+                    resolveAiCombat(p, defStat, 3, 1, t, 'capture', 0, failCost); 
+                } else {
+                    addLog(`${p.name} pays rent.`, "log-fail");
+                    pay(p, rentCost, owner);
+                    endStep();
+                }
+                return;
+            }
+
+            // --- 9. EMPTY LAND ---
+            if(i.cost > 0 && t.userData.owner == null) {
                 if(p.gold >= i.cost * 1.5) {
                     capture(t, p, 1, () => checkForBonusLoot(p));
                 } else {
@@ -7254,28 +7619,63 @@ function processAiTurn(p, t, i) {
                 return;
             }
 
-            // --- ENEMY LAND ---
-            if(t.userData.owner !== null && t.userData.owner !== p.id) {
-                // ... (Keep your existing siege calc logic) ...
-                // If sieging:
-                // resolveAiCombat(p, stat, tn, req, t, 'capture', 0, failCost);
-                // If paying:
-                // pay(p, i.cost...); endStep();
-                
-                // For brevity, defaulting to pay here to ensure it works
-                const owner = players.find(pl => pl.id === t.userData.owner);
-                pay(p, i.cost, owner);
-                endStep();
-                return;
-            }
-
             endStep();
 
         } catch (err) {
             console.error("AI Error", err);
+            // Fallback: If AI crashes on enemy land, force pay
+            if (t.userData.owner != null && t.userData.owner != p.id) {
+                 const owner = players.find(pl => String(pl.id) === String(t.userData.owner));
+                 pay(p, 50, owner); // Default 50g safety payment
+            }
             endStep();
         }
     }, 600);
+}
+
+function evaluateAndBuy(p, items) {
+    let bought = false;
+    
+    // AI Strategy: Prioritize Items that boost their highest stat (Archetype)
+    const mainStat = p.archetype || 'str'; // Defined in spawnPlayer
+
+    items.forEach(item => {
+        // 1. Check Cost
+        if (p.gold >= item.cost) {
+            let isUpgrade = false;
+
+            if (item.type === 'scroll') {
+                // Always buy cheap useful scrolls if rich
+                if (p.gold > 500 && item.cost < 200) isUpgrade = true;
+            } 
+            else if (item.type === 'equip') {
+                const current = p.equipment[item.slot];
+                const newStat = (item.bonus && item.bonus[mainStat]) ? item.bonus[mainStat] : 0;
+                
+                if (!current) {
+                    isUpgrade = true; // Empty slot, buy it
+                } else {
+                    const currentStat = (current.bonus && current.bonus[mainStat]) ? current.bonus[mainStat] : 0;
+                    if (newStat > currentStat) isUpgrade = true; // Better stats
+                }
+            }
+
+            // 2. Buy if Upgrade
+            if (isUpgrade) {
+                p.gold -= item.cost;
+                p.inventory.push(item);
+                addLog(`${p.name} bought ${item.name}.`, "log-gold");
+                bought = true;
+            }
+        }
+    });
+
+    if (bought) {
+        if (isMultiplayer) syncPlayerState(); // Update Gold/Inv in DB
+        manageAiInventory(p); // Auto-equip the new items
+    } else {
+        addLog(`${p.name} browses but buys nothing.`, "log-entry");
+    }
 }
 
 function syncPlayerState() {
@@ -7287,8 +7687,9 @@ function syncPlayerState() {
         db.ref(`games/${gameId}/players/${myPlayerId}`).update({
             gold: me.gold,
             stats: me.stats,
-            activeSkillId: me.activeSkillId,
-            passiveSkillId: me.passiveSkillId
+            // Use || null to prevent "undefined" crashes
+            activeSkillId: me.activeSkillId || null,
+            passiveSkillId: me.passiveSkillId || null
         });
     }
 
@@ -7296,7 +7697,6 @@ function syncPlayerState() {
     if (myPlayerId === 0) {
         players.forEach(p => {
             if (p.isAi) {
-                // Serialize inventory to avoid function errors
                 const cleanEquip = {};
                 ['head','body','main','off'].forEach(s => {
                     if(p.equipment[s]) cleanEquip[s] = serializeItem(p.equipment[s]);
@@ -7306,8 +7706,9 @@ function syncPlayerState() {
                 db.ref(`games/${gameId}/players/${p.id}`).update({
                     gold: p.gold,
                     stats: p.stats,
-                    activeSkillId: p.activeSkillId,
-                    passiveSkillId: p.passiveSkillId,
+                    // FIX: Ensure these are never undefined
+                    activeSkillId: p.activeSkillId || null,
+                    passiveSkillId: p.passiveSkillId || null,
                     equipment: cleanEquip,
                     inventory: cleanInv
                 });
@@ -7318,47 +7719,55 @@ function syncPlayerState() {
 
 // NEW HELPER: Headless Combat for AI (No UI)
 function resolveAiCombat(p, stat, tn, req, t, mode, rewardVal, failCost) {
-    // --- FIX: CHECK LOCK AGAIN ---
+    // Prevent double triggers
     if (p.combatLocked) return;
     p.combatLocked = true;
     setTimeout(() => { p.combatLocked = false; }, 2000);
-    // -----------------------------
 
+    // 1. Calculate Dice Pool
     let poolSize = p.stats[stat] || 1;
-    let wins = 0;
     
+    // Check for Fog Event (Array aware)
+    const isFoggy = activeEvents.some(e => e.data && e.data.id === 'event_fog');
+    
+    // 2. Roll Dice
+    let wins = 0;
     for(let i=0; i<poolSize; i++) {
-        if(Math.floor(Math.random()*6)+1 >= tn) wins++;
+        const roll = Math.floor(Math.random()*6)+1;
+        if(roll >= tn) wins++;
     }
     
+    // 3. Evaluate Result
     if(wins >= req) {
-        addLog(`${p.name} Succeeded! (${wins} wins)`, "log-success");
+        addLog(`${p.name} Siege Successful! (${wins} wins)`, "log-success");
         
         if(mode === 'teleport') {
             const newPos = Math.floor(Math.random() * 40);
             if (isMultiplayer && db && gameId) {
                 db.ref(`games/${gameId}/teleportLog`).push({
-                    pid: p.id,
-                    targetPos: newPos,
-                    timestamp: firebase.database.ServerValue.TIMESTAMP
+                    pid: p.id, targetPos: newPos, timestamp: firebase.database.ServerValue.TIMESTAMP
                 });
-                return;
             } else {
                 p.pos = newPos;
                 gameState = 'MOVING';
                 animateMove(p, 0); 
             }
+            // Teleport handles its own end step via animation or listener
+            return;
         } 
         else if(mode === 'capture' || mode === 'upgrade') {
             const lvl = (mode === 'upgrade') ? 2 : 1;
+            // Success! Capture/Upgrade the tile
             capture(t, p, lvl, () => checkForBonusLoot(p));
             return; 
         }
     } else {
-        addLog(`${p.name} Failed. Paid penalty.`, "log-fail");
+        // Failure
+        addLog(`${p.name} Siege Failed. Paid ${failCost}G penalty.`, "log-fail");
         pay(p, failCost);
     }
     
+    // If we didn't capture/teleport, we must end the step here
     endStep();
 }
 function showEncounter(p, i, t, mode, preDeterminedCard = null) {
@@ -7889,24 +8298,25 @@ function checkForBonusLoot(p) {
         
         // --- AI LOGIC ---
         if (p.isAi) {
+            // Only Host processes AI loot
+            if (isMultiplayer && myPlayerId !== 0) {
+                endStep();
+                return;
+            }
+
             const card = DECK_TREASURE[Math.floor(Math.random() * DECK_TREASURE.length)];
             p.inventory.push(createItemInstance(card)); 
             addLog(`${p.name} obtained ${card.name}`, "log-success");
             
             if (isMultiplayer && myPlayerId === 0) {
-                // Basic Sync for AI
-                syncPlayerState(); // Host acts as AI, so syncs AI state
+                syncPlayerState(); 
             }
             endStep(); 
             return;
         }
 
         // --- HUMAN LOGIC ---
-        // We use a custom callback for the UI to ensure sync happens on click
         setTimeout(() => { 
-            // We pass a callback to showEncounter if we wanted custom logic, 
-            // but showEncounter 'loot' mode uses standard logic.
-            // Since we updated showEncounter above to include syncPlayerState, this is now safe!
             drawCardAnim('treasure', () => showEncounter(p, null, null, 'loot')); 
         }, 500); 
 
@@ -8128,85 +8538,207 @@ function pay(p, amount, recipient) {
         addLog(`Iron Skin reduced loss by ${oldAmt - finalAmount}G`, "log-rare"); 
     }
     
-    // Mana Shield Check... (Keep existing logic)
+    // Mana Shield: Sacrifice item to avoid paying
     if (p.passiveSkillId === 'mana_shield' && p.gold < finalAmount && p.inventory.length > 0) {
         p.inventory.shift(); 
         addLog("Mana Shield: Item sacrificed to negate debt!", "log-epic");
+        if(isMultiplayer) syncPlayerState(); 
+        updateHUD();
         return; 
     }
 
     p.gold -= finalAmount;
     
-    // --- UPDATE DB FOR PLAYER GOLD ---
-    if(isMultiplayer) syncPlayerState(); 
-
+    // If negative, HANDLE DEBT IMMEDIATELY
     if (p.gold < 0) { 
         handleDebt(p, Math.abs(p.gold), recipient); 
     } 
     else { 
+        // Normal Payment
         if (recipient) {
             recipient.gold += finalAmount; 
-            // Update recipient gold in DB too if possible, or wait for their client to sync?
-            // Safer to update locally and let Host/Owner sync eventually, 
-            // but for instant feedback:
             if(isMultiplayer && myPlayerId === 0) {
-                // If I am host, I can force update the recipient
                 db.ref(`games/${gameId}/players/${recipient.id}`).update({gold: recipient.gold});
             }
         } 
         else { 
-            // Pay to Treasury
             treasuryGold += finalAmount; 
-            // SYNC TREASURY
-            if(isMultiplayer && gameId) {
+            if(isMultiplayer && gameId && myPlayerId === 0) {
                 db.ref(`games/${gameId}/treasury`).set(treasuryGold);
             }
         }
         
         if(finalAmount > 0) addLog(`Paid ${finalAmount}G`, "log-fail"); 
+        
+        if(isMultiplayer) syncPlayerState(); 
         updateHUD(); 
     }
     AUDIO.playSound('sfx_gold');
 }
-function handleDebt(p, debt, recipient) {
+function handleDebt(p, debtAmount, recipient) {
     const ownedTiles = tiles.filter(t => t.userData.owner === p.id);
     
     // --- RESURRECTION CHECK ---
     if (p.passiveSkillId === 'resurrection' && !p.resurrectionUsed && p.gold < 0 && ownedTiles.length === 0) {
         p.gold = 500;
         p.resurrectionUsed = true;
-        
-        // Permanently reduce stats (Effect applied in next recalc)
+        // Perm stats penalty
         p.stats.str = Math.max(1, p.stats.str - 1);
         p.stats.dex = Math.max(1, p.stats.dex - 1);
         p.stats.int = Math.max(1, p.stats.int - 1);
-        
-        // We also need to hack the base stats so recalc doesn't overwrite it
-        if(p.race) {
-            p.race.stats.str = Math.max(1, p.race.stats.str - 1);
-            p.race.stats.dex = Math.max(1, p.race.stats.dex - 1);
-            p.race.stats.int = Math.max(1, p.race.stats.int - 1);
-        }
-
         addLog(`${p.name} RESURRECTED! (+500G, -1 Perm Stats)`, "log-epic");
         updateHUD();
-        return; // Stop elimination
+        if(isMultiplayer) syncPlayerState();
+        return; 
     }
-    // -------------------------
 
+    // --- AI LOGIC: Auto-Sell ---
     if (p.isAi) {
-        while (p.gold < 0 && ownedTiles.length > 0) { const t = ownedTiles.splice(Math.floor(Math.random() * ownedTiles.length), 1)[0]; const val = Math.floor(t.userData.info.cost / 2); sellPropertyLogic(t, p, val); }
-        if (p.gold < 0) { eliminatePlayer(p); } else { addLog(`${p.name} sold properties to pay debt.`, "log-fail"); if (recipient && debt > 0) recipient.gold += Math.min(debt, debt + p.gold); updateHUD(); }
-    } else { if (ownedTiles.length === 0) { eliminatePlayer(p); } else { showBankruptcyModal(p, debt, recipient, ownedTiles); } }
+        // Keep selling until positive OR out of properties
+        while (p.gold < 0 && ownedTiles.length > 0) {
+            // Sell the most expensive property first to save logic
+            ownedTiles.sort((a,b) => b.userData.info.cost - a.userData.info.cost);
+            const t = ownedTiles.shift(); 
+            const val = Math.floor(t.userData.info.cost / 2); 
+            
+            sellPropertyLogic(t, p, val);
+            addLog(`${p.name} sold ${t.userData.info.name} for ${val}G.`, "log-fail");
+        }
+
+        // Final Check
+        if (p.gold < 0) {
+            eliminatePlayer(p);
+        } else {
+            // Debt Cleared
+            // If there was a specific recipient, they get the gold now
+            // (Note: p.gold is the remaining balance, debtAmount was the original hole)
+            // But we actually just need to ensure the recipient gets what was paid.
+            // Simplified: The gold was already subtracted. If p.gold is now >= 0, the money "exists".
+            
+            if (recipient) {
+                // Determine how much was actually paid. 
+                // Original debt was 'debtAmount'. 
+                // If p.gold is 0 or more, they paid full.
+                recipient.gold += debtAmount; 
+                if(isMultiplayer && myPlayerId === 0) db.ref(`games/${gameId}/players/${recipient.id}`).update({gold: recipient.gold});
+            } else {
+                treasuryGold += debtAmount;
+                if(isMultiplayer && gameId && myPlayerId === 0) db.ref(`games/${gameId}/treasury`).set(treasuryGold);
+            }
+            updateHUD();
+            if(isMultiplayer) syncPlayerState();
+        }
+    } 
+    // --- HUMAN LOGIC ---
+    else {
+        if (ownedTiles.length === 0) {
+            // No assets, immediate game over
+            eliminatePlayer(p);
+        } else {
+            showBankruptcyModal(p, debtAmount, recipient, ownedTiles);
+        }
+    }
 }
-function sellPropertyLogic(t, p, val) { p.gold += val; t.userData.owner = null; t.userData.buildingLevel = 0; t.userData.guardCount = 0; t.userData.defendingStat = null; if (t.userData.prop) { t.remove(t.userData.prop); t.userData.prop = null; } }
-function showBankruptcyModal(p, debt, recipient, ownedTiles) {
-    const m = document.getElementById('bankruptcy-modal'); const list = document.getElementById('debt-prop-list'); const debtLabel = document.getElementById('debt-amount'); const btn = document.getElementById('btn-debt-done'); m.style.display = 'flex';
+
+function sellPropertyLogic(t, p, val) {
+    p.gold += val;
+    t.userData.owner = null;
+    t.userData.buildingLevel = 0;
+    t.userData.guardCount = 0;
+    t.userData.defendingStat = null;
+    if (t.userData.prop) {
+        t.remove(t.userData.prop);
+        t.userData.prop = null;
+    }
+    // Remove from active guards list
+    if (typeof activeGuards !== 'undefined') {
+        activeGuards = activeGuards.filter(g => g.tileId !== t.userData.id);
+    }
+    
+    // Sync Board if Multiplayer Host/Self
+    if (isMultiplayer && (myPlayerId === 0 || p.id === myPlayerId)) {
+        db.ref(`games/${gameId}/board/${t.userData.id}`).set({
+            owner: null, level: 0, guardCount: 0
+        });
+    }
+}
+function showBankruptcyModal(p, originalDebt, recipient, ownedTiles) {
+    const m = document.getElementById('bankruptcy-modal'); 
+    const list = document.getElementById('debt-prop-list'); 
+    const debtLabel = document.getElementById('debt-amount'); 
+    const btn = document.getElementById('btn-debt-done'); 
+    
+    m.style.display = 'flex';
+
+    // Helper to refresh the list of properties
     const refreshList = () => {
-        debtLabel.innerText = Math.abs(p.gold); list.innerHTML = ''; const currentOwned = tiles.filter(t => t.userData.owner === p.id);
-        if (p.gold >= 0) { btn.disabled = false; btn.innerText = "Debt Cleared - Continue"; btn.onclick = () => { m.style.display = 'none'; if(recipient) recipient.gold += debt; else treasuryGold += debt; updateHUD(); }; } else if (currentOwned.length === 0) { btn.disabled = false; btn.innerText = "Accept Fate (Game Over)"; btn.onclick = () => { m.style.display = 'none'; eliminatePlayer(p); }; } else { btn.disabled = true; btn.innerText = `Sell more! (${Math.abs(p.gold)}G needed)`; }
-        currentOwned.forEach(t => { const val = Math.floor(t.userData.info.cost / 2); const row = document.createElement('div'); row.className = 'choice-btn'; row.innerHTML = `<span>${t.userData.info.name}</span> <span style="color:var(--gold)">+${val}G</span>`; row.onclick = () => { sellPropertyLogic(t, p, val); refreshList(); updateHUD(); }; list.appendChild(row); });
-    }; refreshList();
+        debtLabel.innerText = Math.abs(p.gold); // Show current negative balance
+        debtLabel.style.color = "#ef4444";
+        
+        list.innerHTML = ''; 
+        // Re-fetch owned tiles
+        const currentOwned = tiles.filter(t => t.userData.owner === p.id);
+
+        // --- BUTTON STATE LOGIC ---
+        if (p.gold >= 0) { 
+            // SOLVENT
+            debtLabel.innerText = "PAID";
+            debtLabel.style.color = "#10b981";
+            btn.disabled = false; 
+            btn.style.backgroundColor = "#10b981";
+            btn.style.color = "#fff";
+            btn.innerText = "Debt Cleared - Continue"; 
+            
+            btn.onclick = () => { 
+                m.style.display = 'none'; 
+                // Finalize Payment to recipient
+                if(recipient) {
+                    recipient.gold += originalDebt; 
+                    if(isMultiplayer && myPlayerId===0) db.ref(`games/${gameId}/players/${recipient.id}`).update({gold: recipient.gold});
+                } else {
+                    treasuryGold += originalDebt;
+                    if(isMultiplayer && myPlayerId===0) db.ref(`games/${gameId}/treasury`).set(treasuryGold);
+                }
+                updateHUD(); 
+                if(isMultiplayer) syncPlayerState();
+            }; 
+        } 
+        else if (currentOwned.length === 0) { 
+            // BANKRUPT (No properties left, still negative)
+            btn.disabled = false; 
+            btn.style.backgroundColor = "#ef4444";
+            btn.innerText = "Declare Bankruptcy (Game Over)"; 
+            btn.onclick = () => { 
+                m.style.display = 'none'; 
+                eliminatePlayer(p); 
+            }; 
+        } 
+        else { 
+            // STILL IN DEBT
+            btn.disabled = true; 
+            btn.style.backgroundColor = "#333";
+            btn.innerText = `Sell ${Math.abs(p.gold)}G more value`; 
+        }
+        
+        // Render List
+        currentOwned.forEach(t => { 
+            const val = Math.floor(t.userData.info.cost / 2); 
+            const row = document.createElement('div'); 
+            row.className = 'choice-btn'; 
+            row.style.display = "flex";
+            row.style.justifyContent = "space-between";
+            row.innerHTML = `<span>${t.userData.info.name}</span> <span style="color:var(--gold-main)">+${val}G</span>`; 
+            row.onclick = () => { 
+                sellPropertyLogic(t, p, val); 
+                updateHUD();
+                if(isMultiplayer) syncPlayerState();
+                refreshList(); 
+            }; 
+            list.appendChild(row); 
+        });
+    }; 
+    
+    refreshList();
 }
 function eliminatePlayer(p) { 
     p.isDead = true; 
@@ -9609,9 +10141,22 @@ function setupMultiplayerListeners() {
                         d1 = Math.floor(Math.random() * 6) + 1;
                         d2 = Math.floor(Math.random() * 6) + 1;
                         total = d1 + d2;
+                        
+                        // Shadow Step Check
                         if (p.passiveSkillId && ABILITY_LIBRARY[p.passiveSkillId] && ABILITY_LIBRARY[p.passiveSkillId].name === "Shadow Step") total += 1;
-                        if (activeEvent && activeEvent.data && activeEvent.data.id === 'weather_blizzard') total = Math.max(1, total - 1);
+                        
+                        // Blizzard Check
+                        if (activeEvents.some(e => e.data && e.data.id === 'weather_blizzard')) total = Math.max(1, total - 1);
+
+                        // --- FIX: GOLDEN RAIN REWARD ---
+                        if (activeEvents.some(e => e.data && e.data.id === 'weather_goldrain')) {
+                            const bonus = total * 10;
+                            p.gold += bonus; // Update local Host copy
+                            // Send update to DB so Client sees the money
+                            db.ref(`games/${gameId}/players/${p.id}/gold`).set(p.gold);
+                        }
                     }
+                    
                     db.ref(`games/${gameId}/moveHistory`).push({
                         pid: p.id, d1: d1, d2: d2, finalSteps: total, startPos: p.pos,
                         timestamp: firebase.database.ServerValue.TIMESTAMP
@@ -9620,25 +10165,50 @@ function setupMultiplayerListeners() {
                 db.ref(`games/${gameId}/request/${reqKey}`).remove();
             }
 
-// 2. TILE_EVENT (Host Decision Logic)
+// 2. TILE_EVENT
             if (req.type === 'TILE_EVENT') {
                 const p = players.find(pl => pl.id === req.pid);
                 const tile = tiles[req.tileIndex];
                 const info = tile.userData.info;
                 let eventData = { pid: req.pid, tileIndex: req.tileIndex, timestamp: firebase.database.ServerValue.TIMESTAMP, mode: 'normal' };
 
-                // Priority 1: Check Corners and special types
-                if (info.type === 'goto') eventData.mode = 'goto';
-                else if (info.type === 'jail') eventData.mode = 'jail';
-                else if (info.type === 'park') eventData.mode = 'park';
-                else if (info.type === 'tax') { eventData.mode = 'tax_card'; eventData.card = { cost: 50 }; }
-                else if (info.type === 'shop' || info.type === 'start') {
+                // --- CHECK FOR DYNAMIC MERCHANT (Priority 1) ---
+                // We use the activeEvents array which the Host has synced
+                const merchantEvent = activeEvents.find(e => 
+                    e.data.type === 'merchant' && 
+                    e.playerRef && 
+                    e.playerRef.pos === req.tileIndex
+                );
+
+                if (merchantEvent) {
                     eventData.mode = 'shop';
+                    let stock = [];
+                    if (merchantEvent.data.id === 'merch_alchemist') {
+                        stock = DECK_TREASURE.filter(it => it.type === 'scroll' && !it.name.includes('Gold'));
+                    } else if (merchantEvent.data.id === 'merch_armorer') {
+                        stock = DECK_TREASURE.filter(it => ['head', 'body', 'off'].includes(it.slot) && !it.name.includes('Gold'));
+                    } else if (merchantEvent.data.id === 'merch_weaponsmith') {
+                        stock = DECK_TREASURE.filter(it => it.slot === 'main' && !it.name.includes('Gold'));
+                    }
+                    
+                    const shopItems = [];
+                    for(let k=0; k<3; k++) shopItems.push(serializeItem(createItemInstance(stock[Math.floor(Math.random()*stock.length)])));
+                    eventData.items = shopItems;
+                }
+                // --- OLD CROOKS INN (Priority 2) ---
+                else if (info.type === 'start' || info.type === 'shop') {
+                    eventData.mode = 'shop';
+                    // General Goods
                     const stock = DECK_TREASURE.filter(i => !i.name.includes('Gold'));
                     const shopItems = [];
                     for(let k=0; k<3; k++) shopItems.push(serializeItem(createItemInstance(stock[Math.floor(Math.random()*stock.length)])));
                     eventData.items = shopItems;
                 } 
+                // --- STANDARD TILES ---
+                else if (info.type === 'goto') eventData.mode = 'goto';
+                else if (info.type === 'jail') eventData.mode = 'jail';
+                else if (info.type === 'park') eventData.mode = 'park';
+                else if (info.type === 'tax') { eventData.mode = 'tax_card'; eventData.card = { cost: 50 }; }
                 else if (info.type === 'chest') {
                     eventData.mode = 'loot';
                     eventData.card = serializeItem(createItemInstance(DECK_TREASURE[Math.floor(Math.random() * DECK_TREASURE.length)]));
@@ -9647,20 +10217,17 @@ function setupMultiplayerListeners() {
                     eventData.mode = 'mystery_event';
                     eventData.card = JSON.parse(JSON.stringify((isNight ? DECK_SKIRMISH : DECK_ENCOUNTER)[Math.floor(Math.random() * 15)]));
                 }
-                // Priority 2: Check Ownership (THE FIX)
                 else {
                     const ownerId = tile.userData.owner;
-                    if (ownerId !== null && ownerId !== req.pid) { 
-                        // LANDED ON ENEMY LAND
-                        // Mode 'enemy' tells showEncounter to generate Rent/Siege UI instead of drawing a card
+                    if (ownerId === req.pid) {
+                        eventData.mode = 'own_property';
+                        eventData.card = { name: "Home", desc: "Manage your property." };
+                    }
+                    else if (ownerId !== null) { 
                         eventData.mode = 'enemy'; 
-                        // We send a dummy card object so the client-side check doesn't crash
                         eventData.card = { name: "Siege or Pay", desc: "Choose your action." };
                     } 
                     else { 
-                        // LANDED ON EMPTY OR OWNED LAND
-                        // If owned by self, continueFromArrival handles the Upgrade UI, 
-                        // but we need a 'wild' mode trigger to get past the request phase.
                         eventData.mode = (isNight ? 'wild_skirmish' : 'wild'); 
                         eventData.card = JSON.parse(JSON.stringify((isNight ? DECK_SKIRMISH : DECK_ENCOUNTER)[Math.floor(Math.random() * 15)]));
                     }
@@ -9670,12 +10237,11 @@ function setupMultiplayerListeners() {
                 db.ref(`games/${gameId}/request/${reqKey}`).remove();
             }
 
-// 3. END_TURN
+            // 3. END_TURN
             if (req.type === 'END_TURN') {
                 const prevP = players[turnIndex];
                 let nextIndex = turnIndex;
                 
-                // HOST: Clear Polymorph Flag Here
                 if (prevP && prevP.isPolymorphed) {
                     db.ref(`games/${gameId}/players/${prevP.id}`).update({ isPolymorphed: false });
                 }
@@ -9688,50 +10254,46 @@ function setupMultiplayerListeners() {
                     while(players[nextIndex].isDead && safety < 4) { nextIndex = (nextIndex + 1) % players.length; safety++; }
                 }
 
-                // --- ROUND COMPLETION & DAY/NIGHT LOGIC ---
-                // If we wrapped back to player 0 (and they aren't taking an extra turn)
                 if (nextIndex === 0 && !prevP.extraTurn) {
-                    
-                    // 1. Increment Round Count Transactionally
                     db.ref(`games/${gameId}/roundCount`).transaction(count => {
                         return (count || 0) + 1;
                     }, (error, committed, snapshot) => {
                         if (committed) {
                             const newCount = snapshot.val();
-                            
-                            // 2. CHECK DAY/NIGHT (Every 10 Rounds)
                             if (newCount > 0 && newCount % 10 === 0) {
-                                db.ref(`games/${gameId}/isNight`).once('value', nightSnap => {
-                                    const isCurrentlyNight = nightSnap.val();
-                                    db.ref(`games/${gameId}/isNight`).set(!isCurrentlyNight);
+                                db.ref(`games/${gameId}/isNight`).once('value', snap => {
+                                    const nextState = !snap.val();
+                                    db.ref(`games/${gameId}/isNight`).set(nextState);
                                 });
                             }
 
-                            // 3. GLOBAL EVENTS
-                            db.ref(`games/${gameId}/globalEvent`).once('value', snap => {
-                                const currentEv = snap.val();
-                                if (currentEv) {
-                                    const newDur = currentEv.turns - 1;
-                                    if (newDur <= 0) db.ref(`games/${gameId}/globalEvent`).remove(); 
-                                    else db.ref(`games/${gameId}/globalEvent`).update({ turns: newDur });
-                                } else {
-                                    if (Math.floor(Math.random() * 6) + 1 === 6) {
-                                        const idx = Math.floor(Math.random() * MAP_EVENTS.length);
-                                        db.ref(`games/${gameId}/globalEvent`).set({
-                                            idx: idx,
-                                            turns: MAP_EVENTS[idx].duration,
-                                            timestamp: firebase.database.ServerValue.TIMESTAMP
-                                        });
+                            // 3. GLOBAL EVENTS (Multiple Support)
+                            db.ref(`games/${gameId}/activeEvents`).once('value', snap => {
+                                const events = snap.val() || {};
+                                Object.keys(events).forEach(key => {
+                                    const ev = events[key];
+                                    const newDur = ev.turns - 1;
+                                    if (newDur <= 0) {
+                                        db.ref(`games/${gameId}/activeEvents/${key}`).remove();
+                                    } else {
+                                        db.ref(`games/${gameId}/activeEvents/${key}`).update({ turns: newDur });
                                     }
-                                }
-                            });
-                        }
+                                });
+
+if (Math.floor(Math.random() * 6) + 1 === 6) {
+            const idx = Math.floor(Math.random() * MAP_EVENTS.length);
+            db.ref(`games/${gameId}/activeEvents`).push({
+                idx: idx,
+                turns: MAP_EVENTS[idx].duration,
+                timestamp: firebase.database.ServerValue.TIMESTAMP
+            });
+        }
+    }); // Closes the .once()
+}
                     });
                 }
                 
-                // HOST: Reset Timer DB for new player
                 db.ref(`games/${gameId}/turnTimer`).set(firebase.database.ServerValue.TIMESTAMP);
-                
                 db.ref(`games/${gameId}`).update({ turnIndex: nextIndex });
                 db.ref(`games/${gameId}/request/${reqKey}`).remove();
             }
@@ -9742,7 +10304,6 @@ function setupMultiplayerListeners() {
     //  SECTION B: CLIENT LOGIC
     // ==========================================
 
-    // 1. MOVEMENT
     db.ref(`games/${gameId}/moveHistory`).orderByChild('timestamp').startAt(connectionTime).on('child_added', snap => {
         const move = snap.val();
         if(!move) return;
@@ -9757,8 +10318,6 @@ function setupMultiplayerListeners() {
         }
     });
 
-
-    // 2. EVENTS
     db.ref(`games/${gameId}/currentEvent`).on('value', snap => {
         const ev = snap.val();
         if (!ev) return;
@@ -9784,38 +10343,48 @@ function setupMultiplayerListeners() {
                 else if(ev.mode === 'park') { if(treasuryGold>0){ p.gold+=treasuryGold; treasuryGold=0; updateHUD(); syncPlayerState(); } endStep(); }
                 else if(ev.mode === 'jail') { endStep(); }
                 else if(ev.mode === 'tax_card') { processTax(p, ev.card ? ev.card.cost : 50); endStep(); }
+                else if(ev.mode === 'own_property') {
+                    // AI logic to manage property handled in resolveAiEvent now
+                    resolveAiEvent(p, null, tile, ev.mode, null);
+                }
                 else { resolveAiEvent(p, ev.card, tile, ev.mode, ev.items); }
             } 
             else {
                 const executeNextStep = () => {
                     document.getElementById('arrival-modal').classList.remove('active'); 
-            if(ev.mode === 'goto') {
-                 if (p.passiveSkillId === 'smoke_bomb') {
-                     addLog("Skeleton Key Used!", "log-epic");
-                     endStep();
-                 } else { 
-                     // AI is arrested
-                     p.isSkipping = true; 
-                     
-                     // 1. Update State
-                     db.ref(`games/${gameId}/players/${p.id}`).update({ isSkipping: true, pos: 10 }); 
-                     addLog(`${p.name} sent to Dungeon!`, "log-fail");
-                     
-                     // 2. Push Animation (So clients see AI move)
-                     db.ref(`games/${gameId}/teleportLog`).push({
-                        pid: p.id,
-                        targetPos: 10,
-                        timestamp: firebase.database.ServerValue.TIMESTAMP
-                     });
-                     // Note: We do NOT call endStep() here. The teleportLog listener will fire,
-                     // move the piece, land on Jail, trigger 'jail' event, and THAT will call endStep.
-                 }
-            }
+                    if(ev.mode === 'goto') {
+                         if (p.passiveSkillId === 'smoke_bomb') {
+                             addLog("Skeleton Key Used!", "log-epic");
+                             endStep();
+                         } else { 
+                             p.isSkipping = true; 
+                             db.ref(`games/${gameId}/players/${p.id}`).update({ isSkipping: true, pos: 10 }); 
+                             addLog(`${p.name} sent to Dungeon!`, "log-fail");
+                             db.ref(`games/${gameId}/teleportLog`).push({
+                                pid: p.id, targetPos: 10, timestamp: firebase.database.ServerValue.TIMESTAMP
+                             });
+                         }
+                    }
                     else if(ev.mode === 'jail') { addLog("Just visiting."); endStep(); }
                     else if(ev.mode === 'park') { if(treasuryGold>0){ p.gold+=treasuryGold; addLog(`Won ${treasuryGold}G!`, "log-success"); treasuryGold=0; updateHUD(); if(isMultiplayer) syncPlayerState(); } else addLog("Treasury empty."); endStep(); }
                     else if (ev.mode === 'tax_card') {
                         const cost = ev.card ? ev.card.cost : 50;
                         showModal("Royal Tax", "The King demands " + cost + "G.", [ { txt: `Pay ${cost}G`, act: () => { processTax(p, cost); if(isMultiplayer) syncPlayerState(); endStep(); } } ]);
+                    }
+                    else if (ev.mode === 'own_property') {
+                        // Human logic for own property
+                        if(tile.userData.buildingLevel === 1) { 
+                            showModal("Upgrade?", `Build Tavern ${info.cost*2}G?`, [ 
+                                { txt: "Upgrade", act: () => { if(p.gold >= info.cost*2) { p.gold -= info.cost*2; drawCardAnim('skirmish', () => showEncounter(p, info, tile, "upgrade")); } else { addLog("No Gold"); endStep(); } }}, 
+                                { txt: "Skip", act: endStep } 
+                            ]); 
+                        } else { 
+                            let guards = tile.userData.guardCount || 0; 
+                            showModal("Manage Tavern", `Current Guards: ${guards}. Hire Bodyguard for 50G?`, [ 
+                                { txt: "Hire Guard (50G)", act: () => { if(p.gold >= 50) { p.gold -= 50; tile.userData.guardCount = (tile.userData.guardCount || 0) + 1; p.metrics.guardsHired++; addLog("Guard Hired!", "log-gold"); updateHUD(); capture(tile, p, tile.userData.buildingLevel, () => endStep()); } else { addLog("Not enough Gold"); endStep(); } }}, 
+                                { txt: "Rest (Skip)", act: endStep } 
+                            ]); 
+                        }
                     }
                     else if (ev.mode === 'shop') openCustomShop(p, ev.items, info.name, () => endStep()); 
                     else if (ev.mode === 'loot') showEncounter(p, info, tile, 'loot', ev.card); 
@@ -9833,25 +10402,17 @@ function setupMultiplayerListeners() {
                 closeBtn.onclick = executeNextStep;
                 m.classList.add('active');
                 
-                // Client reset timer when modal opens
                 lastInteractionTime = Date.now();
-                
                 AUDIO.playSound('sfx_gold');
             }
         }
     });
 
-    // 3. TURN INDEX (CRITICAL FIX HERE)
     db.ref(`games/${gameId}/turnIndex`).on('value', snap => {
         const idx = snap.val();
         if(idx !== null && idx !== turnIndex) {
             turnIndex = idx;
-            
-            // --- CRITICAL FIX: FORCE RESET TIMER LOCALLY ---
-            // This prevents the previous turn's time from leaking into the new turn
             lastInteractionTime = Date.now(); 
-            // ----------------------------------------------
-
             const curP = players[turnIndex];
             gameState = 'ROLL'; 
             updateHUD();
@@ -9867,50 +10428,31 @@ function setupMultiplayerListeners() {
                     }
                     return; 
                 }
-                
                 zoomToPiece(curP);
-                if(curP.id === myPlayerId) { 
-                    addLog("Your Turn!"); 
-                    AUDIO.playSound('sfx_transition'); 
-                } else { 
-                    addLog(`${curP.name}'s Turn`); 
-                }
-                
-                if (curP.isAi && myPlayerId === 0) { 
-                    setTimeout(() => { db.ref(`games/${gameId}/request`).push({ type: 'ROLL', pid: curP.id }); }, 1500); 
-                }
+                if(curP.id === myPlayerId) { addLog("Your Turn!"); AUDIO.playSound('sfx_transition'); } 
+                else { addLog(`${curP.name}'s Turn`); }
+                if (curP.isAi && myPlayerId === 0) { setTimeout(() => { db.ref(`games/${gameId}/request`).push({ type: 'ROLL', pid: curP.id }); }, 1500); }
             }
         }
     });
 
-// 4. PLAYERS SYNC
     db.ref(`games/${gameId}/players`).on('child_changed', snap => {
         const pData = snap.val();
         const pId = parseInt(snap.key);
         const p = players.find(pl => pl.id === pId);
         
         if(p && pData) {
-            // Update Basic Stats
             if(pData.gold !== undefined) p.gold = pData.gold;
             if(pData.stats !== undefined) p.stats = pData.stats;
             if(pData.extraTurn !== undefined) p.extraTurn = pData.extraTurn;
             if(pData.isSkipping !== undefined) p.isSkipping = pData.isSkipping;
-
-            // Update Position (Teleport Logic)
             if(pData.pos !== undefined) {
-                p.pos = pData.pos;
-                // Snap visual if needed, though animations usually handle this
+                if (gameState !== 'MOVING' || p.id !== turnIndex) { p.pos = pData.pos; }
             }
-            
-            // Update Visuals (Polymorph)
             if(pData.isPolymorphed !== undefined) {
                 if (p.isPolymorphed !== pData.isPolymorphed) {
-                    if (pData.isPolymorphed) {
-                        if (!p.isPolymorphed) makeSheep(p); 
-                    } else {
-                        p.isPolymorphed = true; 
-                        cureSheep(p); 
-                    }
+                    if (pData.isPolymorphed) { if (!p.isPolymorphed) makeSheep(p); } 
+                    else { p.isPolymorphed = true; cureSheep(p); }
                     p.isPolymorphed = pData.isPolymorphed;
                     recalcStats(p); 
                 }
@@ -9919,7 +10461,6 @@ function setupMultiplayerListeners() {
         }
     });
 
-    // 5. BOARD SYNC
     const boardHandler = (snap) => {
         const tileId = parseInt(snap.key); const data = snap.val(); const tile = tiles[tileId]; const owner = players.find(p => p.id === data.owner);
         if(tile && owner) {
@@ -9930,7 +10471,6 @@ function setupMultiplayerListeners() {
     db.ref(`games/${gameId}/board`).on('child_added', boardHandler);
     db.ref(`games/${gameId}/board`).on('child_changed', boardHandler);
 
-    // 6. TELEPORT SYNC
     db.ref(`games/${gameId}/teleportLog`).orderByChild('timestamp').startAt(connectionTime).on('child_added', snap => {
         const data = snap.val();
         if (!data) return;
@@ -9941,58 +10481,78 @@ function setupMultiplayerListeners() {
             AUDIO.playSound('sfx_transition');
             closeEnc(); 
             gameState = 'MOVING';
-            animateTeleport(p, tiles[data.targetPos], () => { resolveLanding(p); });
+            animateTeleport(p, tiles[data.targetPos], () => { 
+                const info = tiles[data.targetPos].userData.info;
+                if (info.type === 'mystery') { addLog("Teleported safely.", "log-success"); endStep(); } 
+                else { resolveLanding(p); }
+            });
         }
     });
 
-    // 7. GLOBAL EVENT SYNC (DAY/NIGHT)
     db.ref(`games/${gameId}/isNight`).on('value', snap => {
         const val = snap.val();
-        if(val !== null && val !== isNight) {
-            isNight = val;
-            transitionDayNight(isNight);
-            updateHUD();
+        if(val !== null && val !== isNight) { isNight = val; transitionDayNight(isNight); updateHUD(); }
+    });
+	
+// 11. VFX SYNC LISTENER (Add this to setupMultiplayerListeners)
+    db.ref(`games/${gameId}/activeEvents`).orderByChild('timestamp').startAt(connectionTime).on('child_added', snap => {
+        const data = snap.val();
+        const evDef = MAP_EVENTS[data.idx];
+        
+        // Create local object to track this specific event
+        const localEvent = {
+            dbKey: snap.key,
+            data: evDef,
+            turnsLeft: data.turns,
+            playerRef: null
+        };
+        
+        // Execute Start Logic
+        activeEvent = localEvent; // Set global temporarily for spawn functions
+        if (evDef.onStart) evDef.onStart();
+        
+        activeEvents.push(localEvent); // Add to local array
+        activeEvent = null; // Clear temp
+
+        addLog(`EVENT: ${evDef.name}!`, "log-epic");
+        addLog(evDef.desc, "log-rare");
+        AUDIO.playSound('sfx_transition');
+    });
+
+    // Event Ended Listener
+    db.ref(`games/${gameId}/activeEvents`).on('child_removed', snap => {
+        const key = snap.key;
+        const idx = activeEvents.findIndex(e => e.dbKey === key);
+        
+        if (idx > -1) {
+            const ev = activeEvents[idx];
+            if (ev.data.onEnd) ev.data.onEnd();
+            if (ev.playerRef) removeEventEntity(ev.playerRef);
+            
+            addLog(`${ev.data.name} ended.`, "log-entry");
+            activeEvents.splice(idx, 1);
+            
+            const hasWeather = activeEvents.some(e => e.data.type === 'weather');
+            if (!hasWeather) removeParticles();
         }
     });
 	
-		// 8. TREASURY SYNC
     db.ref(`games/${gameId}/treasury`).on('value', snap => {
-        const val = snap.val();
-        // Update global variable
-        treasuryGold = val || 0;
-        // Force visual update immediately
+        treasuryGold = snap.val() || 0;
         updateHUD();
     });
 
-    // 10. TURN TIMER SYNC
     db.ref(`games/${gameId}/turnTimer`).on('value', snap => {
-        // Sync local base time to DB time
-        // Note: We also reset this in turnIndex change, so this acts as a backup/heartbeat
         lastInteractionTime = snap.val() || Date.now(); 
     });
 
-    // Start Host Enforcement Loop if I am Host
-    if (myPlayerId === 0) {
-        startHostTimerLoop();
-    }
+    if (myPlayerId === 0) startHostTimerLoop();
 	
-	// 11. VFX SYNC LISTENER (Add this to setupMultiplayerListeners)
     db.ref(`games/${gameId}/vfxLog`).orderByChild('timestamp').startAt(connectionTime).on('child_added', snap => {
         const data = snap.val();
         if(!data) return;
-
-        // Ensure we don't replay old effects on load
         if (Date.now() - data.timestamp > 5000) return;
-
-        // Call Trigger with isRemote = true to prevent echo loop
-        // Also note: we need to pass basic objects, the VFX function will convert them back to Vectors
-        VFX.trigger(
-            data.type, 
-            data.start, 
-            data.end, 
-            data.color, 
-            true // <--- This flag stops it from sending back to DB
-        );
+        VFX.trigger(data.type, data.start, data.end, data.color, true);
     });
 }
 function resolveAiEvent(p, card, t, mode, items) {
@@ -10092,10 +10652,14 @@ function resolveAiEvent(p, card, t, mode, items) {
         let best = card.choices[0];
         
         if (card.choices[1]) {
-            // If Fog Event, pick random
-            if (activeEvent && activeEvent.data && activeEvent.data.id === 'event_fog') {
+            // FIX IS HERE: Check the array 'activeEvents', not the singular 'activeEvent'
+            const isFoggy = activeEvents.some(e => e.data && e.data.id === 'event_fog');
+            
+            // If Fog Event is active, pick random because AI can't see stats
+            if (isFoggy) {
                 best = card.choices[Math.floor(Math.random() * card.choices.length)];
             } else {
+                // Normal Logic: Compare stats
                 const stat1 = p.stats[best.stat] || 0;
                 const stat2 = p.stats[card.choices[1].stat] || 0;
                 // Basic heuristic: higher stat is better, lower TN is better
@@ -10167,41 +10731,170 @@ function forcePortrait() {
 document.getElementById('btn-start-game').addEventListener('click', forcePortrait);
 
 function toggleGraph() {
+    // This function is now deprecated by the direct "setGraphMode" buttons, 
+    // but kept for compatibility if needed.
     const gc = document.getElementById('graph-container');
-    if (gc.style.display === 'none' || gc.style.display === '') {
-        gc.style.display = 'block';
-        setTimeout(drawGraph, 100); 
-    } else {
-        gc.style.display = 'none';
-    }
+    gc.style.display = 'block';
+    drawGraph();
+}
+
+function setGraphMode(mode) {
+    currentGraphMode = mode;
+    const gc = document.getElementById('graph-container');
+    gc.style.display = 'block';
+    drawGraph();
 }
 
 function drawGraph() {
     const canvas = document.getElementById('game-chart');
+    if (!canvas) return;
+    
     const ctx = canvas.getContext('2d');
-    const rect = canvas.getBoundingClientRect();
-    canvas.width = rect.width; canvas.height = rect.height;
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
     
-    const showGold = document.getElementById('chk-gold').checked;
-    const showProps = document.getElementById('chk-props').checked;
-    const pad = 40; const gw = canvas.width - pad * 2; const gh = canvas.height - pad * 2;
+    // 1. Clear & Background
+    ctx.fillStyle = "#1a1a1a";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
     
-    let maxGold = 100; let maxProps = 1; let maxTurns = 1;
+    // 2. Define Margins (Room for labels)
+    const padLeft = 60;   // Space for Gold/Prop numbers
+    const padBottom = 40; // Space for Turn numbers
+    const padTop = 20;
+    const padRight = 20;
+    
+    const graphW = canvas.width - padLeft - padRight;
+    const graphH = canvas.height - padTop - padBottom;
+    
+    // 3. Determine Max Values from History
+    let maxVal = 0; 
+    let maxTurns = 0;
+    
     players.forEach(p => {
-        if(p.history.length > maxTurns) maxTurns = p.history.length;
-        p.history.forEach(h => {
-            if(h.gold > maxGold) maxGold = h.gold;
-            if(h.props > maxProps) maxProps = h.props;
+        if (p.history.length > maxTurns) maxTurns = p.history.length;
+        p.history.forEach(entry => {
+            const val = (currentGraphMode === 'gold') ? entry.gold : entry.props;
+            if (val > maxVal) maxVal = val;
         });
     });
     
-    ctx.strokeStyle = '#666'; ctx.lineWidth = 1;
-    ctx.beginPath(); ctx.moveTo(pad, pad); ctx.lineTo(pad, canvas.height - pad); ctx.lineTo(canvas.width - pad, canvas.height - pad); ctx.stroke();
+    // 4. Configure Axis Scaling based on Mode
+    let yStep = 0;
+    let yMax = 0;
+
+    if (currentGraphMode === 'gold') {
+        yStep = 200; // User requested 200 increments
+        // Round max up to the nearest 200, minimum 1000 to look nice
+        yMax = Math.ceil(Math.max(maxVal, 1000) / 200) * 200;
+        
+        // Safety: If gold is huge (e.g. 50,000), 200 steps is too many lines. 
+        // We auto-scale the step if there are too many lines (more than 20 lines)
+        if (yMax / yStep > 20) {
+            yStep = Math.ceil(yMax / 20 / 200) * 200; 
+        }
+    } else {
+        // Properties
+        yStep = 1;
+        // User requested 1 to 20. If someone has 25, we scale to 25.
+        yMax = Math.max(maxVal, 20); 
+        
+        // Safety for crazy property counts (unlikely in Monopoly but safe to add)
+        if (yMax > 30) yStep = 5;
+    }
+
+    // 5. Draw Grid & Y-Axis Labels
+    ctx.lineWidth = 1;
+    ctx.font = "10px sans-serif";
+    ctx.textAlign = "right";
+    ctx.textBaseline = "middle";
+
+    for (let v = 0; v <= yMax; v += yStep) {
+        // Calculate Y pixel position (0 is at bottom)
+        const y = (padTop + graphH) - ((v / yMax) * graphH);
+        
+        // Draw Grid Line
+        ctx.strokeStyle = (v === 0) ? "#fff" : "#333"; // White for 0 line, dark grey for others
+        ctx.beginPath();
+        ctx.moveTo(padLeft, y);
+        ctx.lineTo(padLeft + graphW, y);
+        ctx.stroke();
+        
+        // Draw Label
+        ctx.fillStyle = "#aaa";
+        ctx.fillText(v, padLeft - 10, y);
+    }
+
+    // 6. Draw X-Axis Labels (Turns)
+    ctx.textAlign = "center";
+    ctx.textBaseline = "top";
+    
+    // Determine label skip (don't draw every turn if game is 100 turns long)
+    const turnStep = Math.ceil(maxTurns / 15); // Aim for ~15 labels max
+
+    for (let t = 0; t < maxTurns; t += turnStep) {
+        const x = padLeft + (t / (maxTurns - 1 || 1)) * graphW;
+        
+        // Draw Tick Mark
+        ctx.strokeStyle = "#555";
+        ctx.beginPath();
+        ctx.moveTo(x, padTop + graphH);
+        ctx.lineTo(x, padTop + graphH + 5);
+        ctx.stroke();
+        
+        // Draw Label
+        ctx.fillStyle = "#aaa";
+        ctx.fillText(t, x, padTop + graphH + 8);
+    }
+    
+    // Axis Titles
+    ctx.fillStyle = "#fff";
+    ctx.font = "bold 12px sans-serif";
+    // X Title
+    ctx.fillText("Turns", padLeft + (graphW / 2), canvas.height - 12);
+    
+    // Y Title (Rotated)
+    ctx.save();
+    ctx.translate(15, padTop + (graphH / 2));
+    ctx.rotate(-Math.PI / 2);
+    ctx.textAlign = "center";
+    ctx.fillText(currentGraphMode === 'gold' ? "Gold Amount" : "Properties Owned", 0, 0);
+    ctx.restore();
+
+    // 7. Plot Data Lines
+    ctx.lineWidth = 2;
     
     players.forEach(p => {
-        if(showGold) drawLine(ctx, p, 'gold', maxGold, pad, gw, gh, maxTurns, p.color, false);
-        if(showProps) drawLine(ctx, p, 'props', maxProps, pad, gw, gh, maxTurns, p.color, true);
+        if (p.history.length < 1) return;
+        
+        ctx.beginPath();
+        ctx.strokeStyle = p.color;
+        
+        p.history.forEach((entry, i) => {
+            const val = (currentGraphMode === 'gold') ? entry.gold : entry.props;
+            
+            // Map logic to pixels
+            const x = padLeft + (i / (maxTurns - 1 || 1)) * graphW;
+            const y = (padTop + graphH) - ((val / yMax) * graphH);
+            
+            if (i === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+        });
+        
+        ctx.stroke();
+        
+        // Draw Name at the end of the line
+        const lastEntry = p.history[p.history.length - 1];
+        const lastVal = (currentGraphMode === 'gold') ? lastEntry.gold : lastEntry.props;
+        const lastX = padLeft + graphW;
+        const lastY = (padTop + graphH) - ((lastVal / yMax) * graphH);
+        
+        // Small dot at end
+        ctx.fillStyle = p.color;
+        ctx.beginPath();
+        ctx.arc(lastX, lastY, 3, 0, Math.PI*2);
+        ctx.fill();
+        
+        // Name Label (offset slightly so it doesn't overlap line)
+        ctx.textAlign = "right";
+        ctx.fillText(p.name, lastX - 5, lastY - 5);
     });
 }
 
@@ -10340,21 +11033,102 @@ document.getElementById('console-input').addEventListener('keydown', function(e)
     }
 });
 
+function grantPremiumByEmail() {
+    const email = prompt("Enter the User's Email to GRANT Premium:");
+    if (!email) return;
+    const cleanEmail = email.trim();
+
+    // 1. Check if user already exists in DB
+    db.ref('users').orderByChild('email').equalTo(cleanEmail).once('value')
+        .then(snapshot => {
+            if (snapshot.exists()) {
+                // CASE A: User Exists - Apply immediately
+                snapshot.forEach(childSnap => {
+                    const uid = childSnap.key;
+                    db.ref(`users/${uid}/isPremium`).set(true)
+                        .then(() => alert(`SUCCESS: Premium added to existing user ${cleanEmail}.`));
+                });
+            } else {
+                // CASE B: User Does Not Exist - Pre-approve
+                const confirmInvite = confirm(`User ${cleanEmail} not found in database.\n\n1. Add to Pre-Approved list?\n2. Generate Invite?`);
+                
+                if (confirmInvite) {
+                    // 1. Add to VIP List (Sanitize email by replacing . with ,)
+                    const sanitizedEmail = cleanEmail.replace(/\./g, ','); 
+					db.ref(`preapproved_premium/${sanitizedEmail}`).set(true);
+
+                    // 2. Prepare Message
+                    const subject = "You've been gifted Questopoly Premium!";
+                    const bodyText = `Welcome to Questopoly!\n\nAn admin has granted you Ad-Free status.\n\n1. Go to: https://deathforgegames.com\n2. Register with this email: ${cleanEmail}\n3. Log in and enjoy!`;
+                    
+                    // 3. Try to open Email Client
+                    const mailtoLink = `mailto:${cleanEmail}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(bodyText)}`;
+                    const win = window.open(mailtoLink, '_blank');
+
+                    // 4. Fallback: If client didn't open (or user uses Webmail), show text to copy
+                    if (!win || win.closed || typeof win.closed == 'undefined') {
+                        // Use a prompt so the text is selectable/copyable
+                        prompt(
+                            "Database Updated!\n\nIt looks like your computer didn't open an email client automatically.\n\nCopy this message to send to them manually:", 
+                            bodyText
+                        );
+                    }
+                }
+            }
+        });
+}
+
+function revokePremiumByEmail() {
+    const email = prompt("Enter the User's Email to revoke Premium:");
+    if (!email) return;
+
+    // 1. Find the User ID (UID) based on the email
+    db.ref('users').orderByChild('email').equalTo(email.trim()).once('value')
+        .then(snapshot => {
+            if (snapshot.exists()) {
+                // Loop through results (should only be one)
+                snapshot.forEach(childSnap => {
+                    const uid = childSnap.key;
+                    const userData = childSnap.val();
+
+                    if (userData.isPremium) {
+                        // 2. Remove the isPremium field
+                        db.ref(`users/${uid}/isPremium`).remove()
+                            .then(() => {
+                                alert(`SUCCESS: Premium removed for ${email}.`);
+                                console.log(`[ADMIN] Revoked premium for UID: ${uid}`);
+                            })
+                            .catch(err => alert("Error updating DB: " + err.message));
+                    } else {
+                        alert(`User ${email} does not have Premium status.`);
+                    }
+                });
+            } else {
+                alert("User not found. Make sure they have logged in at least once.");
+            }
+        })
+        .catch(err => {
+            console.error(err);
+            alert("Database Error: Check console for details. (Requires email indexing rules in larger apps)");
+        });
+}
+
 function enableDebugMode() {
     const debugContainer = document.getElementById('debug-controls');
     const list = document.getElementById('debug-event-list');
     const logOverlay = document.getElementById('debug-log-overlay'); 
     
+    // Reveal UI
     debugContainer.style.display = 'block';
     logOverlay.style.display = 'flex'; 
     list.innerHTML = ''; 
 
-    // ... (Existing Buttons: Admin Toggle, Clear All Games) ...
-    // ADMIN TOGGLE
+    // 1. ADMIN TOGGLE
     const adminBtn = document.createElement('button');
     adminBtn.className = 'debug-btn';
-    adminBtn.innerHTML = `TOGGLE ADMIN MODE <span>(OFF)</span>`;
+    adminBtn.innerHTML = `TOGGLE ADMIN MODE <span>(${isAdminMode ? 'ON' : 'OFF'})</span>`;
     adminBtn.style.borderColor = '#ef4444';
+    adminBtn.style.backgroundColor = isAdminMode ? '#7f1d1d' : '#333';
     adminBtn.onclick = () => {
         isAdminMode = !isAdminMode;
         adminBtn.innerHTML = `TOGGLE ADMIN MODE <span>(${isAdminMode ? 'ON' : 'OFF'})</span>`;
@@ -10364,35 +11138,28 @@ function enableDebugMode() {
     };
     list.appendChild(adminBtn);
 
-    // --- NEW: POST UPDATE BUTTON ---
+    // 2. GLOBAL UPDATE
     const updateBtn = document.createElement('button');
     updateBtn.className = 'debug-btn';
     updateBtn.innerHTML = `ADMIN: POST GLOBAL UPDATE <span>📝</span>`;
     updateBtn.style.borderColor = '#3b82f6'; 
     updateBtn.style.color = '#3b82f6';
-    
     updateBtn.onclick = () => {
         const text = prompt("Enter the Global Update text (Use \\n for new lines):");
         if (text && text.trim().length > 0) {
-            // Replace \n with actual newlines if typed literally
             const formatted = text.replace(/\\n/g, '\n');
-            
             db.ref('system/update').set({
                 text: formatted,
                 timestamp: firebase.database.ServerValue.TIMESTAMP
             }).then(() => {
                 alert("Global Update Posted!");
-                // Also reset my own read status so I can see it
                 localStorage.removeItem('sys_update_read_time');
             });
         }
     };
     list.appendChild(updateBtn);
-    // -------------------------------
 
-    // ... (Rest of existing buttons: Wipe Games, Force End Turn, Event Triggers) ...
-    
-    // WIPE GAMES
+    // 3. WIPE GAMES
     const clearGamesBtn = document.createElement('button');
     clearGamesBtn.className = 'debug-btn';
     clearGamesBtn.innerHTML = `ADMIN: WIPE ALL GAMES <span>⚠</span>`;
@@ -10407,19 +11174,76 @@ function enableDebugMode() {
     };
     list.appendChild(clearGamesBtn);
 
-    // Force End Turn (Existing)
+    // 4. FREE STORE TOGGLE
+    const freeStoreBtn = document.createElement('button');
+    freeStoreBtn.className = 'debug-btn';
+    freeStoreBtn.innerHTML = `TEST: FREE STORE MODE <span>(${isStoreTestMode ? 'ON' : 'OFF'})</span>`;
+    freeStoreBtn.style.borderColor = '#10b981';
+    freeStoreBtn.onclick = () => {
+        isStoreTestMode = !isStoreTestMode;
+        freeStoreBtn.innerHTML = `TEST: FREE STORE MODE <span>(${isStoreTestMode ? 'ON' : 'OFF'})</span>`;
+        alert(`Store Test Mode: ${isStoreTestMode ? "ON. Open Store to see Sim Button." : "OFF"}`);
+    };
+    list.appendChild(freeStoreBtn);
+
+    // 5. REVOKE SELF
+    const revokeBtn = document.createElement('button');
+    revokeBtn.className = 'debug-btn';
+    revokeBtn.innerHTML = `TEST: REVOKE MY PREMIUM <span>⚠</span>`;
+    revokeBtn.style.borderColor = '#ef4444';
+    revokeBtn.onclick = () => {
+        if(confirm("Remove 'isPremium' from your account and reload?")) {
+            db.ref(`users/${currentUser.uid}/isPremium`).remove().then(() => {
+                window.location.reload();
+            });
+        }
+    };
+    list.appendChild(revokeBtn);
+
+    // 6. REVOKE BY EMAIL
+    const revokeEmailBtn = document.createElement('button');
+    revokeEmailBtn.className = 'debug-btn';
+    revokeEmailBtn.innerHTML = `ADMIN: RemoveAdPurchase <span>🚫</span>`;
+    revokeEmailBtn.style.borderColor = '#f59e0b';
+    revokeEmailBtn.onclick = revokePremiumByEmail;
+    list.appendChild(revokeEmailBtn);
+
+    // --- NEW: GRANT BY EMAIL ---
+    const grantEmailBtn = document.createElement('button');
+    grantEmailBtn.className = 'debug-btn';
+    grantEmailBtn.innerHTML = `ADMIN: GrantAdFree <span>🎁</span>`;
+    grantEmailBtn.style.borderColor = '#10b981'; // Green border
+    grantEmailBtn.onclick = grantPremiumByEmail;
+    list.appendChild(grantEmailBtn);
+    // ---------------------------
+
+    // 7. FORCE END TURN
     const fixBtn = document.createElement('button');
     fixBtn.className = 'debug-btn';
     fixBtn.innerHTML = `EMERGENCY: FORCE END TURN <span>FIX</span>`;
     fixBtn.style.borderColor = '#f59e0b';
     fixBtn.onclick = () => {
-        gameState = 'END'; turnProcessing = false;
+        debugLog("Force Ending Turn...");
+        gameState = 'END'; 
+        turnProcessing = false;
         if (activeEvent && activeEvent.mesh) scene.remove(activeEvent.mesh);
         document.getElementById('card-modal').classList.remove('active');
         endTurn();
     };
     list.appendChild(fixBtn);
 
+    // 8. EVENTS
+    MAP_EVENTS.forEach((ev, index) => {
+        const btn = document.createElement('button');
+        btn.className = 'debug-btn';
+        btn.innerHTML = `${ev.name} <span>INPUT</span>`;
+        btn.onclick = () => {
+            forceTriggerEvent(index);
+            toggleSettingsModal(); 
+        };
+        list.appendChild(btn);
+    });
+    
     debugLog("Debug Mode Enabled.");
 }
 function disableDebugMode() {
@@ -10443,31 +11267,48 @@ function disableDebugMode() {
 
 // 3. Logic to Force a Specific Event (Modified triggerRandomEvent)
 function forceTriggerEvent(index) {
-    // 1. Cleanup existing event
-    if(activeEvent) {
-        if(activeEvent.data.onEnd) activeEvent.data.onEnd();
-        if(activeEvent.playerRef) removeEventEntity(activeEvent.playerRef); // Use removeEventEntity
-        activeEvent = null;
-        removeParticles(); // Clear weather
-    }
-
-    // 2. Validate
+    // 1. Validate Input
     const evData = MAP_EVENTS[index];
     if (!evData) return;
 
-    // 3. Start New Event
-    activeEvent = {
-        data: evData,
-        turnsLeft: evData.duration,
-        playerRef: null 
-    };
+    // 2. Multiplayer Logic (Host pushes to DB)
+    if (isMultiplayer && db && gameId) {
+        db.ref(`games/${gameId}/activeEvents`).push({
+            idx: index,
+            turns: evData.duration,
+            timestamp: firebase.database.ServerValue.TIMESTAMP
+        });
+        addLog(`DEBUG: Broadcasted ${evData.name}`, "log-rare");
+    } 
+    // 3. Single Player Logic (Local Push)
+    else {
+        // Create the event object
+        const localEvent = {
+            id: Date.now() + Math.random(),
+            data: evData,
+            turnsLeft: evData.duration,
+            playerRef: null 
+        };
 
-    if(evData.onStart) evData.onStart();
+        // Temporarily set global activeEvent so spawn functions (like spawnEventEntity) 
+        // can reference 'activeEvent.playerRef' without crashing
+        activeEvent = localEvent; 
+        
+        // Run Start Logic (Spawns bosses, sets weather particles, etc.)
+        if(evData.onStart) evData.onStart();
 
-    addLog(`EVENT: ${evData.name}!`, "log-epic");
-    addLog(evData.desc, "log-rare");
+        // Push to the array
+        activeEvents.push(localEvent);
+        
+        // Clear the temp global
+        activeEvent = null; 
+
+        addLog(`DEBUG: Force Started ${evData.name}`, "log-epic");
+        addLog(evData.desc, "log-rare");
+        updateHUD();
+    }
+
     AUDIO.playSound('sfx_transition');
-    updateHUD();
 }
 
 function toggleDebugLog() {
