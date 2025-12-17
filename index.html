@@ -3796,9 +3796,18 @@ changeAiColor: function(slotIdx, newColor) {
         btn.onclick = () => this.saveCharacter();
     },
 
-    saveCharacter: function() {
+saveCharacter: function() {
         const name = document.getElementById('char-name-input').value || "Hero";
-        const charData = { race: selRace, class: selClass, active: selActiveId, passive: selPassiveId };
+        
+        // --- FIX: SAVE 2nd SKILL ---
+        const charData = { 
+            race: selRace, 
+            class: selClass, 
+            active: selActiveId, 
+            active2: selActiveId2, // <--- ADDED THIS
+            passive: selPassiveId 
+        };
+        // ---------------------------
         
         db.ref(`games/${gameId}/slots/${myPlayerId}`).update({
             name: name,
@@ -3867,7 +3876,7 @@ let scene, camera, renderer;
 let tiles=[], players=[], turnIndex=0, gameState='SETUP', treasuryGold=0;
 let normalDeck, skirmishDeck, treasureDeck;
 let turnCount = 0, isNight = false;
-let selRace=null, selClass=null, selColor="#ef4444", selActiveId=null, selPassiveId=null;
+let selRace=null, selClass=null, selColor="#ef4444", selActiveId=null, selActiveId2=null, selPassiveId=null;
 let nightBoard = null; 
 let fogGroup = null;
 let turnProcessing = false;
@@ -4193,20 +4202,18 @@ const VFX = {
         }
     },
 
-    // UPDATED TRIGGER: Accepts 'isRemote' to handle MP sync
     trigger: function(type, startPos, endPos, color, isRemote = false) {
-        // 1. Play Sound Locally
+        // 1. Play Sound
         this.playAudio(type);
         
         // 2. Ensure Vectors
         const s = startPos ? new THREE.Vector3(startPos.x, startPos.y, startPos.z) : new THREE.Vector3();
         const e = endPos ? new THREE.Vector3(endPos.x, endPos.y, endPos.z) : new THREE.Vector3();
 
-        // 3. BROADCAST TO DB (If Multiplayer and I originated this effect)
+        // 3. Sync to DB (Multiplayer)
         if (isMultiplayer && !isRemote && gameId && db) {
             db.ref(`games/${gameId}/vfxLog`).push({
                 type: type,
-                // Flatten vectors to simple objects for Firebase
                 start: {x: s.x, y: s.y, z: s.z},
                 end: {x: e.x, y: e.y, z: e.z},
                 color: color || null,
@@ -4214,11 +4221,12 @@ const VFX = {
             });
         }
 
-        // 4. Play Animation Locally
+        // 4. Play Animation
         switch(type) {
             case 'lightning': this.lightningBolt(e); break;
-            case 'fireball': this.projectile(s, e, 0xff4500, 'explode'); break;
-            case 'projectile_coin': this.projectile(e, s, 0xffd700, 'sparkle'); break; 
+            // Fireball now sets trackCamera: true
+            case 'fireball': this.projectile(s, e, 0xff4500, 'magical', true); break;
+            case 'projectile_coin': this.projectile(e, s, 0xffd700, 'sparkle', false); break; 
             case 'burst_up': this.burstUp(s, color || 0xff0000); break;
             case 'spiral_up': this.spiralUp(s, color || 0x00ff00); break;
             case 'shockwave': this.shockwave(s, color || 0x000000); break;
@@ -4228,7 +4236,95 @@ const VFX = {
         }
     },
 
-    // --- PRIMITIVES (Same as before) ---
+    // --- UPDATED PROJECTILE WITH CAMERA TRACKING ---
+    projectile: function(start, end, color, onHitType, trackCamera = false) {
+        // Create the Orb
+        const orb = new THREE.Mesh(
+            new THREE.SphereGeometry(0.6), 
+            new THREE.MeshStandardMaterial({color: color, emissive: 0xffaa00, emissiveIntensity: 2})
+        );
+        orb.position.copy(start);
+        orb.position.y = 2; // Start slightly higher
+        
+        // Add a trail
+        const trailGeo = new THREE.ConeGeometry(0.4, 1.5, 8);
+        trailGeo.rotateX(Math.PI / 2);
+        const trail = new THREE.Mesh(trailGeo, new THREE.MeshBasicMaterial({color: color, transparent: true, opacity: 0.6}));
+        trail.position.z = -0.8;
+        orb.add(trail);
+
+        scene.add(orb);
+        orb.lookAt(end);
+
+        // CAMERA HACK: Switch target to the fireball
+        let previousTarget = cameraTarget; 
+        if (trackCamera) {
+            cameraTarget = orb;
+            isZoomed = true;
+        }
+
+        // Calculate Duration based on distance (so it doesn't fly too fast)
+        const dist = start.distanceTo(end);
+        const duration = Math.min(1500, Math.max(600, dist * 30));
+
+        new TWEEN.Tween(orb.position)
+            .to({ x: end.x, y: end.y + 0.5, z: end.z }, duration) // Arc end point slightly up
+            .easing(TWEEN.Easing.Quadratic.In) // Accelerate into target
+            .onUpdate(() => {
+                if (trackCamera) {
+                    // Keep camera strictly focused
+                    camera.lookAt(orb.position);
+                }
+            })
+            .onComplete(() => {
+                scene.remove(orb);
+                
+                // Trigger Impact Effect
+                if(onHitType === 'magical') this.magicalExplosion(end, color);
+                else if(onHitType === 'explode') this.explode(end, color);
+                else if(onHitType === 'sparkle') this.sparkle(end, color);
+
+                // CAMERA RESET
+                if (trackCamera) {
+                    // Snap back to the active player or original target
+                    const p = players[turnIndex];
+                    cameraTarget = (p && p.mesh) ? p.mesh : previousTarget;
+                }
+            })
+            .start();
+    },
+
+    // --- NEW COOL EXPLOSION ---
+    magicalExplosion: function(pos, color) {
+        // 1. Flash of Light
+        const light = new THREE.PointLight(color, 10, 15);
+        light.position.set(pos.x, 2, pos.z);
+        scene.add(light);
+        new TWEEN.Tween(light).to({intensity: 0}, 600).onComplete(()=>scene.remove(light)).start();
+
+        // 2. Expanding Shockwave Ring
+        const ringGeo = new THREE.TorusGeometry(0.1, 0.2, 8, 24);
+        const ringMat = new THREE.MeshBasicMaterial({ color: color, transparent: true, opacity: 0.8 });
+        const ring = new THREE.Mesh(ringGeo, ringMat);
+        ring.position.set(pos.x, 0.5, pos.z);
+        ring.rotation.x = Math.PI / 2;
+        scene.add(ring);
+
+        new TWEEN.Tween(ring.scale).to({x: 15, y: 15}, 600).easing(TWEEN.Easing.Exponential.Out).start();
+        new TWEEN.Tween(ring.material).to({opacity: 0}, 600).onComplete(()=>scene.remove(ring)).start();
+
+        // 3. Debris Particles
+        this.spawnParticles(pos, color, 30, 2); // Increased count and speed
+        this.spawnParticles(pos, 0xffaa00, 15, 1.5); // Secondary fire color
+        
+        // 4. Screen Shake (Simulated by small camera jitter if zoomed)
+        if(isZoomed) {
+            new TWEEN.Tween(camera.position)
+                .to({x: camera.position.x + 0.5}, 50).yoyo(true).repeat(3).start();
+        }
+    },
+
+    // --- EXISTING FX (Preserved) ---
     lightningBolt: function(pos) {
         const h = 40;
         const geo = new THREE.CylinderGeometry(0.5, 0.5, h, 8);
@@ -4236,28 +4332,12 @@ const VFX = {
         const bolt = new THREE.Mesh(geo, mat);
         bolt.position.set(pos.x, h/2, pos.z);
         scene.add(bolt);
-
         const light = new THREE.PointLight(0xaaddff, 5, 20);
         light.position.set(pos.x, 2, pos.z);
         scene.add(light);
-
         new TWEEN.Tween(mat).to({ opacity: 0 }, 600).onComplete(() => { scene.remove(bolt); scene.remove(light); }).start();
         new TWEEN.Tween(bolt.scale).to({ x: 4, z: 4 }, 600).start();
         this.explode(pos, 0xffff00);
-    },
-
-    projectile: function(start, end, color, onHit) {
-        const orb = new THREE.Mesh(new THREE.SphereGeometry(0.5), new THREE.MeshBasicMaterial({color: color}));
-        orb.position.copy(start);
-        orb.position.y = 2;
-        scene.add(orb);
-
-        new TWEEN.Tween(orb.position).to({ x: end.x, z: end.z }, 500).easing(TWEEN.Easing.Quadratic.In)
-            .onComplete(() => {
-                scene.remove(orb);
-                if(onHit === 'explode') this.explode(end, color);
-                if(onHit === 'sparkle') this.sparkle(end, color);
-            }).start();
     },
 
     burstUp: function(pos, color) {
@@ -4293,7 +4373,6 @@ const VFX = {
         geom.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
         const pts = new THREE.Points(geom, new THREE.PointsMaterial({color:color, size:0.4}));
         scene.add(pts);
-
         let f = 0;
         const anim = () => {
             f+=0.15;
@@ -4326,7 +4405,6 @@ const VFX = {
         const mat = new THREE.PointsMaterial({color:color, size:0.5, transparent:true});
         const sys = new THREE.Points(geom, mat);
         scene.add(sys);
-
         let life = 1.0;
         const tick = () => {
             life -= 0.03;
@@ -4360,7 +4438,8 @@ const ABILITY_LIBRARY = {
         img: "https://static.wixstatic.com/media/b16479_3599509de5064815a86ecbae3f9979da~mv2.jpeg" 
     },
     intimidate: { 
-        name: "Intimidate", desc: "Force a random player to pay you 50G.", 
+        name: "Intimidate", 
+        desc: "Force player to pay 50G. Recharges on Enemy Capture.", // UPDATED
         fn: (p) => { 
             const targets=players.filter(t=>t.id!==p.id&&!t.isDead); 
             if(targets.length>0){
@@ -4404,20 +4483,62 @@ const ABILITY_LIBRARY = {
     },
 
     // ================= WIZARD SKILLS =================
-    fireball: { 
-        name: "Fireball", desc: "Pay 100G: Burn a random enemy property (Downgrade).", 
+fireball: { 
+        name: "Fireball", 
+        desc: "Pay 100G: Burn random enemy property.", 
         fn: (p) => { 
-            if(p.gold<100)return false; 
-            const ts=tiles.filter(t=>t.userData.owner!==null&&t.userData.owner!==p.id); 
+            if(p.gold < 100) return false; 
+            
+            const ts = tiles.filter(t => t.userData.owner !== null && String(t.userData.owner) !== String(p.id)); 
+            
             if(ts.length){ 
-                p.gold-=100; 
-                const t=ts[Math.floor(Math.random()*ts.length)]; 
+                p.gold -= 100; 
+                const t = ts[Math.floor(Math.random()*ts.length)]; 
+                
+                // Trigger Visuals (Camera will follow this)
                 VFX.trigger('fireball', p.mesh.position, t.position);
-                if(t.userData.buildingLevel>1) t.userData.buildingLevel=1; 
-                else {t.userData.owner=null; if(t.userData.prop)t.remove(t.userData.prop);} 
-                setTimeout(() => addLog(`Fireball hit ${t.userData.info.name}!`, "log-epic"), 500); 
+                
+                // DELAYED LOGIC: Wait for impact (1.2 seconds)
+                setTimeout(() => {
+                    let msg = "";
+                    if(t.userData.buildingLevel > 1) {
+                        t.userData.buildingLevel = 1; 
+                        msg = `Fireball downgraded ${t.userData.info.name}!`;
+                    } else {
+                        t.userData.owner = null; 
+                        if(t.userData.prop) {
+                            // Animate building sinking/burning before removal
+                            new TWEEN.Tween(t.userData.prop.scale).to({y: 0}, 500).start();
+                            setTimeout(() => {
+                                t.remove(t.userData.prop); 
+                                t.userData.prop = null;
+                            }, 500);
+                        }
+                        msg = `Fireball destroyed ${t.userData.info.name}!`;
+                    }
+                    
+                    addLog(msg, "log-epic"); 
+                    
+                    // Sync Board State if Multiplayer Host/Self
+                    if (typeof isMultiplayer !== 'undefined' && isMultiplayer && (p.id === myPlayerId || myPlayerId === 0)) {
+                        db.ref(`games/${gameId}/board/${t.userData.id}`).set({
+                            owner: t.userData.owner, // Null or Owner ID
+                            level: t.userData.buildingLevel,
+                            guardCount: t.userData.guardCount || 0
+                        });
+                        syncPlayerState(); // Update Gold
+                    }
+                    
+                    // Re-apply visuals to show damage/downgrade
+                    if (t.userData.owner) {
+                        applyCaptureVisuals(t, players.find(pl=>pl.id===t.userData.owner), t.userData.buildingLevel);
+                    }
+
+                }, 1200);
+
                 return true;
-            } return false;
+            } 
+            return false;
         }, 
         img: "https://static.wixstatic.com/media/b16479_29ff412f99834658ac8d32d32e16849a~mv2.jpg" 
     },
@@ -4497,21 +4618,51 @@ const ABILITY_LIBRARY = {
     },
 
     // ================= ROGUE SKILLS =================
-    pickpocket: { 
-        name: "Pickpocket", desc: "Steal 10G per property from random foe.", 
+pickpocket: { 
+        name: "Pickpocket", 
+        desc: "Steal 10G/prop from the land leader. Recharges every 10 moves.", 
         fn: (p) => { 
-            const ts=players.filter(x=>x.id!==p.id&&!x.isDead); 
-            if(ts.length){
-                const t=ts[Math.floor(Math.random()*ts.length)]; 
-                VFX.trigger('projectile_coin', t.mesh.position, p.mesh.position);
-                const amt=Math.min(t.gold, tiles.filter(l=>l.userData.owner===t.id).length*10); 
-                t.gold-=amt; p.gold+=amt; 
-                addLog(`Pickpocketed ${amt}G from ${t.name}`, "log-gold"); return true;
-            } return false; 
+            // 1. Find valid targets (Not me, not dead)
+            const targets = players.filter(x => x.id !== p.id && !x.isDead); 
+            
+            if(targets.length > 0){
+                // 2. Sort by Property Count (Descending)
+                targets.sort((a, b) => {
+                    const countA = tiles.filter(tile => tile.userData.owner === a.id).length;
+                    const countB = tiles.filter(tile => tile.userData.owner === b.id).length;
+                    return countB - countA; // Highest first
+                });
+
+                const t = targets[0]; // The Leader
+                
+                // --- FIX: VISUAL DIRECTION ---
+                // We pass (Player, Target) so the engine renders it moving Target -> Player
+                VFX.trigger('projectile_coin', p.mesh.position, t.mesh.position);
+                // -----------------------------
+                
+                // Calculate theft
+                const propCount = tiles.filter(l => l.userData.owner === t.id).length;
+                const amt = Math.min(t.gold, propCount * 10); 
+                
+                t.gold -= amt; 
+                p.gold += amt; 
+                
+                addLog(`Pickpocketed ${amt}G from ${t.name} (Has ${propCount} lands).`, "log-gold"); 
+                
+                // Sync if MP
+                if (typeof isMultiplayer !== 'undefined' && isMultiplayer) syncPlayerState();
+                return true;
+            } 
+            return false; 
         }, 
         img: "https://static.wixstatic.com/media/b16479_13ee3ae3151c40f58f7152857c4d97ff~mv2.jpg" 
     },
-    sprint_act: { name: "Sprint", desc: "Move 3 spaces.", fn: (p) => { VFX.trigger('burst_up', p.mesh.position, null, 0x00ff00); animateMove(p,3); return true; }, img: "https://static.wixstatic.com/media/b16479_2a97d38d75f14a7c96eb980178f1bdf6~mv2.jpg" },
+        sprint_act: { 
+        name: "Sprint", 
+        desc: "Move 3 spaces. Recharges every 10 moves.", // UPDATED
+        fn: (p) => { VFX.trigger('burst_up', p.mesh.position, null, 0x00ff00); animateMove(p,3); return true; }, 
+        img: "https://static.wixstatic.com/media/b16479_2a97d38d75f14a7c96eb980178f1bdf6~mv2.jpg" 
+    },
     
     // --- UPDATED: SMOKE BOMB (Teleport Fix) ---
     smoke_bomb_act: { 
@@ -4675,7 +4826,13 @@ const ABILITY_LIBRARY = {
     conqueror: { name: "Conqueror", desc: "Gain 20G every time you capture a location.", type:'passive', onCapture:(p)=>{p.gold+=20; addLog("Conqueror: +20G", "log-gold");}, img: "https://static.wixstatic.com/media/b16479_9df1c28aa03e4660ab1943532691d406~mv2.jpg" },
     heavy_armor: { name: "Heavy Armor", desc: "You cannot be moved by enemy spells (Swap/Teleport).", type:'passive', img: "https://static.wixstatic.com/media/b16479_8fd52084407e44d7b5d966aa2791e22e~mv2.jpg" },
     vanguard: { name: "Vanguard", desc: "Start the game with a Rare Sword.", type:'passive', img: "https://static.wixstatic.com/media/b16479_de9b64e80d6745c2924fb58325d158e7~mv2.jpg" },
-    scholar: { name: "Scholar", desc: "Permanent +1 INT.", type:'passive', effect:(s)=>{s.int+=1;}, img: "https://static.wixstatic.com/media/b16479_dde7a886c214487e9142449b77ae86f0~mv2.jpg" },
+    scholar: { 
+        name: "Scholar", 
+        desc: "Permanent +1 INT. Pick a 2nd Active Skill (Slot 6).", // UPDATED
+        type:'passive', 
+        effect:(s)=>{s.int+=1;}, 
+        img: "https://static.wixstatic.com/media/b16479_dde7a886c214487e9142449b77ae86f0~mv2.jpg" 
+    },
     court_mage: { name: "Court Mage", desc: "Immune to Tax. Gain 10G when others pay Tax.", type:'passive', img: "https://static.wixstatic.com/media/b16479_60838e488fae4e7e896c8cfe64f5bc03~mv2.jpg" },
     alchemist_pas: { name: "Alchemist", desc: "Pouch of Gold creates extra treasure.", type:'passive', img: "https://static.wixstatic.com/media/b16479_e0bd1a01c0b344f086778fea802be2ca~mv2.jpg" },
     mana_shield: { name: "Mana Shield", desc: "If you would go bankrupt, lose 1 Item instead.", type:'passive', img: "https://static.wixstatic.com/media/b16479_bf689c6c7bd640c9910b56a8c1d7eeba~mv2.jpg" },
@@ -4687,8 +4844,20 @@ const ABILITY_LIBRARY = {
     skeleton_key: { name: "Skeleton Key", desc: "Immune to Dungeon. (Trap: Steal 50G).", type:'passive', onEnemyLanding:(v,o)=>{if(v.gold>=50){v.gold-=50;o.gold+=50;addLog("Skeleton Key Trap: +50G", "log-accent");}}, img: "https://static.wixstatic.com/media/b16479_6c10e5ce01164b79bb957d07613143ae~mv2.jpg" },
     cutpurse: { name: "Cutpurse", desc: "Steal 5G passing. Steal 20G landing.", type: 'passive', img: "https://static.wixstatic.com/media/b16479_ebce90cafeb5404b96e00cb557ce20b1~mv2.jpg", onLanding: (p) => { /* Logic in resolveLanding */ } },
     ambush_pas: { name: "Ambush", desc: "When attacking Enemy space, gain +1 Success.", type:'passive', img: "https://static.wixstatic.com/media/b16479_6274cb33103f496d958019147a605599~mv2.jpeg" },
-    devotion: { name: "Devotion", desc: "Permanent +1 INT.", type:'passive', effect:(s)=>{s.int+=1;}, img: "https://static.wixstatic.com/media/b16479_4ad91e74342448b08fd19799f492d69b~mv2.jpg" },
-    medic: { name: "Medic", desc: "Permanent +1 STR.", type:'passive', effect:(s)=>{s.str+=1;}, img: "https://static.wixstatic.com/media/b16479_e222db131e6e4e2180c5bd4dcd0dd6f4~mv2.jpg" },
+    devotion: { 
+        name: "Devotion", 
+        desc: "Permanent +1 INT. Start at Shrine. +200G passing Shrine.", // UPDATED
+        type:'passive', 
+        effect:(s)=>{s.int+=1;}, 
+        img: "https://static.wixstatic.com/media/b16479_4ad91e74342448b08fd19799f492d69b~mv2.jpg" 
+    },
+    medic: { 
+        name: "Medic", 
+        desc: "Land on Player: Give 100G to gain +1 Perm Stat.", // UPDATED (Removed Perm STR effect)
+        type:'passive', 
+        // Note: Logic handled in resolveLanding
+        img: "https://static.wixstatic.com/media/b16479_e222db131e6e4e2180c5bd4dcd0dd6f4~mv2.jpg" 
+    },
     holy_aura: { name: "Holy Aura", desc: "Gain 20G when landing on another hero.", type:'passive', onLanding:(p)=>{const hit=players.some(x=>x.id!==p.id&&x.pos===p.pos); if(hit)p.gold+=20;}, img: "https://static.wixstatic.com/media/b16479_967b2ee34245413a8b04aa43b0fe04b8~mv2.jpg" },
     spirit_tithe: { name: "Spirit Tithe", desc: "Gain 5G on enemy land, 10G on own land.", type:'passive', onLanding:(p)=>{const t=tiles[p.pos]; if(t.userData.owner===p.id)p.gold+=10; else if(t.userData.owner!==null)p.gold+=5;}, img: "https://static.wixstatic.com/media/b16479_73cb0754c25246689fbe4db244b98da1~mv2.jpg" },
     pacifist: { name: "Pacifist", desc: "Fleeing gives +30G and +1 All Stats (Temp).", type:'passive', img: "https://static.wixstatic.com/media/b16479_203666cbf52f4677ad7eb5a9ab696105~mv2.jpg" },
@@ -5686,17 +5855,14 @@ const MAP_EVENTS = [
         desc: "Potions and Scrolls.",
         onStart: () => { activeEvent.playerRef = spawnEventEntity(MAP_EVENTS[0]); },
         onEnd: () => { removeEventEntity(activeEvent.playerRef); },
-        onTurn: (me) => true,
-        // UPDATED onLand: Accepts 'next' callback
+        onTurn: (me) => false, // FIX: Changed from true to false so they move
         onLand: (p, me, next) => {
             if(p.id === 0) { 
                 const stock = DECK_TREASURE.filter(i => i.type === 'scroll' && !i.name.includes('Gold') && !i.name.includes('Coin'));
                 const items = [];
                 for(let k=0; k<3; k++) items.push(stock[Math.floor(Math.random()*stock.length)]);
-                // Pass 'next' to the shop function
                 openCustomShop(p, items, "Alchemist's Cart", next);
             } else {
-                // AI simply ignores shop and proceeds to tile
                 if(next) next();
             }
         }
@@ -5707,7 +5873,7 @@ const MAP_EVENTS = [
         desc: "Heavy armor and shields.",
         onStart: () => { activeEvent.playerRef = spawnEventEntity(MAP_EVENTS[1]); },
         onEnd: () => { removeEventEntity(activeEvent.playerRef); },
-        onTurn: (me) => true,
+        onTurn: (me) => false, // FIX: Changed from true to false
         onLand: (p, me, next) => {
             if(p.id === 0) {
                 const stock = DECK_TREASURE.filter(i => (i.slot === 'head' || i.slot === 'body' || i.slot === 'off') && !i.name.includes('Gold'));
@@ -5725,7 +5891,7 @@ const MAP_EVENTS = [
         desc: "Sharp steel for sale.",
         onStart: () => { activeEvent.playerRef = spawnEventEntity(MAP_EVENTS[2]); },
         onEnd: () => { removeEventEntity(activeEvent.playerRef); },
-        onTurn: (me) => true,
+        onTurn: (me) => false, // FIX: Changed from true to false
         onLand: (p, me, next) => {
             if(p.id === 0) {
                 const stock = DECK_TREASURE.filter(i => i.slot === 'main' && !i.name.includes('Gold'));
@@ -6526,6 +6692,23 @@ function spawnPlayer(id, n, r, c, actId, pasId, ai, col, startPos = 0) {
             newPlayer.mesh.position.copy(manaWell.position);
         }
     }
+	
+	if (pasId === 'leyline') {
+        const manaWell = tiles.find(t => t.userData.info.name === 'Mana Well');
+        if (manaWell) {
+            newPlayer.pos = manaWell.userData.id;
+            newPlayer.mesh.position.copy(manaWell.position);
+        }
+    }
+    
+    // --- NEW: DEVOTION START ---
+    if (pasId === 'devotion') {
+        const shrine = tiles.find(t => t.userData.info.name === 'Shrine');
+        if (shrine) {
+            newPlayer.pos = shrine.userData.id;
+            newPlayer.mesh.position.copy(shrine.position);
+        }
+    }
 
     players.push(newPlayer);
 }
@@ -6953,7 +7136,33 @@ function animateMove(p, s) {
     p.pos = (p.pos + 1) % 40; 
     p.metrics.spacesMoved++;
 
-    // --- Logic Checks (Cutpurse, Leyline, Start) ---
+    // --- 1. SKILL RECHARGE (Every 10 Steps) ---
+    if ((p.activeSkillId === 'pickpocket' || p.activeSkillId === 'sprint_act') && p.classSkillDepleted) {
+        if (p.metrics.spacesMoved % 10 === 0) {
+            p.classSkillDepleted = false;
+            if (p.id === myPlayerId) {
+                addLog(`${ABILITY_LIBRARY[p.activeSkillId].name} Recharged!`, "log-gold");
+                AUDIO.playSound('sfx_equip');
+            }
+            updateHUD();
+        }
+    }
+
+// --- 2. DEVOTION (Shrine Bonus) ---
+    if (p.passiveSkillId === 'devotion') {
+        const tileInfo = tiles[p.pos].userData.info;
+        if (tileInfo.name === "Shrine") {
+            // Only the owner processes the gold to prevent dupes
+            if (!isMultiplayer || p.id === myPlayerId || (p.isAi && myPlayerId === 0)) {
+                p.gold += 200;
+                addLog("Devotion: +200G at Shrine!", "log-epic");
+                updateHUD();
+                if (isMultiplayer) syncPlayerState(); // <--- ADDED SYNC
+            }
+        }
+    }
+
+    // --- 3. Cutpurse Logic ---
     if (p.passiveSkillId === 'cutpurse' && s > 1) {
         const victims = players.filter(v => v.id !== p.id && !v.isDead && v.pos === p.pos);
         let stolenPassing = 0;
@@ -6968,50 +7177,53 @@ function animateMove(p, s) {
         }
     }
     
+    // --- 4. Leyline Logic ---
     if (p.passiveSkillId === 'leyline' && tiles[p.pos].userData.info.type === 'util') {
         p.gold += 200;
         addLog("Leyline Walker: +200G at Mana Well!", "log-epic");
         updateHUD();
     }
 
+    // --- 5. Start/Inn Logic ---
     if (p.pos === 0) {
         p.gold += 200; addLog("Passed Inn (+200G)", "log-success");
         let recharged = false;
+        
         if(p.classSkillDepleted) { p.classSkillDepleted = false; recharged = true; }
         if(p.shadowStrikeDebuff) { p.shadowStrikeDebuff = false; recharged = true; }
         if(p.pacifistBuff) { p.pacifistBuff = false; recharged = true; }
+        
+        // Recharge Equipment
         ['head', 'body', 'main', 'off'].forEach(slot => { 
             const item = p.equipment[slot]; 
             if (item && item.isDepleted) { item.isDepleted = false; recharged = true; } 
         });
+
+        // Recharge Quick Slots (Scholar)
+        p.quickSlots.forEach(item => {
+            if (item && item.isPermanent && item.isDepleted) {
+                item.isDepleted = false;
+                recharged = true;
+            }
+        });
+
         if(recharged) addLog("Abilities Recharged & Status Cleared.", "log-epic");
         updateHUD();
     } 
 
     // --- ANIMATION SYNC ---
     const t = tiles[p.pos].position.clone(); 
-    // Add jitter if not Player 1 to avoid overlap
     if (p.id > 0) { t.x += (Math.random()-0.5)*0.5; t.z += (Math.random()-0.5)*0.5; } 
 
-    // 1. Calculate Target Rotation
     const dx = t.x - p.mesh.position.x;
     const dz = t.z - p.mesh.position.z;
     let targetAngle = Math.atan2(dx, dz);
 
-    // --- FIX: SHORTEST PATH ROTATION ---
-    // Get current rotation
     let currentAngle = p.mesh.rotation.y;
-    
-    // Calculate difference between target and current
     let diff = targetAngle - currentAngle;
-    
-    // Normalize difference to [-PI, PI] to find the shortest turn
     while (diff > Math.PI) diff -= Math.PI * 2;
     while (diff < -Math.PI) diff += Math.PI * 2;
-    
-    // The actual target for the Tween is current + corrected difference
     const tweenTarget = currentAngle + diff;
-    // -----------------------------------
 
     // 2. Rotate First (150ms)
     new TWEEN.Tween(p.mesh.rotation)
@@ -7164,24 +7376,40 @@ function endTurn(){
         turnProcessing = false;
 
         const curP = players[turnIndex];
+        
+        // --- FIX START: HANDLE SKIPPING (Dungeon/Stun) ---
+        if (curP.isSkipping) {
+            curP.isSkipping = false; // Use up the skip
+            
+            // Sync to DB if multiplayer
+            if (isMultiplayer && db && gameId) {
+                // Only owner needs to sync this, but if we are here in SP, we just log it
+                // In MP, the listener handles this, but for local flow logic:
+                if (curP.id === myPlayerId) {
+                    db.ref(`games/${gameId}/players/${curP.id}`).update({ isSkipping: false });
+                }
+            }
+
+            addLog(`${curP.name} is in Jail (Turn Skipped).`, "log-fail");
+            
+            // Pass turn immediately to next player
+            endTurn(); 
+            return;
+        }
+        // --- FIX END ---
+
         if(curP.isDead) { endTurn(); return; }
 
-if(curP.isAi) { 
+        if(curP.isAi) { 
+            // ... (Keep your AI Logic here) ...
             zoomToPiece(curP);
             if (curP.isEventEntity) {
                 setTimeout(() => processBossTurn(curP), 800);
             }
             else {
                 setTimeout(() => { 
-                    // 1. Attempt to use a skill
                     const didAction = attemptAiAbilities(curP, 'pre-roll'); 
-                    
-                    // 2. Decide next step
-                    // If they did an action, wait 1.5s (to read log/see FX), otherwise wait 0.5s
                     setTimeout(() => {
-                        // CRITICAL FIX:
-                        // Only roll if the action didn't already start a movement (like Blink or Sprint)
-                        // Pickpocket does NOT change gameState, so this will now correctly trigger rollMove()
                         if (gameState === 'ROLL') {
                             rollMove(); 
                         }
@@ -7202,24 +7430,121 @@ if(curP.isAi) {
     }, 1200); 
 }
 function resolveLanding(p) {
+    // --- 1. TRAP CHECK (Skeleton Key) ---
+    const tile = tiles[p.pos];
+    if (tile.userData.trapOwner !== undefined && tile.userData.trapOwner !== null) {
+        
+        // --- IMMUNITY CHECK ---
+        if (p.class.id === 'rogue') {
+            addLog(`${p.name} (Rogue) bypassed the Dungeon trap!`, "log-success");
+            // We do NOT remove the trap here. It stays for non-rogues, 
+            // unless this rogue decides to overwrite it in the next step.
+        } 
+        // --- TRIGGER TRAP ---
+        else if (String(tile.userData.trapOwner) !== String(p.id)) {
+            const trapper = players.find(pl => String(pl.id) === String(tile.userData.trapOwner));
+            
+            // 1. Calculate Theft
+            const stealAmt = Math.min(200, p.gold);
+            p.gold -= stealAmt;
+            if (trapper) trapper.gold += stealAmt;
+
+            addLog(`${p.name} triggered a Dungeon Trap! (-${stealAmt}G)`, "log-fail");
+            
+            // 2. Animate Trap
+            // We pass the cleanup/sync logic as a callback to the animation
+            animateTrapSpring(tile, () => {
+                
+                // 3. Cleanup Logic (Runs after animation finishes)
+                tile.userData.trapOwner = null;
+                updateTrapVisuals(tile); // Removes the trap mesh
+
+                updateHUD();
+                
+                // Sync
+                if (isMultiplayer) {
+                    syncPlayerState();
+                    if (trapper) db.ref(`games/${gameId}/players/${trapper.id}/gold`).set(trapper.gold);
+                    db.ref(`games/${gameId}/board/${p.pos}/trapOwner`).remove();
+                }
+            });
+            
+            // Visual Effect (Blood/Damage)
+            VFX.trigger('implode', p.mesh.position, null, 0xff0000);
+        }
+    }
+
+    // --- 2. MEDIC PASSIVE CHECK ---
+    if (p.passiveSkillId === 'medic' && !p.isAi) {
+        const patient = players.find(x => x.id !== p.id && !x.isDead && x.pos === p.pos);
+        if (patient) {
+            showModal("Medic", `Give 100G to ${patient.name} to gain +1 Stat?`, [
+                {
+                    txt: "Heal (Give 100G)",
+                    act: () => {
+                        if (p.gold >= 100) {
+                            p.gold -= 100;
+                            patient.gold += 100;
+                            addLog(`${p.name} healed ${patient.name}!`, "log-success");
+                            
+                            if (isMultiplayer) {
+                                syncPlayerState(); 
+                                db.ref(`games/${gameId}/players/${patient.id}/gold`).set(patient.gold);
+                            }
+
+                            showModal("Divine Reward", "Choose a permanent stat boost:", [
+                                { txt: "+1 STR", act: () => { p.stats.str++; addLog("Medic: Gained +1 STR"); if(isMultiplayer) syncPlayerState(); triggerTileEvent(p); } },
+                                { txt: "+1 DEX", act: () => { p.stats.dex++; addLog("Medic: Gained +1 DEX"); if(isMultiplayer) syncPlayerState(); triggerTileEvent(p); } },
+                                { txt: "+1 INT", act: () => { p.stats.int++; addLog("Medic: Gained +1 INT"); if(isMultiplayer) syncPlayerState(); triggerTileEvent(p); } }
+                            ]);
+                        } else {
+                            addLog("Not enough gold to Heal.");
+                            triggerTileEvent(p);
+                        }
+                    }
+                },
+                { txt: "Ignore", act: () => triggerTileEvent(p) }
+            ]);
+            return; 
+        }
+    }
+
     debugLog(`Landed: ${p.name} at Tile ${p.pos} (AI: ${p.isAi})`);
     
-    // --- SINGLE PLAYER ---
+    // --- 3. STANDARD EVENT TRIGGER ---
     if (!isMultiplayer) {
+        const merchantEvent = activeEvents.find(e => e.data.type === 'merchant' && e.playerRef && e.playerRef.pos === p.pos);
+        if (merchantEvent) {
+            let stock = [];
+            if (merchantEvent.data.id === 'merch_alchemist') stock = DECK_TREASURE.filter(it => it.type === 'scroll' && !it.name.includes('Gold'));
+            else if (merchantEvent.data.id === 'merch_armorer') stock = DECK_TREASURE.filter(it => ['head', 'body', 'off'].includes(it.slot) && !it.name.includes('Gold'));
+            else if (merchantEvent.data.id === 'merch_weaponsmith') stock = DECK_TREASURE.filter(it => it.slot === 'main' && !it.name.includes('Gold'));
+            
+            const items = [];
+            for(let k=0; k<3; k++) items.push(createItemInstance(stock[Math.floor(Math.random()*stock.length)]));
+            openCustomShop(p, items, merchantEvent.data.name, () => endStep());
+            AUDIO.playSound('sfx_gold');
+            return;
+        }
+
+        const i = tiles[p.pos].userData.info;
+        if (i.type === 'start') {
+            const stock = DECK_TREASURE.filter(it => !it.name.includes('Gold')); 
+            const items = [];
+            for(let k=0; k<3; k++) items.push(createItemInstance(stock[Math.floor(Math.random()*stock.length)]));
+            openCustomShop(p, items, "Old Crooks General Store", () => endStep());
+            AUDIO.playSound('sfx_gold');
+            return;
+        }
+
         triggerTileEvent(p); 
         return;
     }
 
-    // --- MULTIPLAYER ---
     const isMe = (p.id === myPlayerId);
-    const isMyAi = (p.isAi && myPlayerId === 0); // Host owns AI
-
-    // Only the "Owner" of the character initiates the event
+    const isMyAi = (p.isAi && myPlayerId === 0); 
     if (isMe || isMyAi) {
-        // Sync position to DB to be safe
         db.ref(`games/${gameId}/players/${p.id}`).update({ pos: p.pos });
-        
-        // Trigger the event logic
         triggerTileEvent(p); 
     }
 }
@@ -7361,21 +7686,92 @@ function triggerTileEvent(p) {
     AUDIO.playSound('sfx_gold');
 }
 
+function offerSkeletonKeyTrap(p) {
+    // 1. Force position to Jail (Tile 10) just in case
+    const jailTile = tiles[10];
+    
+    // 2. Define Logic
+    const openMenu = () => {
+        const isOverwrite = (jailTile.userData.trapOwner !== undefined && jailTile.userData.trapOwner !== null);
+        const btnText = isOverwrite ? "Overwrite Trap (-50G)" : "Set Trap (-50G)";
+        const msg = isOverwrite ? "A trap is already set here. Replace it with your own?" : "You unlocked the cell door. Set a trap for the next visitor?";
+
+        showModal("Skeleton Key", msg, [
+            { 
+                txt: btnText, 
+                act: () => {
+                    if (p.gold >= 50) {
+                        p.gold -= 50;
+                        jailTile.userData.trapOwner = p.id;
+                        addLog(`${p.name} rigged the Dungeon with a trap!`, "log-rare");
+                        
+                        // Visuals
+                        updateTrapVisuals(jailTile);
+                        updateHUD();
+                        
+                        if (isMultiplayer) {
+                            syncPlayerState();
+                            db.ref(`games/${gameId}/board/10/trapOwner`).set(p.id);
+                        }
+                    }
+                    endStep();
+                }
+            },
+            { txt: "Just Visit", act: endStep }
+        ]);
+    };
+
+    // 3. Handle Movement (If coming from "Go To Dungeon")
+    if (p.pos !== 10) {
+        addLog("Skeleton Key: Used secret tunnel to Dungeon.", "log-success");
+        p.pos = 10;
+        
+        // Sync movement in MP
+        if (isMultiplayer) {
+            db.ref(`games/${gameId}/players/${p.id}/pos`).set(10);
+            // Visual log for others
+            db.ref(`games/${gameId}/teleportLog`).push({ 
+                pid: p.id, targetPos: 10, timestamp: firebase.database.ServerValue.TIMESTAMP 
+            });
+            // Just open menu immediately, listener handles visual movement for others
+            openMenu(); 
+        } else {
+            // SP: Animate then open
+            gameState = 'MOVING';
+            animateTeleport(p, jailTile, () => {
+                // Ensure camera is looking at jail
+                if (isZoomed) cameraTarget = p.mesh; 
+                openMenu();
+            });
+        }
+    } else {
+        // Already at jail (Just Visiting)
+        openMenu();
+    }
+}
+
 function continueFromArrival() {
     document.getElementById('arrival-modal').classList.remove('active');
-    const p = players[turnIndex]; const t = tiles[p.pos]; const i = t.userData.info;
+    const p = players[turnIndex]; 
+    const t = tiles[p.pos]; 
+    const i = t.userData.info;
     
     // 1. MYSTERY SPACE
     if(i.type === 'mystery') {
         const deckType = isNight ? 'skirmish' : 'normal';
+        // Note: The logic inside showEncounter -> rollCombat will force 'teleport' mode for mystery events
         drawCardAnim(deckType, () => showEncounter(p, i, t, 'mystery_event'));
         return;
     }
 
     // 2. CORNER SPACES
-    if(i.type === 'start') { if(p.id === 0) showEncounter(p, i, t, 'shop'); else endStep(); return; }
+    if(i.type === 'start') { 
+        if(p.id === 0) showEncounter(p, i, t, 'shop'); 
+        else endStep(); 
+        return; 
+    }
     
-    // --- FIX: CAPITAL CITY / PARK ---
+    // --- CAPITAL CITY / PARK (Treasury) ---
     if(i.type === 'park') { 
         if(treasuryGold > 0){ 
             const pot = treasuryGold;
@@ -7387,11 +7783,9 @@ function continueFromArrival() {
             // 1. Reset Local
             treasuryGold = 0; 
             
-            // 2. Sync to DB (Critical Step)
+            // 2. Sync to DB
             if(isMultiplayer && gameId) {
-                // Set Global Treasury to 0
                 db.ref(`games/${gameId}/treasury`).set(0);
-                // Save my new Gold balance
                 syncPlayerState(); 
             }
             updateHUD(); 
@@ -7401,38 +7795,75 @@ function continueFromArrival() {
         } 
         endStep(); return; 
     }
-    // --------------------------------
 
-    if(i.type === 'tax') { processTax(p, 50); endStep(); return; } 
-    
-    if(i.type === 'goto') { 
-        if (p.passiveSkillId === 'smoke_bomb' || p.activeSkillId === 'smoke_bomb') { addLog("Skeleton Key: Evaded Dungeon!", "log-epic"); endStep(); } 
-        else { 
-            addLog("ARRESTED!", "log-fail"); 
-            p.isSkipping = true; 
-            if (isMultiplayer) {
-                db.ref(`games/${gameId}/players/${p.id}`).update({ isSkipping: true, pos: 10 });
-                // Push animation to log so others see you move to jail
-                db.ref(`games/${gameId}/teleportLog`).push({ pid: p.id, targetPos: 10, timestamp: firebase.database.ServerValue.TIMESTAMP });
-                return;
-            }
-            p.pos = 10; gameState = 'MOVING';
-            animateTeleport(p, tiles[10], () => { addLog("Locked up!", "log-fail"); endStep(); });
-        }
+    // --- TAX ---
+    if(i.type === 'tax') { 
+        processTax(p, 50); 
+        endStep(); 
         return; 
     } 
     
-    if(i.type === 'jail') { if (!p.isSkipping) addLog("Just visiting."); endStep(); return; }
+// --- GO TO DUNGEON ---
+    if(i.type === 'goto') { 
+        // 1. Smoke Bomb (Escape to random tile)
+        if (p.passiveSkillId === 'smoke_bomb' || p.activeSkillId === 'smoke_bomb') { 
+            addLog("Smoke Bomb: Evaded Capture!", "log-epic"); 
+            endStep(); 
+            return;
+        } 
+        
+        // 2. Skeleton Key (Immunity + Move to Jail + Trap Menu)
+        if (p.passiveSkillId === 'skeleton_key') {
+            offerSkeletonKeyTrap(p);
+            return;
+        }
+
+        // 3. Standard Arrest
+        addLog("ARRESTED!", "log-fail"); 
+        p.isSkipping = true; 
+        
+        if (isMultiplayer) {
+            db.ref(`games/${gameId}/players/${p.id}`).update({ isSkipping: true, pos: 10 });
+            db.ref(`games/${gameId}/teleportLog`).push({ pid: p.id, targetPos: 10, timestamp: firebase.database.ServerValue.TIMESTAMP });
+            return;
+        }
+        
+        // Single Player Arrest Animation
+        p.pos = 10; 
+        gameState = 'MOVING';
+        animateTeleport(p, tiles[10], () => { 
+            addLog("Locked up!", "log-fail"); 
+            endStep(); 
+        });
+        return; 
+    } 
     
+    // --- JAIL (VISITING) ---
+    if(i.type === 'jail') { 
+        // Skeleton Key (Set Trap while visiting)
+        if (p.passiveSkillId === 'skeleton_key' && p.gold >= 50) {
+            offerSkeletonKeyTrap(p);
+            return;
+        }
+
+        if (!p.isSkipping) addLog("Just visiting."); 
+        endStep(); 
+        return; 
+    }
+    
+    // --- CHEST ---
     if(i.type === 'chest') { 
         const card = DECK_TREASURE[Math.floor(Math.random() * DECK_TREASURE.length)]; 
         p.inventory.push(createItemInstance(card)); 
         addLog(`${p.name} found ${card.name}.`, "log-success"); 
+        
+        // Alchemist Passive Bonus
         if (card.name === "Pouch of Gold" && p.passiveSkillId === 'alchemist_pas') { 
             const extra = DECK_TREASURE[Math.floor(Math.random() * DECK_TREASURE.length)]; 
             p.inventory.push(createItemInstance(extra)); 
             addLog(`Alchemist Bonus: Found ${extra.name}!`, "log-epic"); 
         } 
+        
         if(isMultiplayer) syncPlayerState();
         endStep(); return; 
     }
@@ -7443,18 +7874,23 @@ function continueFromArrival() {
     const owner = t.userData.owner;
     
     if(owner === p.id) { 
-        // OPEN UPGRADE MENU
+        // --- OWNED PROPERTY ---
         if(t.userData.buildingLevel === 1) { 
+            // Offer Upgrade to Tavern
             showModal("Upgrade?", `Build Tavern ${i.cost*2}G? (Skirmish)`, [ 
                 { txt: "Upgrade", act: () => { 
                     if(p.gold >= i.cost*2) { 
                         p.gold -= i.cost*2; 
+                        // Trigger Skirmish Card to Upgrade
                         drawCardAnim('skirmish', () => showEncounter(p, i, t, "upgrade")); 
-                    } else { addLog("No Gold"); endStep(); } 
+                    } else { 
+                        addLog("No Gold"); endStep(); 
+                    } 
                 }}, 
                 { txt: "Skip", act: endStep } 
             ]); 
         } else { 
+            // Manage Guards
             let guards = t.userData.guardCount || 0; 
             showModal("Manage Tavern", `Current Guards: ${guards}. Hire Bodyguard for 50G?`, [ 
                 { txt: "Hire Guard (50G)", act: () => { 
@@ -7464,6 +7900,8 @@ function continueFromArrival() {
                         p.metrics.guardsHired++;
                         addLog("Guard Hired!", "log-gold"); 
                         updateHUD(); 
+                        
+                        // Re-apply visuals (visual update) and sync
                         capture(t, p, t.userData.buildingLevel, () => endStep()); 
                     } else { 
                         addLog("Not enough Gold"); 
@@ -7474,8 +7912,10 @@ function continueFromArrival() {
             ]); 
         } 
     } else if(owner !== null) { 
+        // --- ENEMY PROPERTY ---
         showEncounter(p, i, t, "enemy"); 
     } else { 
+        // --- WILD / EMPTY PROPERTY ---
         drawCardAnim(deckType, () => showEncounter(p, i, t, modeType)); 
     }
 }
@@ -7711,15 +8151,25 @@ function evaluateAndBuy(p, items) {
 function syncPlayerState() {
     if (!isMultiplayer || !db || !gameId) return;
     
-    // 1. Sync Myself
+    // 1. Sync Myself (Human)
     const me = players.find(pl => pl.id === myPlayerId);
     if (me) {
+        // Serialize Equipment
+        const cleanEquip = {};
+        ['head','body','main','off'].forEach(s => {
+            if(me.equipment[s]) cleanEquip[s] = serializeItem(me.equipment[s]);
+        });
+        // Serialize Inventory
+        const cleanInv = me.inventory.map(i => serializeItem(i));
+
         db.ref(`games/${gameId}/players/${myPlayerId}`).update({
             gold: me.gold,
             stats: me.stats,
-            // Use || null to prevent "undefined" crashes
+            metrics: me.metrics, // <--- SYNC METRICS (For Recharge Steps)
             activeSkillId: me.activeSkillId || null,
-            passiveSkillId: me.passiveSkillId || null
+            passiveSkillId: me.passiveSkillId || null,
+            equipment: cleanEquip,
+            inventory: cleanInv
         });
     }
 
@@ -7736,7 +8186,7 @@ function syncPlayerState() {
                 db.ref(`games/${gameId}/players/${p.id}`).update({
                     gold: p.gold,
                     stats: p.stats,
-                    // FIX: Ensure these are never undefined
+                    metrics: p.metrics, // <--- SYNC METRICS (AI)
                     activeSkillId: p.activeSkillId || null,
                     passiveSkillId: p.passiveSkillId || null,
                     equipment: cleanEquip,
@@ -7819,7 +8269,7 @@ function showEncounter(p, i, t, mode, preDeterminedCard = null) {
     document.getElementById('dice-result').innerHTML = ''; 
     document.getElementById('market-sell-area').style.display = 'none';
 
-    // 1. Draw Card Logic
+    // 1. Draw Card Logic (Background Prep)
     let card;
     if (preDeterminedCard) {
         card = preDeterminedCard;
@@ -7830,6 +8280,7 @@ function showEncounter(p, i, t, mode, preDeterminedCard = null) {
         else card = DECK_ENCOUNTER[Math.floor(Math.random() * 15)];
     }
     
+    // Mode Overrides
     if (card.type === 'shop') mode = 'shop'; 
     if (card.type === 'loot') { 
         mode = 'loot'; 
@@ -7840,7 +8291,11 @@ function showEncounter(p, i, t, mode, preDeterminedCard = null) {
     let title = card.name; 
     headerEl.className = 'card-header';
     
-    if (mode.includes('skirmish') || mode === 'upgrade' || (mode === 'mystery_event' && isNight)) { 
+    if (mode === 'enemy') {
+        title = "Enemy Territory";
+        headerEl.classList.add('skirmish');
+    }
+    else if (mode.includes('skirmish') || mode === 'upgrade' || (mode === 'mystery_event' && isNight)) { 
         headerEl.classList.add('skirmish'); 
         title += " (SKIRMISH)"; 
     } 
@@ -7852,8 +8307,56 @@ function showEncounter(p, i, t, mode, preDeterminedCard = null) {
     let desc = card.desc || "Event occurs."; 
     let opts = [];
 
-    // --- A. LOOT LOGIC ---
-    if (mode === 'loot') { 
+    // --- LOGIC BRANCHES ---
+
+    // A. ENEMY PROPERTY (Priority Fix: Checked BEFORE card.choices)
+    if (mode === 'enemy') {
+         let guards = t.userData.guardCount || 0; 
+         let defStat = t.userData.defendingStat || 'str'; 
+         let rentCost = (i.cost * ((t.userData.buildingLevel > 1) ? 2 : 1)) + (guards * 20);
+         let failCost = (i.cost * 2) + (guards * 10); 
+         
+         const ownerName = players[t.userData.owner] ? players[t.userData.owner].name : "Unknown";
+         desc = `Owned by ${ownerName}. Defending: ${defStat.toUpperCase()}. Guards: ${guards}.`; 
+         
+         opts = [ 
+            { txt: `Pay Rent ${rentCost}G`, act: () => { pay(p, rentCost, players[t.userData.owner]); closeEnc(); } }, 
+            { txt: `Siege | Risk: -${failCost}G`, stat: defStat, tn: 3, req: 1, mode: 'capture', penalty: false, failCost: failCost, isSiege: true } 
+         ];
+         
+         if (p.isAi && myPlayerId === 0) {
+             const owner = players.find(pl => pl.id === t.userData.owner);
+             pay(p, rentCost, owner);
+             endStep();
+             return;
+         }
+         
+         if (p.activeSkillId === 'siege_breaker' && !p.classSkillDepleted) {
+             opts.unshift({ txt: "★ Siege Breaker", act: () => { 
+                 p.classSkillDepleted = true; updateHUD();
+                 addLog("Siege Breaker used!", "log-epic");
+                 let roll = Math.floor(Math.random()*6)+1;
+                 if(roll >= 4) {
+                     if(guards > 0) { t.userData.guardCount--; addLog("Guard Killed!", "log-success"); }
+                     else if(t.userData.buildingLevel > 1) { t.userData.buildingLevel = 1; addLog("Tavern Downgraded!", "log-success"); }
+                     else { 
+                         t.userData.owner = null; 
+                         if(t.userData.prop) { t.remove(t.userData.prop); t.userData.prop = null; }
+                         addLog("Property Destroyed!", "log-epic");
+                         setTimeout(() => { drawCardAnim('normal', () => showEncounter(p, i, t, 'wild')); }, 1000);
+                         closeEnc();
+                         return;
+                     }
+                     applyCaptureVisuals(t, players[t.userData.owner], t.userData.buildingLevel);
+                     closeEnc();
+                 } else {
+                     addLog("Siege Breaker failed.", "log-fail");
+                 }
+             }});
+         }
+    }
+    // B. LOOT
+    else if (mode === 'loot') { 
         desc = `You found: ${card.name} (${card.rarity || 'Common'})`; 
         
         if (p.inventory.length >= 12) {
@@ -7868,13 +8371,13 @@ function showEncounter(p, i, t, mode, preDeterminedCard = null) {
                     setTimeout(() => { drawCardAnim('treasure', () => showEncounter(p, null, null, 'loot')); }, 500);
                     return; 
                 }
-                if (isMultiplayer) syncPlayerState(); 
+                if (typeof isMultiplayer !== 'undefined' && isMultiplayer) syncPlayerState(); 
                 updateHUD(); 
                 closeEnc(); 
             }}]; 
         }
     } 
-    // --- B. SHOP LOGIC ---
+    // C. SHOP
     else if (mode === 'shop' || (i && i.type === 'start')) { 
         openCustomShop(p, [], "Merchant", () => {
              const isCombatMode = (originalMode === 'wild' || originalMode === 'wild_skirmish');
@@ -7883,89 +8386,38 @@ function showEncounter(p, i, t, mode, preDeterminedCard = null) {
         });
         return; 
     } 
-    // --- C. STANDARD LOGIC ---
-    else { 
-        if (card.choices) { 
-            card.choices.forEach(c => { 
-                let btnTxt = c.txt; 
-                if(c.fail) btnTxt += ` | Fail: -${c.fail}G`; 
-                
-                // --- FIX: FORCE TELEPORT MODE FOR MYSTERY SPACES ---
-                let useMode = c.mode; // Default (usually 'capture')
-                if (originalMode === 'mystery_event') useMode = 'teleport';
-                else if (originalMode === 'upgrade') useMode = 'upgrade';
-                // --------------------------------------------------
+    // D. STANDARD CHOICES (Wild Encounter / Skirmish)
+    else if (card.choices) { 
+        card.choices.forEach(c => { 
+            let btnTxt = c.txt; 
+            if(c.fail) btnTxt += ` | Fail: -${c.fail}G`; 
+            
+            let useMode = c.mode; 
+            if (originalMode === 'mystery_event') useMode = 'teleport';
+            else if (originalMode === 'upgrade') useMode = 'upgrade';
 
-                opts.push({ txt: btnTxt, stat: c.stat, tn: c.tn, req: c.req || 1, mode: useMode, val: c.val || 0, failCost: c.fail || 50 }); 
-            }); 
+            opts.push({ txt: btnTxt, stat: c.stat, tn: c.tn, req: c.req || 1, mode: useMode, val: c.val || 0, failCost: c.fail || 50 }); 
+        }); 
 
-            if (p.passiveSkillId === 'pacifist') {
-                opts.push({ txt: "★ Flee (Pacifist +30G)", act: () => {
-                    p.gold += 30; p.pacifistBuff = true; 
-                    addLog("Pacifist Flee: +30G and Stats Boosted!", "log-success");
-                    updateHUD(); closeEnc();
-                }});
-            } else {
-                opts.push({ txt: "Leave / Flee", act: closeEnc }); 
-            }
-        } 
-        else if (card.type === 'pay') { 
-            opts = [{ txt: `Pay ${card.cost}G`, act: () => { processTax(p, card.cost); closeEnc(); }}]; 
-        } 
-        else if (mode === 'enemy') {
-             let guards = t.userData.guardCount || 0; 
-             let defStat = t.userData.defendingStat || 'str'; 
-             let rentCost = (i.cost * ((t.userData.buildingLevel > 1) ? 2 : 1)) + (guards * 20);
-             let failCost = (i.cost * 2) + (guards * 10); 
-             
-             const ownerName = players[t.userData.owner] ? players[t.userData.owner].name : "Unknown";
-             desc = `Owned by ${ownerName}. Defending: ${defStat.toUpperCase()}. Guards: ${guards}.`; 
-             
-             opts = [ 
-                { txt: `Pay Rent ${rentCost}G`, act: () => { pay(p, rentCost, players[t.userData.owner]); closeEnc(); } }, 
-                { txt: `Siege | Risk: -${failCost}G`, stat: defStat, tn: 3, req: 1, mode: 'capture', penalty: false, failCost: failCost, isSiege: true } 
-             ];
-             
-			 if (p.isAi && myPlayerId === 0) {
-                 const owner = players.find(pl => pl.id === t.userData.owner);
-                 const rentCost = (i.cost * ((t.userData.buildingLevel > 1) ? 2 : 1)) + ((t.userData.guardCount || 0) * 20);
-                 pay(p, rentCost, owner);
-                 endStep();
-                 return;
-             }
-			 
-             if (p.activeSkillId === 'siege_breaker' && !p.classSkillDepleted) {
-                 opts.unshift({ txt: "★ Siege Breaker", act: () => { 
-                     p.classSkillDepleted = true; updateHUD();
-                     addLog("Siege Breaker used!", "log-epic");
-                     let roll = Math.floor(Math.random()*6)+1;
-                     if(roll >= 4) {
-                         // Success: Downgrade or Destroy
-                         if(guards > 0) { t.userData.guardCount--; addLog("Guard Killed!", "log-success"); }
-                         else if(t.userData.buildingLevel > 1) { t.userData.buildingLevel = 1; addLog("Tavern Downgraded!", "log-success"); }
-                         else { 
-                             t.userData.owner = null; 
-                             if(t.userData.prop) { t.remove(t.userData.prop); t.userData.prop = null; }
-                             addLog("Property Destroyed!", "log-epic");
-                             // Trigger encounter on the now empty land
-                             setTimeout(() => { drawCardAnim('normal', () => showEncounter(p, i, t, 'wild')); }, 1000);
-                             closeEnc();
-                             return;
-                         }
-                         applyCaptureVisuals(t, players[t.userData.owner], t.userData.buildingLevel);
-                         closeEnc();
-                     } else {
-                         addLog("Siege Breaker failed.", "log-fail");
-                     }
-                 }});
-             }
+        if (p.passiveSkillId === 'pacifist') {
+            opts.push({ txt: "★ Flee (Pacifist +30G)", act: () => {
+                p.gold += 30; p.pacifistBuff = true; 
+                addLog("Pacifist Flee: +30G and Stats Boosted!", "log-success");
+                updateHUD(); closeEnc();
+            }});
+        } else {
+            opts.push({ txt: "Leave / Flee", act: closeEnc }); 
         }
-        else {
-            opts = [{ txt: "Continue", act: closeEnc }];
-        }
+    } 
+    // E. PAY TAX
+    else if (card.type === 'pay') { 
+        opts = [{ txt: `Pay ${card.cost}G`, act: () => { processTax(p, card.cost); closeEnc(); }}]; 
+    } 
+    else {
+        opts = [{ txt: "Continue", act: closeEnc }];
     }
     
-    // Render
+    // Render Description & Buttons
     const descEl = document.getElementById('enc-desc'); 
     if(descEl) descEl.innerText = desc;
     
@@ -7980,9 +8432,7 @@ function showEncounter(p, i, t, mode, preDeterminedCard = null) {
         l.appendChild(b); 
     }); 
     
-    // Timer Reset on Card Open
     lastInteractionTime = Date.now();
-    
     m.classList.add('active');
 }
 function closeEnc(){document.getElementById('card-modal').classList.remove('active');endStep();}
@@ -8328,6 +8778,113 @@ function createPlayerMesh(race, charClass, playerColor) {
     return group;
 }
 
+// --- 1. BUILD THE TRAP MESH ---
+function createTrapMesh(color) {
+    const g = new THREE.Group();
+    
+    // Base (Grey Steel)
+    const baseMat = new THREE.MeshStandardMaterial({ color: 0x333333, metalness: 0.8, roughness: 0.4 });
+    const base = new THREE.Mesh(new THREE.CylinderGeometry(1.2, 1.2, 0.1, 16), baseMat);
+    base.position.y = 0.05;
+    g.add(base);
+
+    // Pressure Plate (Owner Color)
+    const plateMat = new THREE.MeshStandardMaterial({ color: color, emissive: 0x000000 });
+    const plate = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, 0.15, 16), plateMat);
+    plate.position.y = 0.1;
+    g.add(plate);
+
+    // Jaws Group
+    const jawMat = new THREE.MeshStandardMaterial({ color: 0x888888, metalness: 0.9 });
+    const toothGeo = new THREE.ConeGeometry(0.1, 0.4, 4);
+
+    // Left Jaw Hinge
+    const leftJaw = new THREE.Group();
+    leftJaw.name = "LeftJaw"; // Naming for animation
+    const leftRim = new THREE.Mesh(new THREE.TorusGeometry(1, 0.1, 8, 16, Math.PI), jawMat);
+    leftRim.rotation.x = Math.PI / 2;
+    leftRim.rotation.y = Math.PI / 2; // Face inwards
+    leftJaw.add(leftRim);
+    
+    // Teeth Left
+    for(let i=0; i<5; i++) {
+        const t = new THREE.Mesh(toothGeo, jawMat);
+        t.position.set(0, 0.5, -0.8 + (i*0.4));
+        t.rotation.z = -Math.PI / 4;
+        leftJaw.add(t);
+    }
+    leftJaw.position.set(-0.1, 0.1, 0);
+    g.add(leftJaw);
+
+    // Right Jaw Hinge
+    const rightJaw = new THREE.Group();
+    rightJaw.name = "RightJaw"; // Naming for animation
+    const rightRim = new THREE.Mesh(new THREE.TorusGeometry(1, 0.1, 8, 16, Math.PI), jawMat);
+    rightRim.rotation.x = Math.PI / 2;
+    rightRim.rotation.y = -Math.PI / 2;
+    rightJaw.add(rightRim);
+
+    // Teeth Right
+    for(let i=0; i<5; i++) {
+        const t = new THREE.Mesh(toothGeo, jawMat);
+        t.position.set(0, 0.5, -0.8 + (i*0.4));
+        t.rotation.z = Math.PI / 4;
+        rightJaw.add(t);
+    }
+    rightJaw.position.set(0.1, 0.1, 0);
+    g.add(rightJaw);
+
+    // Scale down slightly to fit tile
+    g.scale.set(0.8, 0.8, 0.8);
+    return g;
+}
+
+// --- 2. UPDATE TRAP ON TILE (Visual Sync) ---
+function updateTrapVisuals(tile) {
+    // Clean up old trap
+    const oldTrap = tile.getObjectByName("BearTrap");
+    if (oldTrap) tile.remove(oldTrap);
+
+    // Add new trap if owner exists
+    if (tile.userData.trapOwner !== undefined && tile.userData.trapOwner !== null) {
+        const owner = players.find(p => String(p.id) === String(tile.userData.trapOwner));
+        const color = owner ? owner.color : 0xffffff;
+        
+        const trap = createTrapMesh(color);
+        trap.name = "BearTrap";
+        trap.position.set(0, 0.3, 0); // Sit on top of tile
+        
+        // Open Jaws state
+        const lj = trap.getObjectByName("LeftJaw");
+        const rj = trap.getObjectByName("RightJaw");
+        if(lj) lj.rotation.z = -1.2; // Open wide
+        if(rj) rj.rotation.z = 1.2;  // Open wide
+        
+        tile.add(trap);
+    }
+}
+
+// --- 3. ANIMATE SNAP ---
+function animateTrapSpring(tile, callback) {
+    const trap = tile.getObjectByName("BearTrap");
+    if (!trap) { if(callback) callback(); return; }
+
+    const lj = trap.getObjectByName("LeftJaw");
+    const rj = trap.getObjectByName("RightJaw");
+
+    // Play Sound
+    AUDIO.playSound('sfx_hit'); // Clang sound
+
+    // Animate Shut
+    new TWEEN.Tween(lj.rotation).to({ z: 0 }, 150).easing(TWEEN.Easing.Bounce.Out).start();
+    new TWEEN.Tween(rj.rotation).to({ z: 0 }, 150).easing(TWEEN.Easing.Bounce.Out).onComplete(() => {
+        // Wait 1 second before removing visuals so player sees it closed
+        setTimeout(() => {
+            if(callback) callback();
+        }, 1000);
+    }).start();
+}
+
 function checkForBonusLoot(p) { 
     // Internal roll (1 in 6 chance)
     const roll = Math.floor(Math.random() * 6) + 1; 
@@ -8381,6 +8938,17 @@ function createGuardMesh() {
 }
 
 function capture(t, p, lvl, callback) {
+    // --- INTIMIDATE RECHARGE CHECK ---
+    if (t.userData.owner !== null && String(t.userData.owner) !== String(p.id)) {
+        if (p.activeSkillId === 'intimidate' && p.classSkillDepleted) {
+            p.classSkillDepleted = false;
+            addLog("Enemy crushed! Intimidate Recharged.", "log-accent");
+            updateHUD();
+            if (isMultiplayer && p.id === myPlayerId) syncPlayerState(); // <--- ADDED SYNC
+        }
+    }
+    // ---------------------------------
+
     const isUpgrade = (lvl > 1);
 
     // --- MULTIPLAYER LOGIC ---
@@ -9215,14 +9783,28 @@ function updateHUD() {
     });
     
     // 8. QUICK SLOTS
+// 8. QUICK SLOTS
     p.quickSlots.forEach((item, i) => { 
         const idx = i + 5; 
         const el = document.getElementById(`skill-${idx}`); 
         const txt = document.getElementById(`txt-skill-${idx}`); 
         if(el && txt) { 
             el.style.backgroundImage = 'none'; 
-            if (item && p.inventory.includes(item)) { 
-                el.className = "skill-slot consumable"; txt.innerText = item.name; 
+            
+            // --- FIX: Check for Inventory OR Permanent Status ---
+            if (item && (p.inventory.includes(item) || item.isPermanent)) { 
+                
+                // Visuals: Grey out if depleted
+                if (item.isDepleted) {
+                    el.className = "skill-slot";
+                    el.style.opacity = "0.5";
+                    txt.innerText = "Recharge";
+                } else {
+                    el.className = "skill-slot" + (item.isPermanent ? " filled" : " consumable"); 
+                    el.style.opacity = "1";
+                    txt.innerText = item.name; 
+                }
+
                 if(item.img) el.style.backgroundImage = `url('${item.img}')`;
                 el.onmouseenter = () => showTooltip(item); 
                 el.onmouseleave = hideTooltip; 
@@ -9230,6 +9812,7 @@ function updateHUD() {
                 p.quickSlots[i] = null; 
                 el.className = "skill-slot"; txt.innerText = "Drag Item"; 
                 el.onmouseenter = null; el.onmouseleave = null; 
+                el.style.opacity = "1";
             } 
         } 
     });
@@ -9878,7 +10461,7 @@ function useSkill(slotIndex) {
             if (success === true) {
                 p.classSkillDepleted = true; 
                 updateHUD(); 
-                syncPlayerState(); // <--- SYNC CHANGE
+                syncPlayerState(); 
             }
         } 
         return; 
@@ -9894,7 +10477,7 @@ function useSkill(slotIndex) {
                 if (success === true) {
                     item.isDepleted = true; 
                     updateHUD(); 
-                    syncPlayerState(); // <--- SYNC CHANGE
+                    syncPlayerState(); 
                 }
             } else { 
                 addLog("Ability depleted! Visit Inn to recharge.", "log-fail"); 
@@ -9909,16 +10492,37 @@ function useSkill(slotIndex) {
     if(slotIndex >= 5) { 
         const qIdx = slotIndex - 5; 
         const item = p.quickSlots[qIdx]; 
-        if(item && item.type === 'scroll' && item.fn) { 
-            const success = item.fn(p); 
-            if (success !== false) {
-                const invIdx = p.inventory.indexOf(item); 
-                if(invIdx > -1) p.inventory.splice(invIdx, 1); 
-                p.quickSlots[qIdx] = null; 
-                updateHUD(); 
-                syncPlayerState(); // <--- SYNC CHANGE
+        
+        if (item) {
+            // A. PERMANENT ITEM (Scholar Skill)
+            if (item.isPermanent) {
+                if (!item.isDepleted) {
+                    // Use the function mapped to the item
+                    const fnToCall = item.fn || (item.ability ? item.ability.fn : null);
+                    if (fnToCall) {
+                        const success = fnToCall(p);
+                        if (success === true) {
+                            item.isDepleted = true; // Set Cooldown
+                            updateHUD();
+                            syncPlayerState();
+                        }
+                    }
+                } else {
+                    addLog("Skill depleted! Visit Inn to recharge.", "log-fail");
+                }
+            } 
+            // B. CONSUMABLE SCROLL
+            else if (item.type === 'scroll' && item.fn) { 
+                const success = item.fn(p); 
+                if (success !== false) {
+                    const invIdx = p.inventory.indexOf(item); 
+                    if(invIdx > -1) p.inventory.splice(invIdx, 1); 
+                    p.quickSlots[qIdx] = null; 
+                    updateHUD(); 
+                    syncPlayerState(); 
+                }
             }
-        } 
+        }
     } 
 }
 function sellItem(identifier, source='inv'){ 
@@ -9993,28 +10597,114 @@ function setupCreationUI() {
 }
 function showClassOptions(c) {
     document.getElementById('active-section').style.display='flex'; 
-    const ag = document.getElementById('active-grid'); ag.innerHTML='';
+    const ag = document.getElementById('active-grid'); 
+    ag.innerHTML='';
+    
+    // --- RENDER ACTIVE SKILLS ---
     c.actives.forEach(id => { 
         const skill = ABILITY_LIBRARY[id]; 
-        let d=document.createElement('div'); 
-        d.className='skill-card'; 
-        // Inject Image if it exists
-        d.innerHTML=`<img src="${skill.img || ''}" style="${!skill.img ? 'display:none' : ''}"><b>${skill.name}</b><small>${skill.desc}</small>`; 
-        d.onclick=()=>{ selActiveId=id; document.querySelectorAll('#active-grid .skill-card').forEach(e=>e.classList.remove('selected')); d.classList.add('selected'); up(); }; 
+        let d = document.createElement('div'); 
+        d.className = 'skill-card'; 
+        d.dataset.id = id; // Store ID for easy access
+        d.innerHTML = `<img src="${skill.img || ''}" style="${!skill.img ? 'display:none' : ''}"><b>${skill.name}</b><small>${skill.desc}</small>`; 
+        
+        d.onclick = () => { 
+            // SCHOLAR LOGIC (Multi-Select)
+            if (selPassiveId === 'scholar') {
+                if (selActiveId === id) { selActiveId = null; } // Deselect Primary
+                else if (selActiveId2 === id) { selActiveId2 = null; } // Deselect Secondary
+                else if (!selActiveId) { selActiveId = id; } // Fill Primary
+                else if (!selActiveId2) { selActiveId2 = id; } // Fill Secondary
+                else { selActiveId2 = id; } // Replace Secondary if both full
+            } 
+            // STANDARD LOGIC (Single Select)
+            else {
+                selActiveId = id;
+                selActiveId2 = null;
+            }
+            updateSkillVisuals();
+            up(); 
+        }; 
         ag.appendChild(d); 
     });
     
     document.getElementById('passive-section').style.display='flex'; 
-    const pg = document.getElementById('passive-grid'); pg.innerHTML='';
+    const pg = document.getElementById('passive-grid'); 
+    pg.innerHTML='';
+    
+    // --- RENDER PASSIVE SKILLS ---
     c.passives.forEach(id => { 
         const skill = ABILITY_LIBRARY[id]; 
-        let d=document.createElement('div'); 
-        d.className='skill-card'; 
-        // Inject Image if it exists
-        d.innerHTML=`<img src="${skill.img || ''}" style="${!skill.img ? 'display:none' : ''}"><b>${skill.name}</b><small>${skill.desc}</small>`; 
-        d.onclick=()=>{ selPassiveId=id; document.querySelectorAll('#passive-grid .skill-card').forEach(e=>e.classList.remove('selected')); d.classList.add('selected'); up(); }; 
+        let d = document.createElement('div'); 
+        d.className = 'skill-card'; 
+        d.dataset.id = id;
+        d.innerHTML = `<img src="${skill.img || ''}" style="${!skill.img ? 'display:none' : ''}"><b>${skill.name}</b><small>${skill.desc}</small>`; 
+        
+        d.onclick = () => { 
+            const wasScholar = (selPassiveId === 'scholar');
+            selPassiveId = id; 
+            
+            // Visual Update for Passives
+            document.querySelectorAll('#passive-grid .skill-card').forEach(e => {
+                e.classList.remove('selected');
+                if (e.dataset.id === id) e.classList.add('selected');
+            });
+
+            // Logic Switch: If switching TO or FROM Scholar, reset actives or visuals
+            if (id === 'scholar' && !wasScholar) {
+                // Switched TO Scholar: Keep current active, allow 2nd
+                selActiveId2 = null; 
+            } else if (id !== 'scholar' && wasScholar) {
+                // Switched AWAY from Scholar: Clear 2nd active
+                selActiveId2 = null;
+            }
+            
+            updateSkillVisuals();
+            up(); 
+        }; 
         pg.appendChild(d); 
     });
+}
+
+function updateSkillVisuals() {
+    // Update Active Grid Visuals
+    document.querySelectorAll('#active-grid .skill-card').forEach(e => {
+        e.classList.remove('selected');
+        const id = e.dataset.id;
+        if (id === selActiveId || id === selActiveId2) {
+            e.classList.add('selected');
+        }
+    });
+}
+
+function up() { 
+    const btn = document.getElementById('btn-start-game');
+    
+    // Check Basic Requirements
+    let isReady = (selRace && selClass && selActiveId && selPassiveId);
+    
+    // Check Scholar Requirement (Must have 2 actives)
+    if (selPassiveId === 'scholar' && !selActiveId2) {
+        isReady = false;
+    }
+    
+    // Enable/Disable button
+    btn.disabled = !isReady;
+    
+    // Toggle Alpha (Opacity)
+    btn.style.opacity = isReady ? "1" : "0.5"; 
+    btn.style.cursor = isReady ? "pointer" : "not-allowed";
+
+    // Update Portrait if ready
+    if(selRace && selClass) { 
+        const key = `${selRace.id}_${selClass.id}`; 
+        const url = CHAR_PORTRAITS[key]; 
+        if(url) { 
+            const frame = document.getElementById('creator-portrait-frame'); 
+            frame.style.backgroundImage = `url('${url}')`; 
+            frame.style.display = 'block'; 
+        } 
+    } 
 }
 function hl(el){el.parentElement.childNodes.forEach(c=>c.classList&&c.classList.remove('selected'));el.classList.add('selected');}
 function up() { 
@@ -10067,10 +10757,8 @@ function startGame() {
                         pColor = slot.color;
                         isBot = (slot.type === 'ai');
 
-                        // LOAD SAVED DATA (Works for both Human and AI now)
+                        // LOAD SAVED DATA
                         if (slot.charData) {
-                            // Re-map simple objects back to full Const references if needed
-                            // But usually storing the object in DB is fine if structure matches
                             pRace = RACES.find(r => r.id === slot.charData.race.id) || slot.charData.race;
                             pClass = CLASSES.find(c => c.id === slot.charData.class.id) || slot.charData.class;
                             pAct = slot.charData.active;
@@ -10086,6 +10774,27 @@ function startGame() {
                     if (!isDead && g.players && g.players[i] && g.players[i].gold !== undefined) {
                         justSpawned.gold = g.players[i].gold;
                     }
+
+                    // --- FIX: LOAD SCHOLAR 2nd SKILL (MP) ---
+                    if (slot.charData && slot.charData.active2 && slot.charData.passive === 'scholar') {
+                        const skill2 = ABILITY_LIBRARY[slot.charData.active2];
+                        if (skill2) {
+                            const grimoire = {
+                                id: 'scholar_tome',
+                                name: skill2.name,
+                                type: 'equip', 
+                                slot: 'scholar_slot',
+                                rarity: 'legendary',
+                                img: skill2.img,
+                                fn: skill2.fn, // Ensure function maps correctly
+                                ability: { name: skill2.name, type: 'active', desc: skill2.desc, fn: skill2.fn },
+                                isDepleted: false,
+                                isPermanent: true // <--- NEW FLAG
+                            };
+                            justSpawned.quickSlots[0] = grimoire;
+                        }
+                    }
+                    // ----------------------------------------
                 }
                 
                 updateHUD();
@@ -10096,9 +10805,36 @@ function startGame() {
         });
 
     } else {
-        // ... (Keep existing Single Player Logic) ...
-        // If you need the SP logic here, let me know, otherwise just keep your existing else block
+        // --- SINGLE PLAYER START ---
         spawnPlayer(0, name, selRace, selClass, selActiveId, selPassiveId, false, selColor);
+        
+        // --- SCHOLAR SECOND SKILL LOGIC (SP) ---
+        if (selPassiveId === 'scholar' && selActiveId2) {
+            const p = players[0];
+            const skill = ABILITY_LIBRARY[selActiveId2];
+            
+            if (skill) {
+                const grimoire = {
+                    id: 'scholar_tome',
+                    name: skill.name,
+                    type: 'equip', 
+                    slot: 'scholar_slot', // Dummy slot
+                    rarity: 'legendary',
+                    img: skill.img,
+                    fn: skill.fn, 
+                    ability: { name: skill.name, type: 'active', desc: skill.desc, fn: skill.fn },
+                    isDepleted: false,
+                    isPermanent: true // <--- NEW FLAG
+                };
+                
+                // Assign to Slot 6 (Quick Slot 1)
+                p.quickSlots[0] = grimoire;
+                addLog(`Scholar Mastery: ${skill.name} prepared.`, "log-success");
+            }
+        }
+        // ----------------------------------
+
+        // SPAWN AI OPPONENTS
         let aiColors = PLAYER_COLORS.filter(c => c !== selColor); 
         let availableNames = [...NPC_NAMES];
         for(let i=1; i<4; i++) { 
@@ -10108,9 +10844,81 @@ function startGame() {
             const aiCol = aiColors.splice(Math.floor(Math.random()*aiColors.length), 1)[0]; 
             spawnPlayer(i, aiName, r, c, c.actives[0], c.passives[0], true, aiCol); 
         }
-        gameState='ROLL'; updateHUD(); addLog("Welcome to Questopoly!");
+        
+        gameState='ROLL'; 
+        updateHUD(); 
+        addLog("Welcome to Questopoly!");
         AUDIO.playMusic(false); 
     }
+}
+
+function handleScholarChoice(p) {
+    const m = document.getElementById('card-modal');
+    document.getElementById('enc-title').innerText = "Scholar's Knowledge";
+    document.getElementById('enc-desc').innerText = "Your intense study allows you to master a second spell. Choose one:";
+    document.getElementById('enc-header').className = 'card-header';
+    const l = document.getElementById('choice-list');
+    l.innerHTML = '';
+    document.getElementById('dice-result').innerHTML = '';
+    
+    // List of allowed spells (exclude current one)
+    // We grab all active skills from the library
+    const options = Object.keys(ABILITY_LIBRARY).filter(k => {
+        const s = ABILITY_LIBRARY[k];
+        // Exclude Passives and Current Active
+        return (!s.type || s.type === 'active') && k !== p.activeSkillId && 
+               !['midas', 'well_made', 'gamblers_luck'].includes(k); // Exclude item-specific traits
+    });
+
+    // Pick 4 random options to avoid overwhelming the screen
+    const choices = [];
+    while(choices.length < 4 && options.length > 0) {
+        const idx = Math.floor(Math.random() * options.length);
+        choices.push(options.splice(idx, 1)[0]);
+    }
+
+    choices.forEach(key => {
+        const skill = ABILITY_LIBRARY[key];
+        let b = document.createElement('div');
+        b.className = 'choice-btn';
+        b.style.display = 'flex';
+        b.style.alignItems = 'center';
+        b.innerHTML = `
+            <img src="${skill.img || ''}" style="width:40px; height:40px; margin-right:10px; border-radius:4px; background:#000;">
+            <div>
+                <div style="font-weight:bold; color:var(--gold-main)">${skill.name}</div>
+                <div style="font-size:0.7rem; color:#aaa;">${skill.desc}</div>
+            </div>
+        `;
+        b.onclick = () => {
+            // Create a "Grimoire" item that holds this skill
+            const grimoire = {
+                id: 'scholar_tome',
+                name: "Grimoire: " + skill.name,
+                type: 'equip', // Treat as equip so it persists
+                slot: 'scholar_slot', // Dummy slot
+                rarity: 'legendary',
+                img: skill.img,
+                ability: { 
+                    name: skill.name, 
+                    type: 'active', 
+                    desc: skill.desc, 
+                    fn: skill.fn 
+                },
+                isDepleted: false
+            };
+            
+            // Assign to Quick Slot 6 (Index 0 of quickSlots)
+            p.quickSlots[0] = grimoire;
+            
+            addLog(`Scholar learned ${skill.name}!`, "log-success");
+            updateHUD();
+            document.getElementById('card-modal').classList.remove('active');
+        };
+        l.appendChild(b);
+    });
+
+    m.classList.add('active');
 }
 
 // Remove functions from objects before sending to Firebase
@@ -10500,11 +11308,62 @@ if (Math.floor(Math.random() * 6) + 1 === 6) {
         }
     });
 
-    const boardHandler = (snap) => {
-        const tileId = parseInt(snap.key); const data = snap.val(); const tile = tiles[tileId]; const owner = players.find(p => p.id === data.owner);
-        if(tile && owner) {
-            tile.userData.owner = owner.id; tile.userData.buildingLevel = data.level; tile.userData.guardCount = data.guardCount || 0; tile.userData.defendingStat = data.defendingStat || 'str';
-            if(gameState === 'MOVING') setTimeout(() => applyCaptureVisuals(tile, owner, data.level), 3000); else applyCaptureVisuals(tile, owner, data.level);
+const boardHandler = (snap) => {
+        const tileId = parseInt(snap.key); 
+        const data = snap.val();
+        
+        const tile = tiles[tileId];
+        
+        if(tile) {
+            // --- 1. STANDARD PROPERTY SYNC (Buildings/Owners) ---
+            if (data.owner !== undefined) {
+                const owner = players.find(p => p.id === data.owner);
+                if (owner) {
+                    // Update Local Data
+                    tile.userData.owner = owner.id;
+                    tile.userData.buildingLevel = data.level;
+                    tile.userData.guardCount = data.guardCount || 0;
+                    tile.userData.defendingStat = data.defendingStat || 'str';
+
+                    // Update Visuals (Delay if moving to prevent popping in during animation)
+                    if(gameState === 'MOVING') {
+                        setTimeout(() => applyCaptureVisuals(tile, owner, data.level), 3000); 
+                    } else {
+                        applyCaptureVisuals(tile, owner, data.level);
+                    }
+                } else {
+                    // Handle clearing (owner is null / sold / destroyed)
+                    tile.userData.owner = null;
+                    tile.userData.buildingLevel = 0;
+                    tile.userData.guardCount = 0;
+                    
+                    // Remove Building Mesh
+                    if(tile.userData.prop) { 
+                        tile.remove(tile.userData.prop); 
+                        tile.userData.prop = null; 
+                    }
+                    
+                    // Remove Guard Meshes
+                    if (typeof activeGuards !== 'undefined') {
+                        activeGuards = activeGuards.filter(g => g.tileId !== tile.userData.id);
+                    }
+                }
+            }
+
+            // --- 2. TRAP SYNC (Skeleton Key) ---
+            if (data.trapOwner !== undefined) {
+                // A trap was set or loaded
+                tile.userData.trapOwner = data.trapOwner; 
+            } else {
+                // A trap was triggered/removed
+                tile.userData.trapOwner = null;
+            }
+            
+            // --- 3. UPDATE VISUALS ---
+            // This checks the local data we just updated and renders/removes the 3D Trap
+            if (typeof updateTrapVisuals === 'function') {
+                updateTrapVisuals(tile); 
+            }
         }
     };
     db.ref(`games/${gameId}/board`).on('child_added', boardHandler);
@@ -10678,9 +11537,22 @@ function resolveAiEvent(p, card, t, mode, items) {
          return;
     }
 
-    // 6. VISITING JAIL
+// 6. VISITING JAIL
     if(mode === 'jail') { 
-        if(!p.isSkipping) addLog(`${p.name} visits the Dungeon.`);
+        // AI Trap Logic (Overwrite allowed)
+        // Removed "t.userData.trapOwner == null" check
+        if (p.passiveSkillId === 'skeleton_key' && p.gold >= 100) {
+            p.gold -= 50;
+            t.userData.trapOwner = p.id;
+            addLog(`${p.name} (AI) set a trap in the Dungeon!`, "log-rare");
+			updateTrapVisuals(t);
+            if (isMultiplayer && myPlayerId === 0) {
+                syncPlayerState();
+                db.ref(`games/${gameId}/board/${t.userData.id}/trapOwner`).set(p.id);
+            }
+        } else {
+            if(!p.isSkipping) addLog(`${p.name} visits the Dungeon.`);
+        }
         endStep(); 
         return; 
     }
