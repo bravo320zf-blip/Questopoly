@@ -4485,7 +4485,7 @@ const ABILITY_LIBRARY = {
     // ================= WIZARD SKILLS =================
 fireball: { 
         name: "Fireball", 
-        desc: "Pay 100G: Burn random enemy property.", 
+        desc: "Pay 100G: Burn enemy property. Players on tile lose 100G.", 
         fn: (p) => { 
             if(p.gold < 100) return false; 
             
@@ -4495,11 +4495,12 @@ fireball: {
                 p.gold -= 100; 
                 const t = ts[Math.floor(Math.random()*ts.length)]; 
                 
-                // Trigger Visuals (Camera will follow this)
+                // Visuals
                 VFX.trigger('fireball', p.mesh.position, t.position);
                 
-                // DELAYED LOGIC: Wait for impact (1.2 seconds)
+                // DELAYED LOGIC
                 setTimeout(() => {
+                    // 1. Property Damage
                     let msg = "";
                     if(t.userData.buildingLevel > 1) {
                         t.userData.buildingLevel = 1; 
@@ -4507,29 +4508,35 @@ fireball: {
                     } else {
                         t.userData.owner = null; 
                         if(t.userData.prop) {
-                            // Animate building sinking/burning before removal
                             new TWEEN.Tween(t.userData.prop.scale).to({y: 0}, 500).start();
-                            setTimeout(() => {
-                                t.remove(t.userData.prop); 
-                                t.userData.prop = null;
-                            }, 500);
+                            setTimeout(() => { t.remove(t.userData.prop); t.userData.prop = null; }, 500);
                         }
                         msg = `Fireball destroyed ${t.userData.info.name}!`;
                     }
-                    
                     addLog(msg, "log-epic"); 
-                    
-                    // Sync Board State if Multiplayer Host/Self
+
+                    // 2. Splash Damage (Players on Tile)
+                    const victims = players.filter(v => v.pos === t.userData.id && !v.isDead && v.id !== p.id && !v.isEventEntity);
+                    victims.forEach(v => {
+                        v.gold = Math.max(0, v.gold - 100);
+                        addLog(`${v.name} caught in the blast! Lost 100G.`, "log-fail");
+                        
+                        // Sync Victim Gold (MP Host Authority)
+                        if (typeof isMultiplayer !== 'undefined' && isMultiplayer && myPlayerId === 0) {
+                            db.ref(`games/${gameId}/players/${v.id}/gold`).set(v.gold);
+                        }
+                    });
+
+                    // 3. Sync Board
                     if (typeof isMultiplayer !== 'undefined' && isMultiplayer && (p.id === myPlayerId || myPlayerId === 0)) {
                         db.ref(`games/${gameId}/board/${t.userData.id}`).set({
-                            owner: t.userData.owner, // Null or Owner ID
+                            owner: t.userData.owner,
                             level: t.userData.buildingLevel,
                             guardCount: t.userData.guardCount || 0
                         });
-                        syncPlayerState(); // Update Gold
+                        syncPlayerState();
                     }
                     
-                    // Re-apply visuals to show damage/downgrade
                     if (t.userData.owner) {
                         applyCaptureVisuals(t, players.find(pl=>pl.id===t.userData.owner), t.userData.buildingLevel);
                     }
@@ -5716,49 +5723,52 @@ function onWindowResize() {
 
 // Replace the old transitionDayNight function with this one
 function updateEnvironmentVisuals() {
-    // 1. Determine Desired State
+    // 1. Determine Logic
+    // Check if the "Dense Fog" event is currently active in the list
     const isFogEvent = activeEvents.some(e => e.data && e.data.id === 'event_fog');
-    const shouldBeDark = isNight; // Night takes priority for darkness
-    const shouldHaveFog = isFogEvent; // Fog event controls clouds
-
+    
+    // Fog should appear if it is Night OR if the Fog Event is active
+    const shouldHaveFog = isNight || isFogEvent; 
+    
     // 2. Animate Board Overlay (Darkness)
+    // Only dark at Night. Fog Event during day is just foggy, not pitch black.
     if (nightBoard) {
         new TWEEN.Tween(nightBoard.material)
-            .to({ opacity: shouldBeDark ? 1 : 0 }, 2000)
+            .to({ opacity: isNight ? 1 : 0 }, 2000)
             .start();
     }
 
     // 3. Animate Skybox
-    const skyColor = shouldBeDark ? {r:0.02, g:0.02, b:0.06} : {r:0.8, g:0.8, b:0.8};
+    // Night = Dark Blue/Black
+    // Day = Light Grey (0xcccccc to match init)
+    const skyColor = isNight ? {r:0.02, g:0.02, b:0.06} : {r:0.8, g:0.8, b:0.8};
     new TWEEN.Tween(scene.background)
         .to(skyColor, 2000)
         .start();
 
     // 4. Animate Fog Clouds
     if (fogGroup) {
-        if (shouldHaveFog) {
-            // Fade In
-            fogGroup.children.forEach(cloud => {
-                new TWEEN.Tween(cloud.material)
-                    .to({ opacity: 0.6 + Math.random() * 0.2 }, 2000)
-                    .start();
-            });
-        } else {
-            // Fade Out
-            fogGroup.children.forEach(cloud => {
-                new TWEEN.Tween(cloud.material)
-                    .to({ opacity: 0 }, 2000)
-                    .start();
-            });
-        }
+        fogGroup.children.forEach(cloud => {
+            // If fog is on, go to its max opacity. If off, go to 0.
+            const targetOpacity = shouldHaveFog ? cloud.userData.maxOpacity : 0;
+            
+            new TWEEN.Tween(cloud.material)
+                .to({ opacity: targetOpacity }, 2000)
+                .start();
+        });
     }
     
-    // Update HUD Text
+    // 5. Update HUD Text
     const elDayNight = document.getElementById('day-night-indicator'); 
     if(elDayNight) {
-        setT('day-night-indicator', isNight ? "☾ NIGHT" : "☀ DAY");
-        elDayNight.style.color = isNight ? "#a855f7" : "#87ceeb";
+        elDayNight.innerText = isNight ? "☾ NIGHT" : "☀ DAY";
+        elDayNight.style.color = isNight ? "#a855f7" : "#87ceeb"; 
     }
+}
+
+// Keep this wrapper for compatibility if old code calls it
+function transitionDayNight(toNight) {
+    updateEnvironmentVisuals();
 }
 
 // --- DYNAMIC EVENT GLOBALS ---
@@ -6386,6 +6396,7 @@ function init() {
     createBoard(); 
     createDecks(); 
     createFog(); 
+	updateEnvironmentVisuals();
     
     AUDIO.init();
 
@@ -6531,6 +6542,7 @@ function createBoard() {
 
 }
 function createFog() {
+    if (fogGroup) scene.remove(fogGroup); // Safety cleanup
     fogGroup = new THREE.Group();
     
     // Create a procedural "Cloud" texture
@@ -6547,7 +6559,7 @@ function createFog() {
         const mat = new THREE.MeshBasicMaterial({
             map: fogTex, 
             transparent: true, 
-            opacity: 0, // Start Invisible
+            opacity: 0, // <--- IMPORTANT: Start completely invisible
             depthWrite: false,
             blending: THREE.AdditiveBlending,
             side: THREE.DoubleSide
@@ -6558,6 +6570,9 @@ function createFog() {
         mesh.position.set((Math.random()*60)-30, 2 + Math.random()*3, (Math.random()*60)-30);
         mesh.rotation.x = -Math.PI/2;
         mesh.rotation.z = Math.random() * Math.PI * 2;
+        
+        // Store initial opacity target for animation randomness
+        mesh.userData.maxOpacity = 0.3 + Math.random() * 0.3;
         
         fogGroup.add(mesh);
     }
@@ -7282,25 +7297,24 @@ function endTurn(){
     if (prevP && !prevP.isEventEntity && !prevP.isBoss) {
         if (prevP.isPolymorphed) cureSheep(prevP);
         
-        // 1. Reset Stats Locally
-        recalcStats(prevP);
+        // 1. Reset Stats Locally (Clears temp buffs like Power Strike)
+        recalcStats(prevP); 
         
-        // --- FIX: SYNC CLEAN STATS TO DB ---
-        // We must tell the DB that the temporary buffs are gone
+        // 2. Sync Clean Stats to DB (MP)
         if (isMultiplayer && db && gameId) {
-            // Only the owner of the player (or Host for AI) writes this to prevent conflicts
             if (prevP.id === myPlayerId || (prevP.isAi && myPlayerId === 0)) {
                 db.ref(`games/${gameId}/players/${prevP.id}/stats`).set(prevP.stats);
             }
         }
-        // -----------------------------------
 
+        // 3. AI Inventory Management
         if (prevP.isAi && (!isMultiplayer || myPlayerId === 0)) manageAiInventory(prevP); 
+        
+        // 4. History Logging
         const props = tiles.filter(t => t.userData.owner === prevP.id).length;
         prevP.history.push({ turn: turnCount, gold: prevP.gold, props: props });
     }
 
-    // Reset Timer Base
     lastInteractionTime = Date.now();
 
     setTimeout(() => {
@@ -7336,10 +7350,12 @@ function endTurn(){
             
             // 10 Round Cycle
             if (turnCount > 0 && turnCount % 10 === 0) {
-                const newNightState = !isNight;
-                isNight = newNightState; 
-                transitionDayNight(isNight);
-                const phaseName = newNightState ? "NIGHT FALLS (Skirmish Cards)" : "DAWN BREAKS (Encounter Cards)";
+                isNight = !isNight; // Toggle
+                updateEnvironmentVisuals(); // Update Visuals (Fog/Sky/Overlay)
+                AUDIO.playSound('sfx_transition'); // Play Sound ONLY here
+                AUDIO.playMusic(isNight); // Switch Music
+
+                const phaseName = isNight ? "NIGHT FALLS (Skirmish Cards)" : "DAWN BREAKS (Encounter Cards)";
                 addLog(`=== ${phaseName} ===`, "log-epic");
                 
                 if (isMultiplayer && myPlayerId === 0) {
@@ -7347,7 +7363,7 @@ function endTurn(){
                 }
             }
 
-// 1. Process Existing Events (Loop backwards to safe remove)
+            // Process Events (Decrement duration)
             for (let i = activeEvents.length - 1; i >= 0; i--) {
                 let ev = activeEvents[i];
                 ev.turnsLeft--;
@@ -7358,13 +7374,14 @@ function endTurn(){
                     activeEvents.splice(i, 1);
                     addLog(`${ev.data.name} ended.`, "log-entry");
                     
-                    // Only clear particles if no other weather events are running
+                    // Clear particles/fog if needed (Check if other events rely on them)
+                    updateEnvironmentVisuals(); 
                     const hasWeather = activeEvents.some(e => e.data.type === 'weather');
                     if(!hasWeather) removeParticles(); 
                 }
             }
 
-            // 2. ALWAYS Roll for New Event
+            // Roll for New Event (1 in 6)
             const roll = Math.floor(Math.random() * 6) + 1;
             if (roll === 6) triggerRandomEvent();
         }
@@ -7377,14 +7394,12 @@ function endTurn(){
 
         const curP = players[turnIndex];
         
-        // --- FIX START: HANDLE SKIPPING (Dungeon/Stun) ---
+        // --- HANDLE SKIPPING (Jail/Stun) ---
         if (curP.isSkipping) {
             curP.isSkipping = false; // Use up the skip
             
             // Sync to DB if multiplayer
             if (isMultiplayer && db && gameId) {
-                // Only owner needs to sync this, but if we are here in SP, we just log it
-                // In MP, the listener handles this, but for local flow logic:
                 if (curP.id === myPlayerId) {
                     db.ref(`games/${gameId}/players/${curP.id}`).update({ isSkipping: false });
                 }
@@ -7396,20 +7411,25 @@ function endTurn(){
             endTurn(); 
             return;
         }
-        // --- FIX END ---
 
         if(curP.isDead) { endTurn(); return; }
 
+        // --- AI TURN LOGIC ---
         if(curP.isAi) { 
-            // ... (Keep your AI Logic here) ...
             zoomToPiece(curP);
             if (curP.isEventEntity) {
                 setTimeout(() => processBossTurn(curP), 800);
             }
             else {
                 setTimeout(() => { 
+                    // 1. Attempt to use a skill
                     const didAction = attemptAiAbilities(curP, 'pre-roll'); 
+                    
+                    // 2. Decide next step
+                    // If they did an action, wait 1.5s (to read log/see FX), otherwise wait 0.5s
                     setTimeout(() => {
+                        // CRITICAL CHECK:
+                        // Only roll if the action didn't already start a movement (like Blink or Sprint)
                         if (gameState === 'ROLL') {
                             rollMove(); 
                         }
@@ -7417,11 +7437,12 @@ function endTurn(){
                 }, 1000);
             }
         } 
+        // --- HUMAN TURN LOGIC ---
         else {
             if(curP.id === myPlayerId) {
                 addLog("Your Turn!");
                 zoomToPiece(curP);
-                if(typeof AUDIO !== 'undefined') AUDIO.playSound('sfx_transition');
+                // Note: removed AUDIO.playSound('sfx_transition') here to fix glitch
             } else {
                 addLog(`${curP.name}'s Turn`);
                 zoomToPiece(curP);
@@ -7430,46 +7451,35 @@ function endTurn(){
     }, 1200); 
 }
 function resolveLanding(p) {
-    // --- 1. TRAP CHECK (Skeleton Key) ---
     const tile = tiles[p.pos];
+
+    // --- 1. TRAP CHECK (Skeleton Key) ---
     if (tile.userData.trapOwner !== undefined && tile.userData.trapOwner !== null) {
-        
-        // --- IMMUNITY CHECK ---
+        // Immunity Logic
         if (p.class.id === 'rogue') {
             addLog(`${p.name} (Rogue) bypassed the Dungeon trap!`, "log-success");
-            // We do NOT remove the trap here. It stays for non-rogues, 
-            // unless this rogue decides to overwrite it in the next step.
         } 
-        // --- TRIGGER TRAP ---
+        // Trigger Logic
         else if (String(tile.userData.trapOwner) !== String(p.id)) {
             const trapper = players.find(pl => String(pl.id) === String(tile.userData.trapOwner));
             
-            // 1. Calculate Theft
             const stealAmt = Math.min(200, p.gold);
             p.gold -= stealAmt;
             if (trapper) trapper.gold += stealAmt;
 
             addLog(`${p.name} triggered a Dungeon Trap! (-${stealAmt}G)`, "log-fail");
             
-            // 2. Animate Trap
-            // We pass the cleanup/sync logic as a callback to the animation
             animateTrapSpring(tile, () => {
-                
-                // 3. Cleanup Logic (Runs after animation finishes)
                 tile.userData.trapOwner = null;
-                updateTrapVisuals(tile); // Removes the trap mesh
-
+                updateTrapVisuals(tile); 
                 updateHUD();
                 
-                // Sync
                 if (isMultiplayer) {
                     syncPlayerState();
                     if (trapper) db.ref(`games/${gameId}/players/${trapper.id}/gold`).set(trapper.gold);
                     db.ref(`games/${gameId}/board/${p.pos}/trapOwner`).remove();
                 }
             });
-            
-            // Visual Effect (Blood/Damage)
             VFX.trigger('implode', p.mesh.position, null, 0xff0000);
         }
     }
@@ -7511,8 +7521,16 @@ function resolveLanding(p) {
 
     debugLog(`Landed: ${p.name} at Tile ${p.pos} (AI: ${p.isAi})`);
     
-    // --- 3. STANDARD EVENT TRIGGER ---
+    // --- 3. SINGLE PLAYER LOGIC ---
     if (!isMultiplayer) {
+        
+        // FIX: If AI, skip UI checks and go straight to event processor
+        if (p.isAi) {
+            triggerTileEvent(p);
+            return;
+        }
+
+        // --- A. DYNAMIC MERCHANT (Human Only) ---
         const merchantEvent = activeEvents.find(e => e.data.type === 'merchant' && e.playerRef && e.playerRef.pos === p.pos);
         if (merchantEvent) {
             let stock = [];
@@ -7527,6 +7545,7 @@ function resolveLanding(p) {
             return;
         }
 
+        // --- B. OLD CROOKS INN (Human Only) ---
         const i = tiles[p.pos].userData.info;
         if (i.type === 'start') {
             const stock = DECK_TREASURE.filter(it => !it.name.includes('Gold')); 
@@ -7541,6 +7560,7 @@ function resolveLanding(p) {
         return;
     }
 
+    // --- 4. MULTIPLAYER SYNC ---
     const isMe = (p.id === myPlayerId);
     const isMyAi = (p.isAi && myPlayerId === 0); 
     if (isMe || isMyAi) {
