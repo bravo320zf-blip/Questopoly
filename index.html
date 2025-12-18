@@ -7643,43 +7643,70 @@ function removeParticles() {
 
 // --- LOGIC HELPERS ---
 function triggerRandomEvent() {
-    // 1. Roll Event
+    // 1. Roll Event Index
     const idx = Math.floor(Math.random() * MAP_EVENTS.length);
     const evData = MAP_EVENTS[idx];
     
-    // 2. Initialize Instance
+    // 2. Initialize Instance Object
     const newEvent = {
-        id: Date.now() + Math.random(), // Unique internal ID
+        id: Date.now() + Math.random(),
         data: evData,
         turnsLeft: evData.duration,
         playerRef: null 
     };
 
-    // 3. Start (Spawns Boss/Particles)
-    if(evData.onStart) {
-        // We set the global activeEvent temporarily so spawn functions referencing it work
-        // (This preserves compatibility with your existing spawnEventEntity logic)
-if (isMultiplayer && db && gameId) {
-    // Push event data to Firebase
-    db.ref(`games/${gameId}/activeEvents`).push({
-        idx: idx, // Index to look up in MAP_EVENTS
-        turns: evData.duration,
-        timestamp: firebase.database.ServerValue.TIMESTAMP
-    });
-} else {
-    // For single player, we can still use the global variable temporarily
-    activeEvent = newEvent; 
-    if(evData.onStart) evData.onStart();
-    activeEvent = null; // Clear temp
-}
+    let delayRequired = 0;
+
+    // 3. Mapping for Dungeons
+    const dungeonMap = {
+        "Void Edge": "Void Edge",
+        "Vampire Manor": "Vampire Manor",
+        "Demon Gate": "Demon Gate",
+        "Wyvern Peak": "Wyvern Peak"
+    };
+
+    // 4. Multiplayer Logic (Host)
+    if (isMultiplayer && db && gameId) {
+        db.ref(`games/${gameId}/activeEvents`).push({
+            idx: idx,
+            turns: evData.duration,
+            timestamp: firebase.database.ServerValue.TIMESTAMP
+        });
+
+        // Trigger Dungeon if applicable
+        if (dungeonMap[evData.name]) {
+            db.ref(`games/${gameId}/dungeonActive`).set({ type: dungeonMap[evData.name] });
+            delayRequired = 8000; // 8 seconds for cinematic sync
+        }
+        
+        globalLog(`EVENT: ${evData.name}!`, "log-epic");
+    } 
+    // 5. Single Player Logic
+    else {
+        // Handle "onStart" (Bosses, Weather particles)
+        // Temporarily set global activeEvent so spawn functions work
+        activeEvent = newEvent; 
+        if(evData.onStart) evData.onStart();
+        
+        // --- FIX: Explicitly Spawn Dungeon Visuals ---
+        if (dungeonMap[evData.name]) {
+            spawnDungeonVisuals(dungeonMap[evData.name]);
+            delayRequired = 8000; // 8s for cinematic
+        }
+
+        activeEvents.push(newEvent);
+        
+        addLog(`EVENT: ${evData.name}!`, "log-epic");
+        addLog(evData.desc, "log-rare");
     }
 
-    // 4. Add to List
-    activeEvents.push(newEvent);
-
-    addLog(`EVENT: ${evData.name}!`, "log-epic");
-    addLog(evData.desc, "log-rare");
+    // Play Sound
     AUDIO.playSound('sfx_transition');
+    
+    // Clear temp global
+    activeEvent = null; 
+
+    return delayRequired;
 }
 
 function processBossTurn(boss) {
@@ -9040,7 +9067,7 @@ function endTurn(){
     if (prevP && !prevP.isEventEntity && !prevP.isBoss) {
         if (prevP.isPolymorphed) cureSheep(prevP);
         
-        // 1. Reset Stats Locally (Clears temp buffs like Power Strike)
+        // 1. Reset Stats Locally
         recalcStats(prevP); 
         
         // 2. Sync Clean Stats to DB (MP)
@@ -9050,7 +9077,7 @@ function endTurn(){
             }
         }
 
-        // 3. AI Inventory Management
+        // 3. AI Inventory
         if (prevP.isAi && (!isMultiplayer || myPlayerId === 0)) manageAiInventory(prevP); 
         
         // 4. History Logging
@@ -9060,19 +9087,21 @@ function endTurn(){
 
     lastInteractionTime = Date.now();
 
+    // Use a timeout to allow UI to update before processing logic
     setTimeout(() => {
-        // --- MULTIPLAYER REQUEST LOGIC ---
-        if(isMultiplayer && db && gameId) {
-            const isMyTurn = (prevP.id === myPlayerId);
-            const isAiTurn = (prevP.isAi && myPlayerId === 0);
-            if (isMyTurn || isAiTurn) {
+        // --- MULTIPLAYER REQUEST LOGIC (Client Side) ---
+        if(isMultiplayer && db && gameId && myPlayerId !== 0) {
+            // Clients just send request and wait for Host
+            if (prevP.id === myPlayerId) {
                 db.ref(`games/${gameId}/request`).push({ type: 'END_TURN', pid: prevP.id });
             }
             turnProcessing = false;
             return; 
         }
-
-        // --- TURN CALCULATION ---
+        
+        // --- HOST / SINGLE PLAYER LOGIC ---
+        
+        // 1. Calculate Next Player
         let nextIndex;
         if (prevP && prevP.extraTurn) {
             nextIndex = turnIndex; 
@@ -9087,16 +9116,18 @@ function endTurn(){
             }
         }
 
-        // --- ROUND / DAY NIGHT LOGIC ---
+        let turnDelay = 0; // Default delay before next player starts
+
+        // 2. Round Cycles & Events
         if (nextIndex === 0 && !prevP.extraTurn) {
             turnCount++;
             
-            // 10 Round Cycle
+            // A. Day/Night Cycle (Every 10 Rounds)
             if (turnCount > 0 && turnCount % 10 === 0) {
-                isNight = !isNight; // Toggle
-                updateEnvironmentVisuals(); // Update Visuals (Fog/Sky/Overlay)
-                AUDIO.playSound('sfx_transition'); // Play Sound ONLY here
-                AUDIO.playMusic(isNight); // Switch Music
+                isNight = !isNight; 
+                updateEnvironmentVisuals(); 
+                AUDIO.playSound('sfx_transition'); 
+                AUDIO.playMusic(isNight); 
 
                 const phaseName = isNight ? "NIGHT FALLS (Skirmish Cards)" : "DAWN BREAKS (Encounter Cards)";
                 addLog(`=== ${phaseName} ===`, "log-epic");
@@ -9106,7 +9137,8 @@ function endTurn(){
                 }
             }
 
-            // Process Events (Decrement duration)
+            // B. Event Duration Management
+            // (Loop backwards to safely remove)
             for (let i = activeEvents.length - 1; i >= 0; i--) {
                 let ev = activeEvents[i];
                 ev.turnsLeft--;
@@ -9114,84 +9146,95 @@ function endTurn(){
                 if (ev.turnsLeft <= 0) {
                     if (ev.data.onEnd) ev.data.onEnd();
                     if (ev.playerRef) removeEventEntity(ev.playerRef);
+                    
+                    // Specific Dungeon Cleanup for SP
+                    if (ev.data.type === 'dungeon' && !isMultiplayer) {
+                         if (dungeonGroup) { scene.remove(dungeonGroup); dungeonGroup = null; activeDungeon = null; }
+                    }
+
                     activeEvents.splice(i, 1);
                     addLog(`${ev.data.name} ended.`, "log-entry");
                     
-                    // Clear particles/fog if needed (Check if other events rely on them)
                     updateEnvironmentVisuals(); 
                     const hasWeather = activeEvents.some(e => e.data.type === 'weather');
                     if(!hasWeather) removeParticles(); 
                 }
             }
 
-            // Roll for New Event (1 in 6)
+            // C. EVENT ROLL (1 in 6 chance)
             const roll = Math.floor(Math.random() * 6) + 1;
-            if (roll === 6) triggerRandomEvent();
+            if (roll === 6) {
+                // Trigger the event and get required wait time (if any)
+                const eventWaitTime = triggerRandomEvent();
+                if (eventWaitTime > 0) {
+                    turnDelay = eventWaitTime; // Wait for cinematic
+                }
+            }
         }
-        
-        turnIndex = nextIndex;
-        gameState = 'ROLL'; 
-        lastInteractionTime = Date.now();
-        updateHUD();
-        turnProcessing = false;
 
-        const curP = players[turnIndex];
-        
-        // --- HANDLE SKIPPING (Jail/Stun) ---
-        if (curP.isSkipping) {
-            curP.isSkipping = false; // Use up the skip
+        // --- EXECUTE NEXT TURN (After Delay) ---
+        setTimeout(() => {
             
-            // Sync to DB if multiplayer
-            if (isMultiplayer && db && gameId) {
-                if (curP.id === myPlayerId) {
-                    db.ref(`games/${gameId}/players/${curP.id}`).update({ isSkipping: false });
+            // MP Sync (Host Only)
+            if (isMultiplayer && myPlayerId === 0) {
+                db.ref(`games/${gameId}`).update({ turnIndex: nextIndex });
+                // We don't continue local logic here, we wait for the listener to update
+                turnProcessing = false;
+                return;
+            }
+
+            // Single Player Continuation
+            turnIndex = nextIndex;
+            gameState = 'ROLL'; 
+            lastInteractionTime = Date.now();
+            updateHUD();
+            turnProcessing = false;
+
+            const curP = players[turnIndex];
+            
+            // Handle Skipping
+            if (curP.isSkipping) {
+                curP.isSkipping = false; 
+                addLog(`${curP.name} is in Jail (Turn Skipped).`, "log-fail");
+                endTurn(); // Recursively skip
+                return;
+            }
+
+            if(curP.isDead) { endTurn(); return; }
+
+            // Turn Start Actions
+            if(curP.isAi) { 
+                zoomToPiece(curP);
+                if (curP.isEventEntity) {
+                    setTimeout(() => processBossTurn(curP), 800);
+                }
+                else {
+                    setTimeout(() => { 
+                        // AI Dungeon Check
+                        if (curP.inDungeon) {
+                            advanceDungeon(curP);
+                        } else {
+                            const didAction = attemptAiAbilities(curP, 'pre-roll'); 
+                            setTimeout(() => {
+                                if (gameState === 'ROLL') rollMove(); 
+                            }, didAction ? 1500 : 500); 
+                        }
+                    }, 1000);
+                }
+            } 
+            else {
+                // Human Turn
+                zoomToPiece(curP);
+                if(curP.id === myPlayerId) {
+                    addLog("Your Turn!");
+                } else {
+                    addLog(`${curP.name}'s Turn`);
                 }
             }
 
-            addLog(`${curP.name} is in Jail (Turn Skipped).`, "log-fail");
-            
-            // Pass turn immediately to next player
-            endTurn(); 
-            return;
-        }
+        }, turnDelay); // Apply the calculated delay here
 
-        if(curP.isDead) { endTurn(); return; }
-
-        // --- AI TURN LOGIC ---
-        if(curP.isAi) { 
-            zoomToPiece(curP);
-            if (curP.isEventEntity) {
-                setTimeout(() => processBossTurn(curP), 800);
-            }
-            else {
-                setTimeout(() => { 
-                    // 1. Attempt to use a skill
-                    const didAction = attemptAiAbilities(curP, 'pre-roll'); 
-                    
-                    // 2. Decide next step
-                    // If they did an action, wait 1.5s (to read log/see FX), otherwise wait 0.5s
-                    setTimeout(() => {
-                        // CRITICAL CHECK:
-                        // Only roll if the action didn't already start a movement (like Blink or Sprint)
-                        if (gameState === 'ROLL') {
-                            rollMove(); 
-                        }
-                    }, didAction ? 1500 : 500); 
-                }, 1000);
-            }
-        } 
-        // --- HUMAN TURN LOGIC ---
-        else {
-            if(curP.id === myPlayerId) {
-                addLog("Your Turn!");
-                zoomToPiece(curP);
-                // Note: removed AUDIO.playSound('sfx_transition') here to fix glitch
-            } else {
-                addLog(`${curP.name}'s Turn`);
-                zoomToPiece(curP);
-            }
-        }
-    }, 1200); 
+    }, 1200); // Initial small delay for UI smoothness
 }
 function resolveLanding(p) {
     const tile = tiles[p.pos];
@@ -14138,3 +14181,4 @@ init();
 </script>
 </body>
 </html>
+
