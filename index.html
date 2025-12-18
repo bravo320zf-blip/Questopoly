@@ -2393,6 +2393,8 @@ let lastInteractionTime = 0;
 let afkCheckInterval = null;
 const TURN_TIME_LIMIT = 15; // 15 Seconds
 
+let worldTrees = [];
+
 // --- GAME FLOW CONTROL ---
 const GAME_FLOW = {
     requestQuit: function(logout) {
@@ -3881,6 +3883,8 @@ let nightBoard = null;
 let fogGroup = null;
 let turnProcessing = false;
 let lastMoveTimestamp = 0; // Tracks the last processed move ID
+let activeSceneryParticles = []; // For Volcanic smoke and Void fog animation
+let dungeonSceneryMesh = [];     // To track meshes for cleanup
 
 // --- GUARD & ANIMATION GLOBALS ---
 let activeGuards = []; // Tracks all guard objects for animation
@@ -3939,6 +3943,57 @@ const COLOR_NAMES = {
     "#FFFFFF": "White"
 };
 const EQUIP_ORDER = ['head', 'body', 'main', 'off'];
+
+
+// --- DUNGEON GLOBALS ---
+let activeDungeon = null; // Stores { type: 'Void Edge', tiles: [], bossMesh: obj, hostId: pid }
+let dungeonGroup = null;  // ThreeJS Group for easy cleanup
+
+// --- DUNGEON CONFIGURATION ---
+const DUNGEON_DATA = {
+    "Void Edge": {
+        length: 12, // Longer for maze feel
+        color: 0x1e1b4b,
+        wallColor: 0x000000,
+        floorImg: "https://static.wixstatic.com/media/b16479_1bf7a0ceaf804ac78737b10e95be3471~mv2.jpg",
+        bossName: "Void Leviathan",
+        bossColor: 0x4c1d95,
+        spawnStyle: "float_up", // Tiles float up from abyss
+        encounters: [ /* ... keep existing ... */ ]
+    },
+    "Vampire Manor": {
+        length: 10,
+        color: 0x450a0a,
+        wallColor: 0x292524,
+        floorImg: "https://static.wixstatic.com/media/b16479_dcd16c13cf2c44cfa9d3819f7d688030~mv2.jpg",
+        bossName: "Countess Crimson",
+        bossColor: 0x991b1b,
+        spawnStyle: "fade_mist", // Tiles appear with red smoke
+        encounters: [ /* ... keep existing ... */ ]
+    },
+    "Demon Gate": {
+        length: 14,
+        color: 0x7f1d1d,
+        wallColor: 0x000000,
+        floorImg: "https://static.wixstatic.com/media/b16479_eeee26deb4a5420cbaf505abfef44fcd~mv2.jpg",
+        bossName: "Balrog Prime",
+        bossColor: 0xff4500,
+        spawnStyle: "rise_lava", // Tiles burst from ground
+        encounters: [ /* ... keep existing ... */ ]
+    },
+    "Wyvern Peak": {
+        length: 12,
+        color: 0x0f172a,
+        wallColor: 0xffffff,
+        floorImg: "https://static.wixstatic.com/media/b16479_108b4b0733674ad3a2d9456f3f841204~mv2.jpg",
+        bossName: "Storm Monarch",
+        bossColor: 0x0ea5e9,
+        spawnStyle: "fall_sky", // Tiles slam down from sky
+        encounters: [ /* ... keep existing ... */ ]
+    }
+};
+
+
 
 // --- REGION 2: DATA (Names, Races, Classes) ---
 const NPC_NAMES = [
@@ -4015,6 +4070,811 @@ const CHAR_PORTRAITS = {
     halfling_rogue: "https://static.wixstatic.com/media/b16479_b031efc88dfe49899f2e2b4f619c788e~mv2.jpg",
     halfling_cleric: "https://static.wixstatic.com/media/b16479_ffa702bd84c141fca8fa7cbfd86f581d~mv2.jpg"
 };
+
+
+
+//----Dungeon Stuff------
+
+
+function getDungeonDifficulty() {
+    let maxStat = 0;
+    players.forEach(p => {
+        const highest = Math.max(p.stats.str, p.stats.dex, p.stats.int);
+        if (highest > maxStat) maxStat = highest;
+    });
+
+    if (maxStat >= 12) return { tier: "HARD", tnBase: 6, req: 2 };
+    if (maxStat >= 9) return { tier: "MEDIUM", tnBase: 5, req: 1 };
+    return { tier: "EASY", tnBase: 4, req: 1 };
+}
+
+function spawnDungeonVisuals(entranceTileName) {
+    // 1. Cleanup Old Dungeon
+    if (dungeonGroup) scene.remove(dungeonGroup);
+    dungeonGroup = new THREE.Group();
+
+    const config = DUNGEON_DATA[entranceTileName];
+    if (!config) return;
+
+    // 2. Locate Start Point
+    const startTile = tiles.find(t => t.userData.info.name === entranceTileName);
+    if (!startTile) {
+        console.error("Dungeon Spawn Error: Tile not found " + entranceTileName);
+        return;
+    }
+
+    const TILE_SIZE = 3.5;
+    const SPACING = 4.0; 
+
+    // 3. Determine Direction
+    const center = new THREE.Vector3(0,0,0);
+    let mainDir = new THREE.Vector3().subVectors(startTile.position, center).normalize();
+    if (Math.abs(mainDir.x) > Math.abs(mainDir.z)) mainDir.set(Math.sign(mainDir.x), 0, 0); 
+    else mainDir.set(0, 0, Math.sign(mainDir.z)); 
+    const sideDir = new THREE.Vector3(-mainDir.z, 0, mainDir.x);
+
+    activeDungeon = { type: entranceTileName, tiles: [], bossMesh: null };
+
+    const loader = new THREE.TextureLoader();
+    const floorTex = loader.load(config.floorImg);
+    
+    let currentPos = startTile.position.clone().add(mainDir.clone().multiplyScalar(4.5));
+    const occupied = new Set();
+    const toKey = (v) => `${Math.round(v.x)},${Math.round(v.z)}`;
+    occupied.add(toKey(currentPos));
+    const centerSum = currentPos.clone(); 
+
+    // 4. Generate Tiles
+    for (let i = 1; i <= config.length; i++) {
+        
+        const geo = new THREE.BoxGeometry(TILE_SIZE, 0.5, TILE_SIZE);
+        let mat;
+
+        // --- FIX: USE BASIC MATERIAL FOR VOID ---
+        if (config.spawnStyle === 'float_up') {
+            // MeshBasicMaterial ignores lighting => Shows texture perfectly
+            mat = new THREE.MeshBasicMaterial({ map: floorTex }); 
+        } 
+        else {
+            // Others use Standard for lighting effects
+            const matParams = { map: floorTex, color: 0xffffff, roughness: 0.7 };
+            if (config.spawnStyle === 'rise_lava') {
+                matParams.emissive = 0x330000; 
+                matParams.emissiveIntensity = 0.2;
+            }
+            mat = new THREE.MeshStandardMaterial(matParams);
+        }
+
+        const mesh = new THREE.Mesh(geo, mat);
+        mesh.position.copy(currentPos);
+        mesh.visible = false; 
+        
+        mesh.userData = { isDungeon: true, index: i, finalY: 0, spawnStyle: config.spawnStyle };
+
+        if(config.spawnStyle === 'fall_sky') mesh.position.y = 50;
+        else if(config.spawnStyle === 'rise_lava') mesh.position.y = -10;
+        else if(config.spawnStyle === 'float_up') mesh.position.y = -20;
+        else mesh.position.y = -5; 
+        
+        dungeonGroup.add(mesh);
+        activeDungeon.tiles.push(mesh);
+
+        // Path Logic (Maze)
+        if (i < config.length) {
+            const possibleMoves = [];
+            const fwdPos = currentPos.clone().add(mainDir.clone().multiplyScalar(SPACING));
+            const leftPos = currentPos.clone().add(sideDir.clone().multiplyScalar(SPACING));
+            const rightPos = currentPos.clone().add(sideDir.clone().multiplyScalar(-SPACING));
+
+            if (!occupied.has(toKey(fwdPos))) possibleMoves.push({ pos: fwdPos, dir: mainDir, weight: 0.7 });
+            if (!occupied.has(toKey(leftPos))) possibleMoves.push({ pos: leftPos, dir: sideDir, weight: 0.15 });
+            if (!occupied.has(toKey(rightPos))) possibleMoves.push({ pos: rightPos, dir: sideDir, weight: 0.15 });
+
+            let validMove = null;
+            if (possibleMoves.length === 0) validMove = { pos: fwdPos };
+            else {
+                const roll = Math.random();
+                let cumulative = 0;
+                for (let m of possibleMoves) {
+                    cumulative += m.weight;
+                    if (roll <= cumulative) { validMove = m; break; }
+                }
+                if (!validMove) validMove = possibleMoves[0];
+            }
+            currentPos = validMove.pos;
+            occupied.add(toKey(currentPos));
+            centerSum.add(currentPos);
+            
+            if(typeof worldTrees !== 'undefined') {
+                worldTrees.forEach(tree => {
+                    if (tree.userData.isFalling) return;
+                    const dx = tree.position.x - currentPos.x;
+                    const dz = tree.position.z - currentPos.z;
+                    if (Math.sqrt(dx*dx + dz*dz) < 3.0) animateTreeFall(tree);
+                });
+            }
+        }
+    }
+
+    // 5. Boss & Scenery
+    const dungeonCenter = centerSum.multiplyScalar(1 / config.length);
+    activeDungeon.bossMesh = createBossMesh(config.bossName, config.bossColor);
+    activeDungeon.bossMesh.position.set(dungeonCenter.x, 25, dungeonCenter.z);
+    activeDungeon.bossMesh.visible = false; 
+    
+    activeDungeon.bossMesh.traverse((child) => {
+        if (child.isMesh) { child.material.transparent = true; child.material.opacity = 1; }
+    });
+
+    dungeonGroup.add(activeDungeon.bossMesh);
+    if (typeof spawnDungeonScenery === 'function') spawnDungeonScenery(config, activeDungeon.tiles, dungeonGroup);
+
+    scene.add(dungeonGroup);
+    runDungeonCinematic(config);
+}
+
+let isCinematic = false; // Global flag to block controls
+
+function spawnDungeonScenery(config, dungeonTiles, group) {
+    // Clear old data
+    activeSceneryParticles = [];
+    dungeonSceneryMesh = [];
+
+    const candidates = [];
+    const occupied = new Set();
+    
+    // 1. Mark Dungeon Path as Occupied
+    dungeonTiles.forEach(t => {
+        occupied.add(`${Math.round(t.position.x)},${Math.round(t.position.z)}`);
+    });
+
+    // 2. Find Empty Neighbors (Scenery Spots)
+    const offsets = [
+        {x: 4, z: 0}, {x: -4, z: 0}, {x: 0, z: 4}, {x: 0, z: -4},
+        {x: 3, z: 3}, {x: -3, z: 3}, {x: 3, z: -3}, {x: -3, z: -3} // Diagonals too
+    ];
+
+    dungeonTiles.forEach(t => {
+        offsets.forEach(off => {
+            const pos = t.position.clone().add(new THREE.Vector3(off.x, 0, off.z));
+            const key = `${Math.round(pos.x)},${Math.round(pos.z)}`;
+            
+            // Check Collision with Dungeon Path
+            if (occupied.has(key)) return;
+
+            // Check Collision with Main Board (Radius ~22)
+            if (pos.length() < 25) return;
+
+            // Random Density Check (Don't fill every single spot)
+            if (Math.random() > 0.4) return;
+
+            occupied.add(key); // Mark used so we don't stack scenery
+            candidates.push(pos);
+        });
+    });
+
+    // 3. Generate Themed Meshes
+    candidates.forEach(pos => {
+        let mesh = null;
+
+        // --- VAMPIRE MANOR (Trees & Graves) ---
+        if (config.bossName === "Countess Crimson") {
+            if (Math.random() > 0.6) {
+                // Creepy Tree
+                mesh = new THREE.Group();
+                const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.4, 3), new THREE.MeshStandardMaterial({color: 0x1a1a1a}));
+                trunk.position.y = 1.5;
+                // Dead branches
+                const b1 = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 2), new THREE.MeshStandardMaterial({color: 0x1a1a1a}));
+                b1.position.set(0, 2, 0); b1.rotation.z = 0.8;
+                const b2 = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 1.5), new THREE.MeshStandardMaterial({color: 0x1a1a1a}));
+                b2.position.set(0, 1.5, 0); b2.rotation.z = -0.8;
+                mesh.add(trunk, b1, b2);
+            } else {
+                // Gravestone
+                mesh = new THREE.Mesh(new THREE.BoxGeometry(1, 1.5, 0.3), new THREE.MeshStandardMaterial({color: 0x555555}));
+                mesh.position.y = 0.75;
+                mesh.rotation.y = (Math.random() - 0.5) * 0.5; // Crooked
+            }
+        }
+
+        // --- DEMON GATE (Volcanos & Lava) ---
+        else if (config.bossName === "Balrog Prime") {
+            if (Math.random() > 0.7) {
+                // Volcano
+                mesh = new THREE.Group();
+                const cone = new THREE.Mesh(new THREE.ConeGeometry(2, 3, 8, 1, true), new THREE.MeshStandardMaterial({color: 0x331111}));
+                cone.position.y = 1.5;
+                const lava = new THREE.Mesh(new THREE.CircleGeometry(0.8), new THREE.MeshBasicMaterial({color: 0xff4500}));
+                lava.rotation.x = -Math.PI/2; lava.position.y = 2.5;
+                mesh.add(cone, lava);
+                
+                // Add Smoke Emitter Reference
+                activeSceneryParticles.push({ type: 'smoke', pos: pos.clone().add(new THREE.Vector3(0, 3, 0)) });
+            } else {
+                // Lava Pool
+                mesh = new THREE.Mesh(new THREE.CylinderGeometry(1.5, 1.5, 0.1, 7), new THREE.MeshBasicMaterial({color: 0xcf1020}));
+                mesh.position.y = 0.05;
+            }
+        }
+
+        // --- WYVERN PEAK (Ice & Mountains) ---
+        else if (config.bossName === "Storm Monarch") {
+            if (Math.random() > 0.5) {
+                // Ice Mountain
+                mesh = new THREE.Mesh(new THREE.ConeGeometry(1.5, 4, 4), new THREE.MeshStandardMaterial({color: 0xe0f7fa, roughness: 0.2}));
+                mesh.position.y = 2;
+            } else {
+                // Snow Tree
+                mesh = new THREE.Group();
+                const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 1), new THREE.MeshStandardMaterial({color: 0x3e2723}));
+                trunk.position.y = 0.5;
+                const leaves = new THREE.Mesh(new THREE.ConeGeometry(1.2, 3, 8), new THREE.MeshStandardMaterial({color: 0xffffff}));
+                leaves.position.y = 2;
+                mesh.add(trunk, leaves);
+            }
+        }
+
+        // --- VOID EDGE (Floating Stairs / Debris) ---
+        // Void uses a different logic (fog handled separately), these are the physical debris
+        else if (config.bossName === "Void Leviathan") {
+            if (Math.random() > 0.5) {
+                // Floating Stair / Platform
+                mesh = new THREE.Mesh(new THREE.BoxGeometry(2, 0.2, 1), new THREE.MeshStandardMaterial({color: 0x4c1d95, transparent:true, opacity:0.8}));
+                mesh.position.y = 1 + Math.random() * 3;
+                mesh.rotation.z = (Math.random() - 0.5);
+                mesh.rotation.y = Math.random() * Math.PI;
+            }
+        }
+
+        if (mesh) {
+            // Randomize Position slightly
+            mesh.position.x += (pos.x + (Math.random()-0.5));
+            mesh.position.z += (pos.z + (Math.random()-0.5));
+            
+            // Setup for Pop-In Animation
+            mesh.scale.set(0,0,0);
+            mesh.userData.targetScale = 1;
+            
+            group.add(mesh);
+            dungeonSceneryMesh.push(mesh);
+        }
+    });
+
+    // --- 4. SPECIAL FEATURES (Mansion & Void Fog) ---
+
+    // A. MANSION (Vampire Only) - At the end
+    if (config.bossName === "Countess Crimson") {
+        const lastTile = dungeonTiles[dungeonTiles.length - 1];
+        // Calculate position "Behind" the last tile (further away from board center)
+        const dir = lastTile.position.clone().normalize();
+        const mansionPos = lastTile.position.clone().add(dir.multiplyScalar(6));
+        
+        const mansion = createMansionMesh();
+        mansion.position.copy(mansionPos);
+        
+        // Orient towards the dungeon path
+        mansion.lookAt(lastTile.position);
+        
+        mansion.scale.set(0,0,0);
+        mansion.userData.targetScale = 1.5;
+        
+        group.add(mansion);
+        dungeonSceneryMesh.push(mansion);
+    }
+
+    // B. VOID FOG (Void Only) - Cloud around tiles
+    if (config.bossName === "Void Leviathan") {
+        createVoidFog(dungeonTiles, group);
+    }
+}
+
+function createMansionMesh() {
+    const g = new THREE.Group();
+    // Main Hall
+    const main = new THREE.Mesh(new THREE.BoxGeometry(4, 3, 3), new THREE.MeshStandardMaterial({color: 0x1a1a1a}));
+    main.position.y = 1.5;
+    // Tower
+    const tower = new THREE.Mesh(new THREE.BoxGeometry(1.5, 6, 1.5), new THREE.MeshStandardMaterial({color: 0x2a2a2a}));
+    tower.position.set(-2, 3, 0);
+    // Roofs
+    const roof1 = new THREE.Mesh(new THREE.ConeGeometry(3, 1.5, 4), new THREE.MeshStandardMaterial({color: 0x4a0404}));
+    roof1.position.set(0, 3.75, 0); roof1.rotation.y = Math.PI/4;
+    const roof2 = new THREE.Mesh(new THREE.ConeGeometry(1.2, 2, 4), new THREE.MeshStandardMaterial({color: 0x4a0404}));
+    roof2.position.set(-2, 7, 0); roof2.rotation.y = Math.PI/4;
+    
+    g.add(main, tower, roof1, roof2);
+    
+    // Windows (Glowing yellow)
+    const winMat = new THREE.MeshBasicMaterial({color: 0xffaa00});
+    const w1 = new THREE.Mesh(new THREE.PlaneGeometry(0.5, 1), winMat);
+    w1.position.set(0.5, 1.5, 1.55);
+    const w2 = new THREE.Mesh(new THREE.PlaneGeometry(0.5, 1), winMat);
+    w2.position.set(-0.5, 1.5, 1.55);
+    const w3 = new THREE.Mesh(new THREE.PlaneGeometry(0.4, 0.8), winMat);
+    w3.position.set(-2, 5, 0.76);
+    
+    g.add(w1, w2, w3);
+    return g;
+}
+
+function createVoidFog(tiles, group) {
+    const count = 300;
+    const geom = new THREE.BufferGeometry();
+    const positions = [];
+    
+    // Calculate center of dungeon for rough placement
+    let cx=0, cz=0;
+    tiles.forEach(t => { cx+=t.position.x; cz+=t.position.z; });
+    cx /= tiles.length; cz /= tiles.length;
+
+    for(let i=0; i<count; i++) {
+        // Random placement around the dungeon path average
+        const r = Math.random() * 25;
+        const ang = Math.random() * Math.PI * 2;
+        positions.push(cx + Math.cos(ang)*r, Math.random() * 5 + 1, cz + Math.sin(ang)*r);
+        
+        // Save for animation
+        activeSceneryParticles.push({
+            type: 'void', 
+            index: i,
+            baseY: Math.random() * 5,
+            speed: Math.random() * 0.02
+        });
+    }
+    
+    geom.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+    const mat = new THREE.PointsMaterial({
+        color: 0x000000, 
+        size: 2, 
+        transparent: true, 
+        opacity: 0.6,
+        sizeAttenuation: true
+    });
+    
+    const sys = new THREE.Points(geom, mat);
+    sys.userData.isVoidFog = true; // For identification
+    group.add(sys);
+    dungeonSceneryMesh.push(sys); // To animate pop-in opacity
+}
+
+function runDungeonCinematic(config) {
+    // Lock Controls
+    isCinematic = true; 
+    const oldTarget = cameraTarget; 
+    isZoomed = true; 
+
+    // 1. Initial Zoom to Dungeon Entrance
+    const startTile = activeDungeon.tiles[0];
+    
+    new TWEEN.Tween(camera.position)
+        .to({ x: startTile.position.x, y: 35, z: startTile.position.z + 25 }, 1200)
+        .easing(TWEEN.Easing.Cubic.Out)
+        .onComplete(() => {
+            playSpawnSequence();
+        })
+        .start();
+
+    // 2. Tile & Scenery Sequence
+    const playSpawnSequence = () => {
+        let delay = 0;
+        const stepTime = 100; // Speed of path generation
+
+        // A. Animate Tiles
+        activeDungeon.tiles.forEach((tile, index) => {
+            setTimeout(() => {
+                tile.visible = true;
+                
+                // Animate Tile Entry
+                new TWEEN.Tween(tile.position)
+                    .to({ y: tile.userData.finalY }, 600)
+                    .easing(TWEEN.Easing.Bounce.Out)
+                    .start();
+
+                // VFX based on theme
+                if (config.spawnStyle === 'rise_lava') VFX.trigger('burst_up', tile.position, null, 0xff4500);
+                else if (config.spawnStyle === 'fade_mist') VFX.trigger('smoke', tile.position, null, 0x990000);
+                else if (config.spawnStyle === 'float_up') {
+                    // Small purple flash for void
+                    new TWEEN.Tween(tile.material).to({emissive: 0x4c1d95}, 100).yoyo(true).repeat(1).start();
+                }
+                
+                // Camera follows path slightly
+                if (index % 3 === 0) {
+                    new TWEEN.Tween(camera.position)
+                        .to({ x: tile.position.x, z: tile.position.z + 20 }, 800)
+                        .start();
+                }
+
+            }, delay);
+            delay += stepTime;
+        });
+
+        // B. Animate Scenery (Pop-In)
+        // Wait until tiles are mostly done
+        setTimeout(() => {
+            if (typeof dungeonSceneryMesh !== 'undefined') {
+                dungeonSceneryMesh.forEach((mesh, i) => {
+                    setTimeout(() => {
+                        // Handle Fog Particles (Points) vs Solid Meshes
+                        if (mesh.isPoints) {
+                            mesh.material.opacity = 0;
+                            // Reset position for Void Fog
+                            if (mesh.userData.isVoidFog) mesh.position.y = 0; 
+                            new TWEEN.Tween(mesh.material).to({opacity: 0.6}, 1500).start();
+                        } else {
+                            mesh.visible = true;
+                            // Save scale if not set
+                            const targetS = mesh.userData.targetScale || 1;
+                            
+                            // Pop Up Animation
+                            new TWEEN.Tween(mesh.scale)
+                                .to({ x: targetS, y: targetS, z: targetS }, 800)
+                                .easing(TWEEN.Easing.Elastic.Out)
+                                .start();
+                        }
+                    }, i * 50); // Stagger scenery
+                });
+            }
+        }, delay);
+
+        // 3. Boss Intro
+        setTimeout(() => {
+            bossSkyIntro(config);
+        }, delay + 1000); 
+    };
+
+    // 4. Boss Sky Intro
+    const bossSkyIntro = (config) => {
+        const boss = activeDungeon.bossMesh;
+        boss.visible = true;
+        boss.scale.set(0.1, 0.1, 0.1);
+
+        // Move camera to look up at boss
+        new TWEEN.Tween(camera.position)
+            .to({ x: boss.position.x, y: 40, z: boss.position.z + 40 }, 1500)
+            .onUpdate(() => camera.lookAt(boss.position))
+            .start();
+
+        // Boss Grows Huge
+        new TWEEN.Tween(boss.scale)
+            .to({ x: 3.0, y: 3.0, z: 3.0 }, 2000) 
+            .easing(TWEEN.Easing.Elastic.Out)
+            .onComplete(() => {
+                // Roar / FX
+                VFX.trigger('shockwave', boss.position, null, config.bossColor);
+                AUDIO.playSound('sfx_fail'); // Intimidating sound
+                
+                // 5. Fade Out & Finish
+                setTimeout(() => {
+                    // Fade Material
+                    boss.traverse((child) => {
+                        if (child.isMesh) {
+                            new TWEEN.Tween(child.material)
+                                .to({ opacity: 0 }, 1200)
+                                .start();
+                        }
+                    });
+                    
+                    // After Fade, Hide and Reset Camera
+                    setTimeout(() => {
+                        finishCinematic(oldTarget);
+                    }, 1200);
+                }, 1500);
+            })
+            .start();
+    };
+
+    // 6. Finish & Restore
+    const finishCinematic = (oldTarget) => {
+        const boss = activeDungeon.bossMesh;
+        boss.visible = false; // Completely hide
+        
+        // Zoom out to "God View" to see whole board + dungeon
+        new TWEEN.Tween(camera.position)
+            .to({ x: 0, y: 80, z: 20 }, 2000)
+            .easing(TWEEN.Easing.Quadratic.InOut)
+            .onUpdate(() => camera.lookAt(0, 0, 0))
+            .onComplete(() => {
+                // Unlock Controls
+                isCinematic = false;
+                
+                // Return to Active Player
+                const p = players[turnIndex];
+                if (p) {
+                    cameraTarget = p.mesh;
+                    isZoomed = true;
+                    zoomToPiece(p);
+                }
+                
+                addLog("The Dungeon has risen!", "log-epic");
+            })
+            .start();
+    };
+}
+
+function finishCinematic(oldTarget) {
+    // Zoom out to see everything
+    const centerPos = { x: 0, y: 80, z: 20 }; // High up
+    
+    new TWEEN.Tween(camera.position)
+        .to(centerPos, 2000)
+        .easing(TWEEN.Easing.Quadratic.InOut)
+        .onUpdate(() => camera.lookAt(0, 0, 0))
+        .onComplete(() => {
+            // Restore Control
+            isCinematic = false;
+            
+            // Return to player
+            const p = players[turnIndex];
+            if (p) {
+                cameraTarget = p.mesh;
+                isZoomed = true;
+                zoomToPiece(p);
+            }
+            
+            addLog("The Dungeon awaits...", "log-epic");
+        })
+        .start();
+}
+
+function createThematicWalls(group, pos, dir, config, parentTile) {
+    // Calculate perpendicular vector for sides (Relative to tile)
+    // Since we attach to parentTile, coords are local (0,0,0 is center of tile)
+    
+    const wallGeo = new THREE.BoxGeometry(0.5, 3, 3.5);
+    const wallMat = new THREE.MeshStandardMaterial({ color: config.wallColor, roughness: 0.9 });
+
+    // Left Wall
+    const w1 = new THREE.Mesh(wallGeo, wallMat);
+    w1.position.set(1.8, 1.5, 0); // Local offset right
+    
+    // Right Wall
+    const w2 = new THREE.Mesh(wallGeo, wallMat);
+    w2.position.set(-1.8, 1.5, 0); // Local offset left
+    
+    // Random rotation for "ruined" look
+    w1.rotation.y = (Math.random() - 0.5) * 0.2;
+    w2.rotation.y = (Math.random() - 0.5) * 0.2;
+
+    // Decor: Floating Crystals or Torches based on theme
+    if (config.bossName === "Void Leviathan") {
+        const cryst = new THREE.Mesh(new THREE.OctahedronGeometry(0.3), new THREE.MeshBasicMaterial({color: 0x00ffff}));
+        cryst.position.set(0, 3, 0);
+        parentTile.add(cryst);
+    } 
+    else if (config.bossName === "Balrog Prime") {
+        const fire = new THREE.PointLight(0xff4500, 1, 5);
+        fire.position.set(0, 2, 0);
+        parentTile.add(fire);
+    }
+
+    parentTile.add(w1);
+    parentTile.add(w2);
+}
+
+function createBossMesh(bossType, color) {
+    const group = new THREE.Group();
+    
+    // --- SHARED MATERIALS ---
+    const matDarkMetal = new THREE.MeshStandardMaterial({ color: 0x111111, metalness: 0.9, roughness: 0.2 });
+    const matBone = new THREE.MeshStandardMaterial({ color: 0xe5e5e5, roughness: 0.9 });
+    const matGlow = new THREE.MeshStandardMaterial({ color: color, emissive: color, emissiveIntensity: 2.5, transparent: true, opacity: 0.9 });
+    const matSkinBase = new THREE.MeshStandardMaterial({ color: 0x333333, roughness: 0.7 });
+
+    // --- 1. VOID LEVIATHAN (Eldritch Horror) ---
+    if (bossType === "Void Leviathan") {
+        // Core (Pulsating Brain)
+        const core = new THREE.Mesh(new THREE.IcosahedronGeometry(0.8, 2), new THREE.MeshStandardMaterial({ color: 0x000000, metalness: 1, roughness: 0 }));
+        group.add(core);
+
+        // Orbiting Rings (Gyroscopic)
+        for (let i = 0; i < 3; i++) {
+            const ring = new THREE.Mesh(new THREE.TorusGeometry(1.2 + (i * 0.3), 0.05, 8, 32), matGlow);
+            ring.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * Math.PI);
+            // Add custom animation data for the animate loop to find later
+            ring.userData = { rotateSpeed: 0.02 + (i * 0.01) }; 
+            group.add(ring);
+        }
+
+        // Tentacles (Segmented)
+        for (let i = 0; i < 8; i++) {
+            const tentacleGroup = new THREE.Group();
+            const angle = (Math.PI * 2 / 8) * i;
+            
+            // Segments
+            for (let j = 0; j < 5; j++) {
+                const size = 0.3 - (j * 0.05);
+                const seg = new THREE.Mesh(new THREE.DodecahedronGeometry(size), matDarkMetal);
+                seg.position.set(0, -0.5 - (j * 0.4), 0.5 + (j * 0.2)); // Curve outward
+                tentacleGroup.add(seg);
+            }
+            
+            tentacleGroup.rotation.y = angle;
+            tentacleGroup.rotation.x = 0.5; // Flare out
+            group.add(tentacleGroup);
+        }
+
+        // Floating Eyes
+        const eyeGeo = new THREE.SphereGeometry(0.15);
+        for(let i=0; i<6; i++) {
+            const eye = new THREE.Mesh(eyeGeo, matGlow);
+            eye.position.set((Math.random()-0.5)*1.5, (Math.random()-0.5)*1.5, (Math.random()-0.5)*1.5);
+            group.add(eye);
+        }
+    } 
+
+    // --- 2. BALROG PRIME (Fire Demon) ---
+    else if (bossType === "Balrog Prime") {
+        const matMagma = new THREE.MeshStandardMaterial({ color: 0x000000, emissive: 0xff4500, emissiveIntensity: 0.5, roughness: 1 });
+
+        // Torso (Bulky)
+        const chest = new THREE.Mesh(new THREE.BoxGeometry(1.8, 1.5, 1), matMagma);
+        chest.position.y = 1.0;
+        group.add(chest);
+
+        // Abs
+        const abs = new THREE.Mesh(new THREE.BoxGeometry(1.2, 1.0, 0.8), matMagma);
+        abs.position.y = -0.2;
+        group.add(abs);
+
+        // Head (Bull-like)
+        const head = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.9, 0.9), matMagma);
+        head.position.y = 2.0;
+        group.add(head);
+
+        // Massive Horns
+        const hornGeo = new THREE.ConeGeometry(0.15, 1.5, 8);
+        const hornL = new THREE.Mesh(hornGeo, matBone);
+        hornL.position.set(-0.6, 2.6, 0.2);
+        hornL.rotation.z = 0.5;
+        hornL.rotation.x = -0.2;
+        
+        const hornR = new THREE.Mesh(hornGeo, matBone);
+        hornR.position.set(0.6, 2.6, 0.2);
+        hornR.rotation.z = -0.5;
+        hornR.rotation.x = -0.2;
+        group.add(hornL, hornR);
+
+        // Wings (Geometric)
+        const wingShape = new THREE.Shape();
+        wingShape.moveTo(0,0);
+        wingShape.lineTo(2, 2);
+        wingShape.lineTo(4, 1);
+        wingShape.lineTo(2, -2);
+        wingShape.lineTo(0, -1);
+        const wingGeo = new THREE.ExtrudeGeometry(wingShape, { depth: 0.1, bevelEnabled: false });
+        const matWings = new THREE.MeshStandardMaterial({ color: 0x330000, transparent: true, opacity: 0.9 });
+
+        const wLeft = new THREE.Mesh(wingGeo, matWings);
+        wLeft.position.set(-0.5, 1.0, -0.5);
+        wLeft.rotation.y = -0.5;
+        wLeft.scale.set(-1,1,1); // Mirror
+        
+        const wRight = new THREE.Mesh(wingGeo, matWings);
+        wRight.position.set(0.5, 1.0, -0.5);
+        wRight.rotation.y = 0.5;
+
+        group.add(wLeft, wRight);
+
+        // Flaming Whip (Coiled around)
+        const coilGeo = new THREE.TorusGeometry(1.5, 0.1, 8, 32);
+        const whip = new THREE.Mesh(coilGeo, matGlow);
+        whip.rotation.x = Math.PI / 2;
+        whip.rotation.y = 0.5;
+        group.add(whip);
+    }
+
+    // --- 3. COUNTESS CRIMSON (Vampire Lord) ---
+    else if (bossType === "Countess Crimson") {
+        const matDress = new THREE.MeshStandardMaterial({ color: 0x7f1d1d, roughness: 0.6 }); // Deep red
+        const matPale = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.2 });
+
+        // Dress (Bottom)
+        const skirt = new THREE.Mesh(new THREE.ConeGeometry(1.2, 2.5, 16, 1, true), matDress);
+        skirt.position.y = 0;
+        group.add(skirt);
+
+        // Torso
+        const torso = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.6, 1.2, 8), new THREE.MeshStandardMaterial({color: 0x000000})); // Corset
+        torso.position.y = 1.8;
+        group.add(torso);
+
+        // Head
+        const head = new THREE.Mesh(new THREE.SphereGeometry(0.35, 16, 16), matPale);
+        head.position.y = 2.6;
+        group.add(head);
+
+        // High Collar
+        const collarGeo = new THREE.CylinderGeometry(0.6, 0.4, 0.8, 8, 1, true);
+        const collar = new THREE.Mesh(collarGeo, matDress);
+        collar.position.y = 2.6;
+        collar.position.z = -0.1;
+        collar.scale.z = 0.5; // Flatten
+        collar.rotation.x = 0.2;
+        group.add(collar);
+
+        // Hair (Long Black)
+        const hair = new THREE.Mesh(new THREE.BoxGeometry(0.75, 1.2, 0.4), new THREE.MeshStandardMaterial({color: 0x111111}));
+        hair.position.set(0, 2.6, -0.2);
+        group.add(hair);
+
+        // Floating Blood Orbs
+        for(let i=0; i<4; i++) {
+            const orb = new THREE.Mesh(new THREE.SphereGeometry(0.2), matGlow);
+            orb.position.set(Math.cos(i*1.5)*1.5, 2 + Math.sin(i)*0.5, Math.sin(i*1.5)*1.5);
+            group.add(orb);
+        }
+    }
+
+    // --- 4. STORM MONARCH (Crystal Dragon) ---
+    else if (bossType === "Storm Monarch") {
+        const matCrystal = new THREE.MeshStandardMaterial({ 
+            color: 0x0ea5e9, 
+            transparent: true, 
+            opacity: 0.8, 
+            metalness: 0.5, 
+            emissive: 0x0044aa 
+        });
+
+        // Body (Floating shards)
+        const shardGeo = new THREE.OctahedronGeometry(0.6, 0);
+        
+        // Spine segments
+        for(let i=0; i<5; i++) {
+            const spine = new THREE.Mesh(shardGeo, matCrystal);
+            spine.position.y = 2.0 - (i * 0.6);
+            spine.position.z = (i * 0.3); // Curve back
+            spine.scale.setScalar(1.2 - (i*0.2)); // Taper
+            spine.rotation.x = Math.random();
+            group.add(spine);
+        }
+
+        // Head
+        const head = new THREE.Mesh(new THREE.ConeGeometry(0.5, 1.2, 4), matCrystal);
+        head.position.set(0, 2.5, 0.5);
+        head.rotation.x = -1.2; // Point forward
+        group.add(head);
+
+        // Wings (Floating lightning bolts)
+        for(let side of [-1, 1]) {
+            const wingGroup = new THREE.Group();
+            for(let k=0; k<3; k++) {
+                const bolt = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 3), matGlow);
+                bolt.position.set(side * (1 + k*0.5), 0, -k*0.5);
+                bolt.rotation.z = side * (1.2 + k*0.2);
+                bolt.rotation.x = 0.5;
+                wingGroup.add(bolt);
+            }
+            wingGroup.position.y = 1.5;
+            group.add(wingGroup);
+        }
+
+        // Crackling Energy Core
+        const core = new THREE.PointLight(0x00ffff, 2, 8);
+        core.position.y = 1.5;
+        group.add(core);
+    } 
+    // --- FALLBACK ---
+    else {
+        const fallback = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshStandardMaterial({ color: color }));
+        group.add(fallback);
+    }
+
+    // --- FINISHING TOUCHES ---
+    
+    // Add Dynamic Light Source to ALL bosses
+    const light = new THREE.PointLight(color, 1.5, 10);
+    light.position.y = 1.5;
+    group.add(light);
+
+    // Initial Scale Up
+    group.scale.set(1.5, 1.5, 1.5);
+
+    // Metadata
+    group.userData = { isBoss: true, type: bossType };
+    return group;
+}
 
 // ==========================================
 //   POLYMORPH / SHEEP MECHANICS
@@ -5919,84 +6779,97 @@ function animate() {
     requestAnimationFrame(animate); 
     TWEEN.update(); 
     
-    // 1. Update Guards
+    // 1. Update Guards (Roaming logic)
     if(typeof updateGuards === 'function') updateGuards();
 
-    // 2. Hero Animations
     const time = Date.now() * 0.005;
+
+    // 2. Hero Animations (Bobbing / Capes)
     players.forEach(p => {
         if (p.mesh && !p.isDead) {
+            // Standard Bobbing (disable if moving to keep Tween smooth)
             if (gameState !== 'MOVING') p.mesh.scale.y = 1 + Math.sin(time) * 0.02;
+            
+            // Cape Physics simulation
             const cape = p.mesh.getObjectByName("Cape");
             if (cape) cape.rotation.x = (gameState === 'MOVING') ? 0.8 + Math.sin(time * 10) * 0.2 : 0.2 + Math.sin(time * 2) * 0.1;
         }
     });
 
+    // 3. Environment Animations (Fog / Clouds)
     if(fogGroup) fogGroup.children.forEach((cloud, idx) => {
         cloud.rotation.z += 0.001 * (idx % 2 === 0 ? 1 : -1);
         if(isNight) cloud.position.x += Math.sin(Date.now() * 0.0005 + idx) * 0.005;
     });
 
-    // --- FIX: BLIZZARD PARTICLES ---
+    // 4. Particle Systems (Weather)
     if(particleSystem) {
         const positions = particleSystem.geometry.attributes.position.array;
         const type = particleSystem.userData.type;
-        // Loop through Y coordinates (index 1, 4, 7...)
         for(let i=1; i<positions.length; i+=3) {
-            positions[i] -= 0.1; // Fall down
+            positions[i] -= 0.1; // Gravity
+            if(type === 'snow') positions[i-1] -= 0.02; // Wind
             
-            // Wind effect for snow
-            if(type === 'snow') positions[i-1] -= 0.02; 
-            
-            // Reset if below floor
-            if(positions[i] < 0) {
-                positions[i] = 10 + Math.random() * 5; // Reset height
-                // Reset X/Z to random within bounds
+            if(positions[i] < 0) { // Reset
+                positions[i] = 10 + Math.random() * 5; 
                 positions[i-1] = (Math.random()-0.5)*60;
                 positions[i+1] = (Math.random()-0.5)*60;
             }
         }
         particleSystem.geometry.attributes.position.needsUpdate = true;
     }
-    // -------------------------------
 
-// Process all active events
-activeEvents.forEach(ev => {
-    // Update visual effects like boss animations or weather
-    if (ev.mesh) {
-        // Example: Rotate boss mesh
-        ev.mesh.rotation.y += 0.01; 
-    }
-    
-    // Update weather effects like snow particles
-    if (ev.data.type === 'weather' && ev.data.id === 'weather_blizzard' && particleSystem) {
-        const positions = particleSystem.geometry.attributes.position.array;
-        for(let i=1; i<positions.length; i+=3) {
-            positions[i] -= 0.05; // Make snow fall faster
-            if(positions[i] < -5) { // Reset if it goes below the ground
-                 positions[i] = 10 + Math.random() * 5; // Reset height
-                 positions[i-1] = (Math.random()-0.5)*60; // Random X
-                 positions[i+1] = (Math.random()-0.5)*60; // Random Z
-            }
+    // 5. Active Event Meshes (e.g. Roaming Merchants rotation)
+    activeEvents.forEach(ev => {
+        if (ev.mesh) ev.mesh.rotation.y += 0.01; 
+    });
+
+// --- 6. NEW: DETAILED BOSS ANIMATION ---
+    if (activeDungeon && activeDungeon.bossMesh && activeDungeon.bossMesh.visible) {
+        const boss = activeDungeon.bossMesh;
+        
+        // Base Movement
+        boss.position.y = 1.5 + Math.sin(time) * 0.2; 
+        
+        // Specific Logic
+        if (activeDungeon.type === "Void Edge") {
+            // Spin rings randomly
+            boss.children.forEach(child => {
+                if (child.geometry && child.geometry.type === 'TorusGeometry') {
+                    child.rotation.x += 0.02;
+                    child.rotation.y += 0.02;
+                }
+            });
+        } 
+        else if (activeDungeon.type === "Wyvern Peak") {
+            // Jitter for lightning effect
+            boss.position.x += (Math.random() - 0.5) * 0.05;
         }
-        particleSystem.geometry.attributes.position.needsUpdate = true;
+        else {
+            // Standard Intimidating Spin
+            boss.rotation.y += 0.01; 
+        }
+        
+        // Breathing
+        boss.scale.setScalar(1.5 + Math.sin(time * 2) * 0.05); 
     }
-});
 
-    // 4. Camera Tracking
-    if(isZoomed && cameraTarget) camera.lookAt(cameraTarget.position.x, 0, cameraTarget.position.z);
+    // --- 7. CAMERA TRACKING (UPDATED FOR CINEMATICS) ---
+    // We only auto-track if we are NOT in a cinematic sequence
+    if (!isCinematic && isZoomed && cameraTarget) { 
+        camera.lookAt(cameraTarget.position.x, 0, cameraTarget.position.z);
+    }
 
-    // --- 5. TURN TIMER LOGIC ---
+    // 8. Turn Timer Logic
     const timerContainer = document.getElementById('timer-container');
     const timerBar = document.getElementById('timer-bar');
     
-    // --- FIX: DISABLE TIMER IN SINGLE PLAYER ---
+    // Only run timer in Multiplayer
     if (!isMultiplayer) {
         if(timerContainer) timerContainer.style.display = 'none';
         renderer.render(scene, camera);
         return; 
     }
-    // ------------------------------------------
 
     const curP = players[turnIndex];
     const arrivalModal = document.getElementById('arrival-modal');
@@ -6037,6 +6910,29 @@ activeEvents.forEach(ev => {
         }
     } else {
         if(timerContainer) timerContainer.style.display = 'none';
+    }
+	
+	    // --- 9. DUNGEON SCENERY PARTICLES ---
+    if (activeSceneryParticles.length > 0) {
+        // A. Volcanic Smoke (Spawning temporary particles)
+        // Since managing individual sprites is heavy, we'll assume we used a Points system
+        // But for visual simplicity in this request, we'll skip complex particle physics 
+        // and just assume the environment is static except for the Boss.
+        
+        // B. Void Fog Swirl (If Void dungeon)
+        const voidSys = dungeonGroup ? dungeonGroup.children.find(c => c.userData.isVoidFog) : null;
+        if (voidSys) {
+            const positions = voidSys.geometry.attributes.position.array;
+            for(let i=0; i<activeSceneryParticles.length; i++) {
+                const p = activeSceneryParticles[i];
+                if (p.type === 'void') {
+                    // Swirl Y
+                    positions[i*3+1] = p.baseY + Math.sin(Date.now() * 0.001 + i) * 1;
+                }
+            }
+            voidSys.geometry.attributes.position.needsUpdate = true;
+            voidSys.rotation.y += 0.001; // Entire cloud rotates slowly
+        }
     }
 
     renderer.render(scene,camera); 
@@ -6122,6 +7018,270 @@ function resetCamera() {
         .easing(TWEEN.Easing.Cubic.Out)
         .onUpdate(() => camera.lookAt(0, 0, 0))
         .start();
+}
+
+// Call this from triggerTileEvent() when landing on a Dungeon Entrance
+function offerDungeonEntry(p, tileName) {
+    if (!activeDungeon || activeDungeon.type !== tileName) {
+        addLog("The Dungeon gate is sealed...", "log-fail");
+        return;
+    }
+
+    showModal(tileName, "Enter the Dungeon? (Hard Difficulty)", [
+        { 
+            txt: "Enter Dungeon", 
+            act: () => {
+                // 1. Set State locally first
+                p.inDungeon = true;
+                p.dungeonProgress = 0; 
+                p.bossAttempts = 3; 
+
+                // 2. Sync State to DB (Data)
+                if (isMultiplayer) {
+                    syncPlayerState(); 
+                    
+                    // 3. Sync Visuals (Animation for everyone)
+                    // We use the dummy index '100' or similar to indicate "Dungeon Start" 
+                    // or simply rely on the listener seeing 'p.inDungeon' is true.
+                    // We treat the first dungeon tile as target 0 relative to the dungeon.
+                    db.ref(`games/${gameId}/teleportLog`).push({ 
+                        pid: p.id, 
+                        targetPos: 999, // Special flag for Dungeon Entry
+                        dungeonStep: 0, // Explicit dungeon index
+                        timestamp: firebase.database.ServerValue.TIMESTAMP 
+                    });
+                } else {
+                    // Single Player
+                    const firstTile = activeDungeon.tiles[0];
+                    gameState = 'MOVING';
+                    animateTeleport(p, firstTile, () => {
+                        resolveDungeonStep(p);
+                    });
+                }
+                
+                document.getElementById('card-modal').classList.remove('active');
+            }
+        },
+        { txt: "Stay Outside", act: () => endStep() }
+    ]);
+}
+
+// Replaces rollMove() logic for players inside dungeon
+function advanceDungeon(p) {
+    // 1. Calculate Next Step
+    const nextStep = (p.dungeonProgress || 0) + 1;
+
+    // 2. Check if we reached the Boss (Last Tile)
+    if (nextStep >= activeDungeon.tiles.length) {
+        triggerDungeonBoss(p);
+        return;
+    }
+
+    addLog(`${p.name} ventures deeper...`);
+
+    // 3. Multiplayer Sync
+    if (isMultiplayer && gameId) {
+        // Update data
+        p.dungeonProgress = nextStep;
+        syncPlayerState();
+
+        // Broadcast Movement
+        db.ref(`games/${gameId}/teleportLog`).push({ 
+            pid: p.id, 
+            targetPos: 999, // Flag: Dungeon Move
+            dungeonStep: nextStep, 
+            timestamp: firebase.database.ServerValue.TIMESTAMP 
+        });
+    } 
+    // 4. Single Player Logic
+    else {
+        p.dungeonProgress = nextStep;
+        const targetTile = activeDungeon.tiles[nextStep];
+        gameState = 'MOVING';
+        
+        new TWEEN.Tween(p.mesh.position)
+            .to({ x: targetTile.position.x, z: targetTile.position.z }, 1000)
+            .easing(TWEEN.Easing.Quadratic.Out)
+            .onComplete(() => {
+                resolveDungeonStep(p);
+            })
+            .start();
+    }
+}
+
+function resolveDungeonStep(p) {
+    const config = DUNGEON_DATA[activeDungeon.type];
+    const diff = getDungeonDifficulty();
+    
+    // --- NEW: BOSS AMBUSH CHECK ---
+    const bossRoll = Math.floor(Math.random() * 6) + 1;
+    
+    if (bossRoll === 6) {
+        addLog(`${p.name} rolled a 6...`, "log-warning");
+        setTimeout(() => {
+            addLog("THE BOSS AMBUSHES YOU!", "log-fail");
+            AUDIO.playSound('sfx_transition');
+            // Trigger Boss with 'isAmbush' flag true
+            triggerDungeonBoss(p, true);
+        }, 800);
+        return;
+    }
+    // ------------------------------
+
+    // Standard Encounter Logic
+    const enc = config.encounters[Math.floor(Math.random() * config.encounters.length)];
+    const tn = diff.tnBase + 1;
+    
+    const m = document.getElementById('card-modal');
+    document.getElementById('enc-title').innerText = "Dungeon: " + enc.name;
+    document.getElementById('enc-desc').innerText = `Safe (Roll 1-5). ${diff.tier} Threat! Roll ${enc.stat.toUpperCase()} vs TN ${tn}.`;
+    document.getElementById('enc-header').className = 'card-header skirmish';
+    
+    const l = document.getElementById('choice-list');
+    l.innerHTML = '';
+    
+    let b = document.createElement('div');
+    b.className = 'choice-btn';
+    b.innerText = `Fight (${enc.stat.toUpperCase()})`;
+    b.onclick = () => {
+        let pool = p.stats[enc.stat] || 1;
+        let wins = 0;
+        for(let i=0; i<pool; i++) {
+            if (Math.floor(Math.random()*6)+1 >= tn) wins++;
+        }
+        
+        if (wins >= diff.req) {
+            addLog(`${p.name} cleared the room! Found loot.`, "log-success");
+            AUDIO.playSound('sfx_win');
+            const card = createItemInstance(DECK_TREASURE[Math.floor(Math.random() * DECK_TREASURE.length)]);
+            p.inventory.push(card);
+            
+            m.classList.remove('active');
+            endStep();
+        } else {
+            addLog(`${p.name} was defeated and fled to the Inn!`, "log-fail");
+            AUDIO.playSound('sfx_fail');
+            p.inDungeon = false;
+            p.dungeonProgress = 0;
+            p.pos = 0;
+            animateTeleport(p, tiles[0], () => {
+                m.classList.remove('active');
+                endStep();
+            });
+        }
+        if (isMultiplayer) syncPlayerState();
+    };
+    l.appendChild(b);
+    m.classList.add('active');
+}
+
+function triggerDungeonBoss(p, isAmbush = false) {
+    const config = DUNGEON_DATA[activeDungeon.type];
+    const attempts = p.bossAttempts || 3;
+    const diff = getDungeonDifficulty();
+    const tn = diff.tnBase + 1;
+    const req = diff.req + 1;
+
+    // 1. Move Boss Visuals to Player
+    const boss = activeDungeon.bossMesh;
+    
+    // Reset opacity in case it was faded out
+    boss.traverse((child) => { if(child.isMesh) child.material.opacity = 1; });
+    boss.visible = true;
+    boss.scale.set(1.5, 1.5, 1.5); // Normal size
+
+    if (isAmbush) {
+        // Teleport boss to player's current dungeon tile
+        boss.position.copy(p.mesh.position);
+        boss.position.y = 0;
+        // Offset slightly so they don't clip
+        boss.position.z -= 1.5; 
+        boss.lookAt(p.mesh.position);
+    } else {
+        // Standard End Boss Position (Last tile)
+        const endTile = activeDungeon.tiles[activeDungeon.tiles.length - 1];
+        boss.position.copy(endTile.position);
+        boss.position.y = 0;
+    }
+
+    VFX.trigger('smoke', boss.position); // Visual entrance
+
+    const m = document.getElementById('card-modal');
+    const title = isAmbush ? `AMBUSH: ${config.bossName}` : `BOSS: ${config.bossName}`;
+    document.getElementById('enc-title').innerText = title;
+    document.getElementById('enc-desc').innerText = `Attempts Left: ${attempts}. Roll Highest Stat vs TN ${tn}.`;
+    document.getElementById('enc-header').className = 'card-header skirmish';
+    
+    const l = document.getElementById('choice-list');
+    l.innerHTML = '';
+
+    const highestStat = (p.stats.str >= p.stats.dex && p.stats.str >= p.stats.int) ? 'str' : (p.stats.dex >= p.stats.int ? 'dex' : 'int');
+
+    let b = document.createElement('div');
+    b.className = 'choice-btn';
+    b.style.borderColor = '#ef4444';
+    b.innerText = `Attack Boss (${highestStat.toUpperCase()})`;
+    
+    b.onclick = () => {
+        let pool = p.stats[highestStat] || 1;
+        let wins = 0;
+        for(let i=0; i<pool; i++) {
+            if (Math.floor(Math.random()*6)+1 >= tn) wins++;
+        }
+
+        if (wins >= req) {
+            globalLog(`${p.name} SLAIN THE ${config.bossName}!`, "log-epic");
+            VFX.trigger('implode', boss.position, null, 0xffd700);
+            
+            const lootRoll = Math.floor(Math.random() * 6) + 1;
+            addLog(`Boss Drop Roll: ${lootRoll}`, "log-gold");
+            
+            for(let i=0; i<lootRoll; i++) {
+                const card = createItemInstance(DECK_TREASURE[Math.floor(Math.random() * DECK_TREASURE.length)]);
+                p.inventory.push(card);
+            }
+            
+            // Cleanup
+            p.inDungeon = false;
+            p.dungeonProgress = 0;
+            
+            const entranceTile = tiles.find(t => t.userData.info.name === activeDungeon.type);
+            animateTeleport(p, entranceTile, () => {
+                if (dungeonGroup) {
+                    scene.remove(dungeonGroup);
+                    dungeonGroup = null;
+                    activeDungeon = null;
+                }
+                if (isMultiplayer && myPlayerId === 0) {
+                    db.ref(`games/${gameId}/dungeonActive`).remove();
+                }
+            });
+
+        } else {
+            p.bossAttempts--;
+            if (p.bossAttempts > 0) {
+                addLog(`Boss blocked the attack! (${p.bossAttempts} tries left)`, "log-fail");
+                // Don't hide boss yet if it's the final room
+                // If ambush, maybe boss disappears? Let's assume boss disappears if you fail an ambush?
+                // For now, simple logic: Boss vanishes if ambush failed (you survive current tile)
+                if (isAmbush) {
+                    addLog("The boss vanishes into the shadows...", "log-rare");
+                    boss.visible = false;
+                }
+            } else {
+                addLog(`${p.name} exhausted and fled the dungeon!`, "log-fail");
+                p.inDungeon = false;
+                p.pos = 0;
+                animateTeleport(p, tiles[0]);
+            }
+        }
+        
+        if (isMultiplayer) syncPlayerState();
+        m.classList.remove('active');
+        endStep();
+    };
+    l.appendChild(b);
+    m.classList.add('active');
 }
 
 // Handles the logic for the single big circle button
@@ -6302,16 +7462,14 @@ const MAP_EVENTS = [
         desc: "Potions and Scrolls.",
         onStart: () => { activeEvent.playerRef = spawnEventEntity(MAP_EVENTS[0]); },
         onEnd: () => { removeEventEntity(activeEvent.playerRef); },
-        onTurn: (me) => false, // FIX: Changed from true to false so they move
+        onTurn: (me) => false,
         onLand: (p, me, next) => {
             if(p.id === 0) { 
                 const stock = DECK_TREASURE.filter(i => i.type === 'scroll' && !i.name.includes('Gold') && !i.name.includes('Coin'));
                 const items = [];
                 for(let k=0; k<3; k++) items.push(stock[Math.floor(Math.random()*stock.length)]);
                 openCustomShop(p, items, "Alchemist's Cart", next);
-            } else {
-                if(next) next();
-            }
+            } else { if(next) next(); }
         }
     },
     // 2. THE ARMORER
@@ -6320,16 +7478,14 @@ const MAP_EVENTS = [
         desc: "Heavy armor and shields.",
         onStart: () => { activeEvent.playerRef = spawnEventEntity(MAP_EVENTS[1]); },
         onEnd: () => { removeEventEntity(activeEvent.playerRef); },
-        onTurn: (me) => false, // FIX: Changed from true to false
+        onTurn: (me) => false,
         onLand: (p, me, next) => {
             if(p.id === 0) {
                 const stock = DECK_TREASURE.filter(i => (i.slot === 'head' || i.slot === 'body' || i.slot === 'off') && !i.name.includes('Gold'));
                 const items = [];
                 for(let k=0; k<3; k++) items.push(stock[Math.floor(Math.random()*stock.length)]);
                 openCustomShop(p, items, "The Iron Caravan", next);
-            } else {
-                if(next) next();
-            }
+            } else { if(next) next(); }
         }
     },
     // 3. THE WEAPONSMITH
@@ -6338,32 +7494,29 @@ const MAP_EVENTS = [
         desc: "Sharp steel for sale.",
         onStart: () => { activeEvent.playerRef = spawnEventEntity(MAP_EVENTS[2]); },
         onEnd: () => { removeEventEntity(activeEvent.playerRef); },
-        onTurn: (me) => false, // FIX: Changed from true to false
+        onTurn: (me) => false,
         onLand: (p, me, next) => {
             if(p.id === 0) {
                 const stock = DECK_TREASURE.filter(i => i.slot === 'main' && !i.name.includes('Gold'));
                 const items = [];
                 for(let k=0; k<3; k++) items.push(stock[Math.floor(Math.random()*stock.length)]);
                 openCustomShop(p, items, "Blade Peddler", next);
-            } else {
-                if(next) next();
-            }
+            } else { if(next) next(); }
         }
     },
-    // ... (Keep existing Weather/Global events exactly as they were) ...
-    { id: 'weather_blizzard', name: "Great Blizzard", type: 'weather', duration: 3, desc: "Heavy snow slows everyone down (-1 Move).", onStart: () => createParticleSystem('snow'), onTurn: () => {}, onEnd: () => { removeParticles(); addLog(" The blizzard clears."); } },
-    { id: 'weather_goldrain', name: "Golden Rain", type: 'weather', duration: 1, desc: "Magical rain! Gain 10G per step taken.", onStart: () => createParticleSystem('gold'), onTurn: () => {}, onEnd: () => { removeParticles(); addLog(" The gold rain stops."); } },
-{ 
-        id: 'event_fog', 
-        name: "Dense Fog", 
-        type: 'weather', 
-        duration: 3, 
-        desc: "Visibility reduced. Encounter requirements are hidden!", 
-        onStart: () => updateEnvironmentVisuals(), 
-        onEnd: () => updateEnvironmentVisuals() 
-    },
+    // --- WEATHER & GLOBAL ---
+    { id: 'weather_blizzard', name: "Great Blizzard", type: 'weather', duration: 3, desc: "Heavy snow slows everyone down (-1 Move).", onStart: () => createParticleSystem('snow'), onTurn: () => {}, onEnd: () => { removeParticles(); addLog("The blizzard clears."); } },
+    { id: 'weather_goldrain', name: "Golden Rain", type: 'weather', duration: 1, desc: "Magical rain! Gain 10G per step taken.", onStart: () => createParticleSystem('gold'), onTurn: () => {}, onEnd: () => { removeParticles(); addLog("The gold rain stops."); } },
+    { id: 'event_fog', name: "Dense Fog", type: 'weather', duration: 3, desc: "Visibility reduced. Encounter requirements are hidden!", onStart: () => updateEnvironmentVisuals(), onEnd: () => updateEnvironmentVisuals() },
     { id: 'event_market', name: "Market Boom", type: 'global', duration: 3, desc: "All properties generate +50% Rent.", onStart: () => addLog("Real estate prices skyrocket!", "log-success") },
-    { id: 'event_tax', name: "Royal Audit", type: 'global', duration: 1, desc: "The King demands a tribute instantly.", onStart: () => { players.forEach(pl => { if(!pl.isDead && !pl.isEventEntity) { const tax = Math.floor(pl.gold * 0.1); pl.gold -= tax; treasuryGold += tax; } }); addLog("Royal Audit: Everyone lost 10% Gold.", "log-fail"); updateHUD(); } }
+    { id: 'event_tax', name: "Royal Audit", type: 'global', duration: 1, desc: "The King demands a tribute instantly.", onStart: () => { players.forEach(pl => { if(!pl.isDead && !pl.isEventEntity) { const tax = Math.floor(pl.gold * 0.1); pl.gold -= tax; treasuryGold += tax; } }); addLog("Royal Audit: Everyone lost 10% Gold.", "log-fail"); updateHUD(); } },
+
+    // --- NEW DUNGEON EVENTS ---
+    // Note: onStart is empty here because forceTriggerEvent handles the DB/Visual spawning logic directly based on the name.
+    { id: 'dungeon_void', name: "Void Edge", type: 'dungeon', duration: 20, desc: "A rift to the Void has opened!", onStart: () => {} },
+    { id: 'dungeon_vampire', name: "Vampire Manor", type: 'dungeon', duration: 20, desc: "The Countess invites you to dinner...", onStart: () => {} },
+    { id: 'dungeon_demon', name: "Demon Gate", type: 'dungeon', duration: 20, desc: "Hellfire rises from the deep!", onStart: () => {} },
+    { id: 'dungeon_wyvern', name: "Wyvern Peak", type: 'dungeon', duration: 20, desc: "Storms gather around the high peak.", onStart: () => {} }
 ];
 
 // --- EVENT VISUAL BUILDERS ---
@@ -6952,7 +8105,86 @@ function createTileTexture(name, cStr, cost) {
     return new THREE.CanvasTexture(c);
 }
 function createGrassTexture() { const c=document.createElement('canvas'); c.width=512; c.height=512; const ctx=c.getContext('2d'); ctx.fillStyle="#14532d"; ctx.fillRect(0,0,512,512); for(let i=0;i<2000;i++){ctx.fillStyle=Math.random()>0.5?"#166534":"#15803d";ctx.fillRect(Math.random()*512,Math.random()*512,3,3);} const t=new THREE.CanvasTexture(c); t.wrapS=t.wrapT=THREE.RepeatWrapping; t.repeat.set(8,8); return t; }
-function createEnvironment() { const g = new THREE.Mesh(new THREE.PlaneGeometry(600, 600), new THREE.MeshStandardMaterial({map:createGrassTexture()})); g.rotation.x = -Math.PI/2; g.position.y = -0.6; g.receiveShadow = true; scene.add(g); for(let i=0; i<400; i++) { const rad = 45 + Math.random() * 250; const ang = Math.random() * Math.PI * 2; const x = Math.cos(ang) * rad; const z = Math.sin(ang) * rad; if(z > 30 && x > -20 && x < 20) continue; const t = new THREE.Group(); const tr = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.8, 2), new THREE.MeshStandardMaterial({color:0x3e2723})); tr.position.y = 1; const lv = new THREE.Mesh(new THREE.ConeGeometry(3, 6, 8), new THREE.MeshStandardMaterial({color:0x15803d})); lv.position.y = 4; t.add(tr); t.add(lv); t.position.set(x, -0.6, z); t.scale.setScalar(0.8 + Math.random()); scene.add(t); } }
+function createEnvironment() { 
+    // Clear old trees if rebuilding
+    if (worldTrees.length > 0) {
+        worldTrees.forEach(t => scene.remove(t));
+        worldTrees = [];
+    }
+
+    // Ground Plane
+    const g = new THREE.Mesh(new THREE.PlaneGeometry(600, 600), new THREE.MeshStandardMaterial({map:createGrassTexture()})); 
+    g.rotation.x = -Math.PI/2; 
+    g.position.y = -0.6; 
+    g.receiveShadow = true; 
+    scene.add(g); 
+
+    // Generate Trees
+    for(let i=0; i<400; i++) { 
+        const rad = 45 + Math.random() * 250; 
+        const ang = Math.random() * Math.PI * 2; 
+        const x = Math.cos(ang) * rad; 
+        const z = Math.sin(ang) * rad; 
+        
+        // Don't spawn trees on the main board area
+        if(z > 30 && x > -20 && x < 20) continue; 
+
+        const t = new THREE.Group(); 
+        
+        // Trunk
+        const tr = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.8, 2), new THREE.MeshStandardMaterial({color:0x3e2723})); 
+        tr.position.y = 1; 
+        
+        // Leaves
+        const lv = new THREE.Mesh(new THREE.ConeGeometry(3, 6, 8), new THREE.MeshStandardMaterial({color:0x15803d})); 
+        lv.position.y = 4; 
+        
+        t.add(tr); 
+        t.add(lv); 
+        t.position.set(x, -0.6, z); 
+        t.scale.setScalar(0.8 + Math.random()); 
+        
+        scene.add(t); 
+        worldTrees.push(t); // Store for physics checks
+    } 
+}
+function animateTreeFall(tree) {
+    // Prevent double-falling
+    if (tree.userData.isFalling) return;
+    tree.userData.isFalling = true;
+
+    // 1. Play Sound (Optional, using a heavy thud or existing sound)
+    // AUDIO.playSound('sfx_roll'); 
+
+    // 2. Determine Fall Direction (Away from center roughly)
+    const axis = Math.random() > 0.5 ? 'x' : 'z';
+    const dir = Math.random() > 0.5 ? 1 : -1;
+    const targetRot = tree.rotation[axis] + (Math.PI / 2 * dir);
+
+    // 3. Animate Rotation (The Fall)
+    new TWEEN.Tween(tree.rotation)
+        .to({ [axis]: targetRot }, 800)
+        .easing(TWEEN.Easing.Bounce.Out)
+        .start();
+
+    // 4. Animate Sink (Disappear into ground)
+    new TWEEN.Tween(tree.position)
+        .to({ y: -5 }, 1000)
+        .delay(1000) // Wait for fall to finish
+        .onComplete(() => {
+            tree.visible = false;
+            scene.remove(tree);
+            // Remove from array to optimize future checks
+            const idx = worldTrees.indexOf(tree);
+            if (idx > -1) worldTrees.splice(idx, 1);
+        })
+        .start();
+        
+    // 5. Dust Cloud Effect
+    setTimeout(() => {
+        VFX.trigger('smoke', tree.position);
+    }, 600);
+}
 function createBoard() {
     const loader = new THREE.TextureLoader(); 
     const boardTex = loader.load('https://static.wixstatic.com/media/b16479_5caac3525f59406d8ff175695ef11cb1~mv2.jpg');
@@ -7496,13 +8728,25 @@ function useSkillAi(p, slotIdx) {
 function rollMove() { 
     if(gameState !== 'ROLL') return; 
     
-    // --- FIX: DEFINE 'p' FIRST ---
+    // 1. Define 'p' (The Active Player)
     const p = players[turnIndex]; 
-    if(!p) return; // Safety check in case something went wrong
-    // -----------------------------
+    if(!p) return; 
+
+    // --- 2. DUNGEON INTERCEPT (NEW) ---
+    // If player is in a dungeon, we hijack the roll logic
+    if (p.inDungeon) {
+        if (p.isAi) {
+            // AI Logic for Dungeon (Auto advance after delay)
+            setTimeout(() => advanceDungeon(p), 1000);
+        } else if (p.id === myPlayerId) {
+            // Human Logic (Advance immediately)
+            advanceDungeon(p);
+        }
+        return; // Skip normal rolling
+    }
+    // ----------------------------------
 
     // --- FAIL-SAFE: Fix Dungeon Position ---
-    // Now valid because 'p' exists
     const tileInfo = tiles[p.pos].userData.info;
     if (tileInfo.type === 'goto') {
         console.log(`[FIX] Player ${p.name} incorrectly at GoToDungeon. Teleporting to Jail.`);
@@ -7531,7 +8775,6 @@ function rollMove() {
             db.ref(`games/${gameId}/turnTimer`).set(firebase.database.ServerValue.TIMESTAMP);
         }
     }
-    // ---------------------------------------------
 
     // --- SINGLE PLAYER ---
     if (!isMultiplayer) {
@@ -8026,6 +9269,14 @@ function triggerTileEvent(p) {
 
     const t = tiles[p.pos]; 
     const i = t.userData.info;
+	
+	 // --- NEW: DUNGEON ENTRANCE CHECK ---
+    // Check if this tile matches an active dungeon name
+    if (activeDungeon && activeDungeon.type === i.name && !p.isAi && !isMultiplayer) {
+        // Single Player Prompt
+        offerDungeonEntry(p, i.name);
+        return;
+    }
     
     // 1. AI Logic (Host handles locally for speed)
     if(p.isAi && !isMultiplayer) { 
@@ -9089,8 +10340,7 @@ function createPlayerMesh(race, charClass, playerColor) {
     const matClothe = new THREE.MeshStandardMaterial({ color: colors.primary }); 
     const matDark = new THREE.MeshStandardMaterial({ color: colors.secondary });
     const matSteel = new THREE.MeshStandardMaterial({ color: 0xeeeeee, metalness: 0.7, roughness: 0.3 });
-    const matGold = new THREE.MeshStandardMaterial({ color: colors.gold, metalness: 0.8, roughness: 0.2 });
-
+    
     // --- 2. BODY ---
     // Torso
     const torso = new THREE.Mesh(new THREE.BoxGeometry(0.5 * scale.x, 0.6 * scale.y, 0.3 * scale.z), matClothe);
@@ -9110,7 +10360,7 @@ function createPlayerMesh(race, charClass, playerColor) {
     head.castShadow = true;
     group.add(head);
 
-    // Eyes (To indicate direction)
+    // Eyes
     const eyeGeo = new THREE.SphereGeometry(0.05, 4, 4);
     const matEye = new THREE.MeshBasicMaterial({ color: 0x000000 });
     const eyeL = new THREE.Mesh(eyeGeo, matEye); eyeL.position.set(-0.1, 1.25*scale.y, 0.2*scale.x);
@@ -9124,30 +10374,27 @@ function createPlayerMesh(race, charClass, playerColor) {
     group.add(legL, legR);
 
     // Arms 
+    // Arms are at X +/- 0.35. Weapons should align with this X value.
     const armGeo = new THREE.BoxGeometry(0.15 * scale.x, 0.5 * scale.y, 0.15 * scale.z);
     const armL = new THREE.Mesh(armGeo, matClothe); armL.position.set(-0.35 * scale.x, 0.8 * scale.y, 0);
     const armR = new THREE.Mesh(armGeo, matClothe); armR.position.set(0.35 * scale.x, 0.8 * scale.y, 0);
     group.add(armL, armR);
 
-    // --- 3. ACCESSORIES ---
-    
-    // CAPE (For everyone except Rogues who have hoods covering back)
+    // --- 3. ACCESSORIES (Capes) ---
     if (charClass.id !== 'rogue') {
         const capeGeo = new THREE.BoxGeometry(0.5 * scale.x, 0.8 * scale.y, 0.05);
-        // Pivot point at top
         capeGeo.translate(0, -0.4 * scale.y, 0); 
         const cape = new THREE.Mesh(capeGeo, matClothe);
         cape.position.set(0, 1.1 * scale.y, -0.17 * scale.z);
-        cape.name = "Cape"; // For animation
+        cape.name = "Cape"; 
         group.add(cape);
     } else {
-        // Rogues get Backpack
         const pack = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.4, 0.3), new THREE.MeshStandardMaterial({color: 0x3e2723}));
         pack.position.set(0, 0.9 * scale.y, -0.2 * scale.z);
         group.add(pack);
     }
 
-    // --- 4. RACE DETAILS ---
+    // --- 4. RACE DETAILS (Ears/Horns/Beards) ---
     if (race.id === 'elf' || race.id === 'halfling') {
         const earL = new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.2, 4), matSkin);
         earL.rotation.z = 1.5; earL.position.set(-0.25, 1.25 * scale.y, 0);
@@ -9183,41 +10430,74 @@ function createPlayerMesh(race, charClass, playerColor) {
         snout.position.set(0, 1.2 * scale.y, 0.2); group.add(snout);
     }
 
-    // --- 5. CLASS GEAR ---
+    // --- 5. CLASS GEAR (FIXED WEAPON POSITIONS) ---
+    // Weapons aligned with Arms at X: +/- 0.35
+    
     if (charClass.id === 'wizard' && race.id !== 'gnome') {
+        // Hat
         const brim = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.45, 0.05, 8), matClothe);
         brim.position.y = 1.45 * scale.y;
         const cone = new THREE.Mesh(new THREE.ConeGeometry(0.25, 0.6, 8), matClothe);
         cone.position.y = 1.75 * scale.y;
         group.add(brim, cone);
+
+        // Staff (Right Hand)
         const staff = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 2.2), new THREE.MeshStandardMaterial({color: 0x5d4037}));
-        staff.position.set(0.45 * scale.x, 1.1 * scale.y, 0.3);
+        // X=0.35 (Arm), Y=0.8 (Hand height), Z=0.2 (Slightly forward)
+        staff.position.set(0.35 * scale.x, 0.8 * scale.y, 0.2);
         staff.add(new THREE.Mesh(new THREE.DodecahedronGeometry(0.12), new THREE.MeshStandardMaterial({color: 0x00ffff, emissive:0x00aaaa})));
         group.add(staff);
     }
+    
     if (charClass.id === 'fighter' || charClass.id === 'cleric') {
-        const sword = new THREE.Group();
-        sword.position.set(0.55 * scale.x, 1.0 * scale.y, 0.2); sword.rotation.x = Math.PI/2;
-        sword.add(new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.3), matDark));
+        // Sword / Mace (Right Hand)
+        const weaponGroup = new THREE.Group();
+        // X=0.35 (Arm), Y=0.8 (Hand height)
+        weaponGroup.position.set(0.35 * scale.x, 0.8 * scale.y, 0.2); 
+        // Rotate to point forward/up
+        weaponGroup.rotation.x = Math.PI / 4; 
+        
+        // Handle
+        weaponGroup.add(new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.3), matDark));
+        
         if (charClass.id === 'cleric') {
+            // Mace Head
             const head = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.25, 0.25), matSteel);
-            head.position.y = 0.3; sword.add(head);
+            head.position.y = 0.3; 
+            weaponGroup.add(head);
         } else {
+            // Sword Blade
             const blade = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.9, 0.04), matSteel);
-            blade.position.y = 0.6; sword.add(blade);
+            blade.position.y = 0.6; 
+            weaponGroup.add(blade);
         }
-        group.add(sword);
+        group.add(weaponGroup);
+
+        // Shield (Left Hand)
         const shield = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.5, 0.05), matSteel);
-        shield.position.set(-0.45 * scale.x, 1.0 * scale.y, 0.2);
+        // X=-0.35 (Left Arm)
+        shield.position.set(-0.35 * scale.x, 0.8 * scale.y, 0.2);
         shield.add(new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.3, 0.06), matClothe));
         group.add(shield);
     }
+    
     if (charClass.id === 'rogue' && race.id !== 'gnome') {
         const hood = new THREE.Mesh(new THREE.SphereGeometry(0.32 * scale.x, 8, 8, 0, Math.PI * 2, 0, Math.PI * 0.5), matClothe);
-        hood.position.y = 1.3 * scale.y; group.add(hood);
+        hood.position.y = 1.3 * scale.y; 
+        group.add(hood);
+
+        // Dagger (Right Hand)
         const dag1 = new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.4, 4), matSteel);
-        dag1.position.set(0.45 * scale.x, 0.9 * scale.y, 0.3); dag1.rotation.x = Math.PI/2;
+        // X=0.35 (Arm)
+        dag1.position.set(0.35 * scale.x, 0.7 * scale.y, 0.2); 
+        dag1.rotation.x = Math.PI/2;
         group.add(dag1);
+        
+        // Dagger (Left Hand - Dual Wield)
+        const dag2 = new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.4, 4), matSteel);
+        dag2.position.set(-0.35 * scale.x, 0.7 * scale.y, 0.2); 
+        dag2.rotation.x = Math.PI/2;
+        group.add(dag2);
     }
 
     group.position.y = 0; 
@@ -11406,7 +12686,7 @@ function setupMultiplayerListeners() {
     const connectionTime = Date.now();
 
     // ==========================================
-    //  SECTION A: HOST LOGIC
+    //  SECTION A: HOST LOGIC (Game State Management)
     // ==========================================
     if (myPlayerId === 0) {
         db.ref(`games/${gameId}/request`).on('child_added', snap => {
@@ -11414,7 +12694,7 @@ function setupMultiplayerListeners() {
             const reqKey = snap.key;
             if(!req) return;
 
-            // 1. ROLL
+            // 1. ROLL REQUEST
             if (req.type === 'ROLL') {
                 const p = players.find(pl => pl.id === req.pid);
                 if (p) {
@@ -11440,14 +12720,14 @@ function setupMultiplayerListeners() {
                 db.ref(`games/${gameId}/request/${reqKey}`).remove();
             }
 
-            // 2. TILE_EVENT
+            // 2. TILE_EVENT REQUEST
             if (req.type === 'TILE_EVENT') {
                 const p = players.find(pl => pl.id === req.pid);
                 const tile = tiles[req.tileIndex];
                 const info = tile.userData.info;
                 let eventData = { pid: req.pid, tileIndex: req.tileIndex, timestamp: firebase.database.ServerValue.TIMESTAMP, mode: 'normal' };
 
-                // Dynamic Merchant
+                // Check for Dynamic Merchant
                 const merchantEvent = activeEvents.find(e => e.data.type === 'merchant' && e.playerRef && e.playerRef.pos === req.tileIndex);
 
                 if (merchantEvent) {
@@ -11494,7 +12774,7 @@ function setupMultiplayerListeners() {
                 db.ref(`games/${gameId}/request/${reqKey}`).remove();
             }
 
-            // 3. END_TURN
+            // 3. END_TURN REQUEST
             if (req.type === 'END_TURN') {
                 const prevP = players[turnIndex];
                 let nextIndex = turnIndex;
@@ -11508,27 +12788,57 @@ function setupMultiplayerListeners() {
                 }
 
                 if (nextIndex === 0 && !prevP.extraTurn) {
+                    // NEW ROUND LOGIC
                     db.ref(`games/${gameId}/roundCount`).transaction(count => {
                         return (count || 0) + 1;
                     }, (error, committed, snapshot) => {
                         if (committed) {
                             const newCount = snapshot.val();
+                            
+                            // Day/Night Cycle
                             if (newCount > 0 && newCount % 10 === 0) {
                                 db.ref(`games/${gameId}/isNight`).once('value', snap => {
                                     db.ref(`games/${gameId}/isNight`).set(!snap.val());
                                 });
                             }
+                            
+                            // Active Event Lifecycle
                             db.ref(`games/${gameId}/activeEvents`).once('value', snap => {
                                 const events = snap.val() || {};
                                 Object.keys(events).forEach(key => {
                                     const ev = events[key];
                                     const newDur = ev.turns - 1;
-                                    if (newDur <= 0) db.ref(`games/${gameId}/activeEvents/${key}`).remove();
-                                    else db.ref(`games/${gameId}/activeEvents/${key}`).update({ turns: newDur });
+                                    
+                                    if (newDur <= 0) {
+                                        // End Event
+                                        db.ref(`games/${gameId}/activeEvents/${key}`).remove();
+                                        
+                                        // NEW: Check if Dungeon needs to be removed
+                                        const evDef = MAP_EVENTS[ev.idx];
+                                        if (evDef && ["Void Edge", "Vampire Manor", "Demon Gate", "Wyvern Peak"].includes(evDef.name)) {
+                                            db.ref(`games/${gameId}/dungeonActive`).remove();
+                                        }
+                                    } 
+                                    else {
+                                        db.ref(`games/${gameId}/activeEvents/${key}`).update({ turns: newDur });
+                                    }
                                 });
+
+                                // Roll for New Event
                                 if (Math.floor(Math.random() * 6) + 1 === 6) {
                                     const idx = Math.floor(Math.random() * MAP_EVENTS.length);
-                                    db.ref(`games/${gameId}/activeEvents`).push({ idx: idx, turns: MAP_EVENTS[idx].duration, timestamp: firebase.database.ServerValue.TIMESTAMP });
+                                    const newEvDef = MAP_EVENTS[idx];
+                                    
+                                    db.ref(`games/${gameId}/activeEvents`).push({ 
+                                        idx: idx, 
+                                        turns: newEvDef.duration, 
+                                        timestamp: firebase.database.ServerValue.TIMESTAMP 
+                                    });
+
+                                    // NEW: Trigger Dungeon Creation
+                                    if (["Void Edge", "Vampire Manor", "Demon Gate", "Wyvern Peak"].includes(newEvDef.name)) {
+                                        db.ref(`games/${gameId}/dungeonActive`).set({ type: newEvDef.name });
+                                    }
                                 }
                             });
                         }
@@ -11543,31 +12853,32 @@ function setupMultiplayerListeners() {
     }
 
     // ==========================================
-    //  SECTION B: CLIENT LOGIC
+    //  SECTION B: CLIENT LOGIC (Visuals & Data Sync)
     // ==========================================
 
+    // 1. Move History
     db.ref(`games/${gameId}/moveHistory`).orderByChild('timestamp').startAt(connectionTime).on('child_added', snap => {
         const move = snap.val();
         if(!move) return;
         const p = players.find(pl => pl.id === move.pid);
         if(p) {
             p.pos = move.startPos;
-            if(tiles[p.pos]) p.mesh.position.copy(tiles[p.pos].position);
+            if(!p.inDungeon && tiles[p.pos]) p.mesh.position.copy(tiles[p.pos].position);
+            
             addLog(`${p.name} rolled ${move.d1 + move.d2}.`);
             if(p.id === myPlayerId) AUDIO.playSound('sfx_roll');
             gameState = 'MOVING';
             animateMove(p, move.finalSteps);
         }
     });
-	
-	// --- NEW: SYNCED LOGS LISTENER ---
+    
+    // 2. Server Logs
     db.ref(`games/${gameId}/serverLogs`).orderByChild('timestamp').startAt(connectionTime).on('child_added', snap => {
         const val = snap.val();
-        if (val) {
-            addLog(val.msg, val.type);
-        }
+        if (val) addLog(val.msg, val.type);
     });
 
+    // 3. Current Event (Modals)
     db.ref(`games/${gameId}/currentEvent`).on('value', snap => {
         const ev = snap.val();
         if (!ev) return;
@@ -11576,39 +12887,41 @@ function setupMultiplayerListeners() {
 
         const p = players.find(pl => pl.id === ev.pid);
         if(!p) return;
+        
         const isMe = (p.id === myPlayerId);
         const isMyAi = (p.isAi && myPlayerId === 0);
 
         if (isMe || isMyAi) {
-            const tile = tiles[ev.tileIndex]; const info = tile.userData.info;
+            const tile = tiles[ev.tileIndex]; 
+            const info = tile.userData.info;
             if (ev.items) ev.items = ev.items.map(hydrateItem);
             if (ev.card) ev.card = hydrateItem(ev.card);
 
             if (p.isAi && myPlayerId === 0) {
+                // AI Logic
                 if(ev.mode === 'goto') {
                      if (p.passiveSkillId === 'smoke_bomb') addLog("Skeleton Key Used!", "log-epic");
                      else { p.pos=10; p.mesh.position.copy(tiles[10].position); p.isSkipping=true; db.ref(`games/${gameId}/players/${p.id}`).update({ isSkipping: true }); }
                      endStep();
                 }
                 else if(ev.mode === 'park') { if(treasuryGold>0){ p.gold+=treasuryGold; treasuryGold=0; updateHUD(); syncPlayerState(); } endStep(); }
-                else if(ev.mode === 'jail') { 
-                    // AI Trap Setting
-                    if (p.passiveSkillId === 'skeleton_key' && p.gold >= 100) {
-                        p.gold -= 50;
-                        tile.userData.trapOwner = p.id;
-                        db.ref(`games/${gameId}/board/${tile.userData.id}/trapOwner`).set(p.id);
-                        addLog(`${p.name} (AI) set a trap!`, "log-rare");
-                    }
-                    endStep(); 
-                }
+                else if(ev.mode === 'jail') { if (p.passiveSkillId === 'skeleton_key' && p.gold >= 100) { p.gold-=50; tile.userData.trapOwner = p.id; db.ref(`games/${gameId}/board/${tile.userData.id}/trapOwner`).set(p.id); } endStep(); }
                 else if(ev.mode === 'tax_card') { processTax(p, ev.card ? ev.card.cost : 50); endStep(); }
                 else if(ev.mode === 'own_property') { resolveAiEvent(p, null, tile, ev.mode, null); }
-                else if (ev.mode === 'loot') { handleAiLoot(p, ev.card); } // AI Loot Handling
+                else if (ev.mode === 'loot') { handleAiLoot(p, ev.card); }
                 else { resolveAiEvent(p, ev.card, tile, ev.mode, ev.items); }
             } 
             else {
+                // Human Logic
                 const executeNextStep = () => {
                     document.getElementById('arrival-modal').classList.remove('active'); 
+                    
+                    // NEW: Dungeon Entrance Check
+                    if (activeDungeon && activeDungeon.type === info.name && !p.inDungeon) {
+                        offerDungeonEntry(p, info.name);
+                        return;
+                    }
+
                     if(ev.mode === 'goto') {
                          if (p.passiveSkillId === 'smoke_bomb') { addLog("Skeleton Key Used!", "log-epic"); endStep(); } 
                          else { 
@@ -11618,35 +12931,18 @@ function setupMultiplayerListeners() {
                              db.ref(`games/${gameId}/teleportLog`).push({ pid: p.id, targetPos: 10, timestamp: firebase.database.ServerValue.TIMESTAMP });
                          }
                     }
-                    else if(ev.mode === 'jail') { 
-                        if(p.passiveSkillId === 'skeleton_key') offerSkeletonKeyTrap(p);
-                        else { addLog("Just visiting."); endStep(); }
-                    }
+                    else if(ev.mode === 'jail') { if(p.passiveSkillId === 'skeleton_key') offerSkeletonKeyTrap(p); else { addLog("Just visiting."); endStep(); } }
                     else if(ev.mode === 'park') { if(treasuryGold>0){ p.gold+=treasuryGold; addLog(`Won ${treasuryGold}G!`, "log-success"); treasuryGold=0; updateHUD(); syncPlayerState(); } else addLog("Treasury empty."); endStep(); }
-                    else if (ev.mode === 'tax_card') {
-                        const cost = ev.card ? ev.card.cost : 50;
-                        showModal("Royal Tax", "The King demands " + cost + "G.", [ { txt: `Pay ${cost}G`, act: () => { processTax(p, cost); syncPlayerState(); endStep(); } } ]);
-                    }
-                    else if (ev.mode === 'own_property') {
-                        if(tile.userData.buildingLevel === 1) { 
-                            showModal("Upgrade?", `Build Tavern ${info.cost*2}G?`, [ 
-                                { txt: "Upgrade", act: () => { if(p.gold >= info.cost*2) { p.gold -= info.cost*2; drawCardAnim('skirmish', () => showEncounter(p, info, tile, "upgrade")); } else { addLog("No Gold"); endStep(); } }}, 
-                                { txt: "Skip", act: endStep } 
-                            ]); 
-                        } else { 
-                            let guards = tile.userData.guardCount || 0; 
-                            showModal("Manage Tavern", `Current Guards: ${guards}. Hire Bodyguard for 50G?`, [ 
-                                { txt: "Hire Guard (50G)", act: () => { if(p.gold >= 50) { p.gold -= 50; tile.userData.guardCount = (tile.userData.guardCount || 0) + 1; p.metrics.guardsHired++; addLog("Guard Hired!", "log-gold"); updateHUD(); capture(tile, p, tile.userData.buildingLevel, () => endStep()); } else { addLog("Not enough Gold"); endStep(); } }}, 
-                                { txt: "Rest (Skip)", act: endStep } 
-                            ]); 
-                        }
+                    else if (ev.mode === 'tax_card') { const cost = ev.card ? ev.card.cost : 50; showModal("Royal Tax", "The King demands " + cost + "G.", [ { txt: `Pay ${cost}G`, act: () => { processTax(p, cost); syncPlayerState(); endStep(); } } ]); }
+                    else if (ev.mode === 'own_property') { 
+                        if(tile.userData.buildingLevel === 1) { showModal("Upgrade?", `Build Tavern ${info.cost*2}G?`, [ { txt: "Upgrade", act: () => { if(p.gold >= info.cost*2) { p.gold -= info.cost*2; drawCardAnim('skirmish', () => showEncounter(p, info, tile, "upgrade")); } else { addLog("No Gold"); endStep(); } }}, { txt: "Skip", act: endStep } ]); } 
+                        else { let guards = tile.userData.guardCount || 0; showModal("Manage Tavern", `Current Guards: ${guards}. Hire Bodyguard for 50G?`, [ { txt: "Hire Guard (50G)", act: () => { if(p.gold >= 50) { p.gold -= 50; tile.userData.guardCount = (tile.userData.guardCount || 0) + 1; p.metrics.guardsHired++; addLog("Guard Hired!", "log-gold"); updateHUD(); capture(tile, p, tile.userData.buildingLevel, () => endStep()); } else { addLog("Not enough Gold"); endStep(); } }}, { txt: "Rest (Skip)", act: endStep } ]); } 
                     }
                     else if (ev.mode === 'shop') openCustomShop(p, ev.items, info.name, () => endStep()); 
-                    else if (ev.mode === 'loot') presentLootUI(p, ev.card); // UI for Loot
+                    else if (ev.mode === 'loot') presentLootUI(p, ev.card); 
                     else showEncounter(p, info, tile, ev.mode, ev.card);
                 };
                 
-                // Show Arrival Modal first
                 const m = document.getElementById('arrival-modal');
                 const imgEl = document.getElementById('arrival-image');
                 const flavorEl = document.getElementById('arrival-flavor');
@@ -11667,6 +12963,7 @@ function setupMultiplayerListeners() {
         }
     });
 
+    // 4. Turn Index
     db.ref(`games/${gameId}/turnIndex`).on('value', snap => {
         const idx = snap.val();
         if(idx !== null && idx !== turnIndex) {
@@ -11687,14 +12984,23 @@ function setupMultiplayerListeners() {
                     }
                     return; 
                 }
+                
                 zoomToPiece(curP);
                 if(curP.id === myPlayerId) { addLog("Your Turn!"); AUDIO.playSound('sfx_transition'); } 
                 else { addLog(`${curP.name}'s Turn`); }
-                if (curP.isAi && myPlayerId === 0) { setTimeout(() => { db.ref(`games/${gameId}/request`).push({ type: 'ROLL', pid: curP.id }); }, 1500); }
+                
+                if (curP.isAi && myPlayerId === 0) { 
+                    setTimeout(() => { 
+                        // AI Dungeon Check
+                        if (curP.inDungeon) advanceDungeon(curP);
+                        else db.ref(`games/${gameId}/request`).push({ type: 'ROLL', pid: curP.id }); 
+                    }, 1500); 
+                }
             }
         }
     });
 
+    // 5. Player Sync (including Dungeon flags)
     db.ref(`games/${gameId}/players`).on('child_changed', snap => {
         const pData = snap.val();
         const pId = parseInt(snap.key);
@@ -11705,7 +13011,15 @@ function setupMultiplayerListeners() {
             if(pData.stats !== undefined) p.stats = pData.stats;
             if(pData.extraTurn !== undefined) p.extraTurn = pData.extraTurn;
             if(pData.isSkipping !== undefined) p.isSkipping = pData.isSkipping;
-            if(pData.pos !== undefined) { if (gameState !== 'MOVING' || p.id !== turnIndex) { p.pos = pData.pos; } }
+            
+            // Dungeon Flags
+            if(pData.inDungeon !== undefined) p.inDungeon = pData.inDungeon;
+            if(pData.dungeonProgress !== undefined) p.dungeonProgress = pData.dungeonProgress;
+            if(pData.bossAttempts !== undefined) p.bossAttempts = pData.bossAttempts;
+
+            if(pData.pos !== undefined) { 
+                if (gameState !== 'MOVING' || p.id !== turnIndex) { p.pos = pData.pos; } 
+            }
             if(pData.isPolymorphed !== undefined) {
                 if (p.isPolymorphed !== pData.isPolymorphed) {
                     if (pData.isPolymorphed) { if (!p.isPolymorphed) makeSheep(p); } 
@@ -11718,8 +13032,9 @@ function setupMultiplayerListeners() {
         }
     });
 
+    // 6. Board Sync
     const boardHandler = (snap) => {
-        const tileId = parseInt(snap.key); 
+        const tileId = parseInt(snap.key);
         const data = snap.val();
         const tile = tiles[tileId];
         
@@ -11741,32 +13056,85 @@ function setupMultiplayerListeners() {
                     if (typeof activeGuards !== 'undefined') activeGuards = activeGuards.filter(g => g.tileId !== tile.userData.id);
                 }
             }
-            
-            // Trap Sync
             if (data.trapOwner !== undefined) tile.userData.trapOwner = data.trapOwner; 
             else tile.userData.trapOwner = null;
-            
             if (typeof updateTrapVisuals === 'function') updateTrapVisuals(tile);
         }
     };
     db.ref(`games/${gameId}/board`).on('child_added', boardHandler);
     db.ref(`games/${gameId}/board`).on('child_changed', boardHandler);
 
+    // 7. Teleport / Visual Log (UPDATED FOR DUNGEON)
     db.ref(`games/${gameId}/teleportLog`).orderByChild('timestamp').startAt(connectionTime).on('child_added', snap => {
         const data = snap.val();
         if (!data) return;
+        
         const p = players.find(pl => pl.id === data.pid);
         if (p) {
-            p.pos = data.targetPos;
-            addLog(`${p.name} teleported!`, "log-epic");
-            AUDIO.playSound('sfx_transition');
+            // Is this a Dungeon Move? (Flag 999)
+            const isDungeonMove = (data.targetPos === 999);
+            
+            // Determine Target 3D Object
+            let targetObj = null;
+            
+            if (isDungeonMove) {
+                if (activeDungeon && activeDungeon.tiles) {
+                    const stepIndex = data.dungeonStep || 0;
+                    targetObj = activeDungeon.tiles[stepIndex];
+                } else {
+                    // Fallback if dungeon not rendered locally yet
+                    return;
+                }
+            } else {
+                targetObj = tiles[data.targetPos];
+                p.pos = data.targetPos;
+            }
+
+            if (!targetObj) return;
+
+            addLog(isDungeonMove ? `${p.name} moves deeper...` : `${p.name} teleported!`, isDungeonMove ? "" : "log-epic");
+            if (!isDungeonMove) AUDIO.playSound('sfx_transition');
+            
             closeEnc(); 
             gameState = 'MOVING';
-            animateTeleport(p, tiles[data.targetPos], () => { 
-                const info = tiles[data.targetPos].userData.info;
-                if (info.type === 'mystery') { addLog("Teleported safely.", "log-success"); endStep(); } 
-                else { resolveLanding(p); }
+
+            // Animate
+            animateTeleport(p, targetObj, () => { 
+                // Only the authority triggers logic
+                const isMe = (p.id === myPlayerId);
+                const isMyAi = (p.isAi && myPlayerId === 0);
+                const hasAuthority = isMe || isMyAi;
+
+                if (isDungeonMove) {
+                    if (hasAuthority) resolveDungeonStep(p);
+                } 
+                else {
+                    const info = tiles[data.targetPos] ? tiles[data.targetPos].userData.info : null;
+                    if (info && info.type === 'mystery') { 
+                        addLog("Teleported safely.", "log-success"); 
+                        if (hasAuthority) endStep(); 
+                    } 
+                    else { 
+                        if (hasAuthority) resolveLanding(p); 
+                    }
+                }
             });
+        }
+    });
+
+    // 8. Dungeon Active Listener (Triggers Cinematic)
+    db.ref(`games/${gameId}/dungeonActive`).on('value', snap => {
+        const val = snap.val();
+        if (val) {
+            if (!activeDungeon || activeDungeon.type !== val.type) {
+                spawnDungeonVisuals(val.type);
+            }
+        } else {
+            if (dungeonGroup) {
+                scene.remove(dungeonGroup);
+                dungeonGroup = null;
+                activeDungeon = null;
+            }
         }
     });
 
@@ -12486,16 +13854,15 @@ function enableDebugMode() {
     revokeEmailBtn.onclick = revokePremiumByEmail;
     list.appendChild(revokeEmailBtn);
 
-    // --- NEW: GRANT BY EMAIL ---
+    // 7. GRANT BY EMAIL
     const grantEmailBtn = document.createElement('button');
     grantEmailBtn.className = 'debug-btn';
     grantEmailBtn.innerHTML = `ADMIN: GrantAdFree <span>🎁</span>`;
-    grantEmailBtn.style.borderColor = '#10b981'; // Green border
+    grantEmailBtn.style.borderColor = '#10b981'; 
     grantEmailBtn.onclick = grantPremiumByEmail;
     list.appendChild(grantEmailBtn);
-    // ---------------------------
 
-    // 7. FORCE END TURN
+    // 8. FORCE END TURN
     const fixBtn = document.createElement('button');
     fixBtn.className = 'debug-btn';
     fixBtn.innerHTML = `EMERGENCY: FORCE END TURN <span>FIX</span>`;
@@ -12510,11 +13877,21 @@ function enableDebugMode() {
     };
     list.appendChild(fixBtn);
 
-    // 8. EVENTS
+    // 9. DYNAMIC EVENTS LIST
     MAP_EVENTS.forEach((ev, index) => {
         const btn = document.createElement('button');
         btn.className = 'debug-btn';
-        btn.innerHTML = `${ev.name} <span>INPUT</span>`;
+        
+        // Custom styling for Dungeons
+        if (ev.type === 'dungeon') {
+            btn.innerHTML = `🏰 ${ev.name}`;
+            btn.style.borderColor = '#a855f7'; // Purple Border
+            btn.style.color = '#d8b4fe';       // Light Purple Text
+            btn.style.fontWeight = 'bold';
+        } else {
+            btn.innerHTML = `${ev.name} <span>INPUT</span>`;
+        }
+
         btn.onclick = () => {
             forceTriggerEvent(index);
             toggleSettingsModal(); 
@@ -12549,13 +13926,28 @@ function forceTriggerEvent(index) {
     const evData = MAP_EVENTS[index];
     if (!evData) return;
 
+    // Mapping Event Names to Dungeon Types
+    const dungeonMap = {
+        "Void Edge": "Void Edge",
+        "Vampire Manor": "Vampire Manor",
+        "Demon Gate": "Demon Gate",
+        "Wyvern Peak": "Wyvern Peak"
+    };
+
     // 2. Multiplayer Logic (Host pushes to DB)
     if (isMultiplayer && db && gameId) {
+        // Push the event to the active list
         db.ref(`games/${gameId}/activeEvents`).push({
             idx: index,
             turns: evData.duration,
             timestamp: firebase.database.ServerValue.TIMESTAMP
         });
+
+        // NEW: Check if this is a Dungeon Event and activate the dungeon globally
+        if (dungeonMap[evData.name]) {
+            db.ref(`games/${gameId}/dungeonActive`).set({ type: dungeonMap[evData.name] });
+        }
+
         addLog(`DEBUG: Broadcasted ${evData.name}`, "log-rare");
     } 
     // 3. Single Player Logic (Local Push)
@@ -12568,12 +13960,16 @@ function forceTriggerEvent(index) {
             playerRef: null 
         };
 
-        // Temporarily set global activeEvent so spawn functions (like spawnEventEntity) 
-        // can reference 'activeEvent.playerRef' without crashing
+        // Temporarily set global activeEvent so spawn functions work
         activeEvent = localEvent; 
         
-        // Run Start Logic (Spawns bosses, sets weather particles, etc.)
+        // Run Start Logic (Spawns bosses, sets weather particles)
         if(evData.onStart) evData.onStart();
+
+        // NEW: Explicitly trigger visual spawn for Single Player if it's a dungeon
+        if (dungeonMap[evData.name]) {
+            spawnDungeonVisuals(dungeonMap[evData.name]);
+        }
 
         // Push to the array
         activeEvents.push(localEvent);
