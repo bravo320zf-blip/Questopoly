@@ -1811,9 +1811,11 @@ Because you do not have a backend server listening for automatic receipts (Webho
 <div id="context-menu"></div>
 
 <!-- MODALS (Using New Styles but preserving IDs) -->
+
+<!-- 1. ENCOUNTER / SKIRMISH / TREASURE / STAT PICK MODAL -->
 <div id="card-modal" class="modal-overlay">
     <div class="card-modal" ondragover="allowDrop(event)" ondrop="handleSellDrop(event)">
-        <div class="close-x" onclick="closeEnc()">×</div>
+        <!-- RED X REMOVED -->
         <div class="card-header" id="enc-header">Encounter</div>
         <div class="card-body">
             <h2 id="enc-title" style="margin:0 0 10px 0; color:var(--gold-main);">Title</h2>
@@ -1825,8 +1827,9 @@ Because you do not have a backend server listening for automatic receipts (Webho
     </div>
 </div>
 
+<!-- 2. SPACE ARRIVAL MODAL -->
 <div id="arrival-modal" class="card-modal" style="padding: 0; overflow: visible;">
-    <button class="close-x" onclick="continueFromArrival()">×</button>
+    <!-- RED X REMOVED -->
     
     <!-- Wrapper for the visual border style -->
     <div class="card-border">
