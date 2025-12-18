@@ -1473,6 +1473,18 @@ Because you do not have a backend server listening for automatic receipts (Webho
     line-height: 1.4;
     white-space: pre-wrap; /* Keeps line breaks */
 }
+
+.help-tabs { 
+    display: flex; 
+    flex-wrap: wrap; /* Allows tabs to stack on small screens */
+    background: #222; 
+    border-bottom: 2px solid #444; 
+}
+.help-tab { 
+    flex: 1 1 auto; /* Grow/Shrink, Auto width */
+    min-width: 80px; /* Minimum width for touch targets */
+    /* ... existing styles ... */
+}
 </style>
 </head>
 
@@ -1947,89 +1959,128 @@ Because you do not have a backend server listening for automatic receipts (Webho
 </div>
 
 <div id="help-modal" class="modal-overlay">
-    <div class="modal-content help-window">
+    <div class="modal-content help-window" style="width: 800px; max-width: 95%;">
         <button class="close-x" onclick="toggleHelpModal()">×</button>
         
-        <div class="help-header-title">ADVENTURER'S GUIDE</div>
+        <div class="help-header-title">ARCHIVES OF LEGEND</div>
 
-        <!-- TABS NAVIGATION (Updated with data-tab attributes) -->
-        <div class="help-tabs">
+        <!-- NAVIGATION TABS -->
+        <div class="help-tabs" style="flex-wrap: wrap;">
             <button class="help-tab active" onclick="switchHelpTab('tab-basics')" data-tab="tab-basics">Basics</button>
-            <button class="help-tab" onclick="switchHelpTab('tab-combat')" data-tab="tab-combat">Conquest</button>
-            <button class="help-tab" onclick="switchHelpTab('tab-upgrades')" data-tab="tab-upgrades">Upgrades</button>
-            <button class="help-tab" onclick="switchHelpTab('tab-loot')" data-tab="tab-loot">Loot & Glory</button>
+            <button class="help-tab" onclick="switchHelpTab('tab-hero')" data-tab="tab-hero">Hero & Skills</button>
+            <button class="help-tab" onclick="switchHelpTab('tab-conquest')" data-tab="tab-conquest">Conquest</button>
+            <button class="help-tab" onclick="switchHelpTab('tab-dungeons')" data-tab="tab-dungeons">Events & Dungeons</button>
+            <button class="help-tab" onclick="switchHelpTab('tab-economy')" data-tab="tab-economy">Economy</button>
+            <button class="help-tab" onclick="switchHelpTab('tab-multiplayer')" data-tab="tab-multiplayer">Multiplayer</button>
         </div>
 
         <!-- TAB 1: BASICS -->
         <div id="tab-basics" class="help-section active">
-            <h3><span style="color:var(--gold)">✦</span> The Objective</h3>
-            <p>Be the last Hero standing! Bankrupt your rivals by capturing locations and hoarding Gold. When a player runs out of money and property, they are forgotten by history.</p>
+            <h3><span style="color:var(--gold-main)">✦</span> Objective</h3>
+            <p>Be the last Hero standing! Bankrupt your rivals by capturing locations, upgrading them to Taverns, and hoarding Gold. If you run out of Gold and Properties to sell, you are eliminated.</p>
             
-            <h3><span style="color:var(--gold)">✦</span> Movement & The Inn</h3>
-            <p>Every journey begins at <b>Old Crooks Inn</b>. Roll <b>2d6</b> to move.</p>
+            <h3><span style="color:var(--gold-main)">✦</span> The World</h3>
             <ul>
-                <li><b>Passing Start:</b> Gain <span style="color:var(--success)">+200 Gold</span> and recharge all abilities.</li>
-                <li><b>Landing on Start:</b> Visit the Merchant to buy supplies. Long-press items in your inventory to sell them.</li>
+                <li><b>Day & Night:</b> The world cycles every 10 rounds. 
+                    <br><i>Day:</i> Standard visibility. 
+                    <br><i>Night:</i> Fog rolls in, obscuring vision. Monsters become more aggressive (Harder "Skirmish" cards).
+                </li>
+                <li><b>Movement:</b> Roll 2d6 to move. Landing on <b>Start (The Inn)</b> or passing it recharges your abilities and grants 200G.</li>
+                <li><b>The Dungeon (Jail):</b> If arrested, you must skip a turn. Some abilities (like Rogue skills) can help you escape or trap others.</li>
             </ul>
-
-            <h3><span style="color:var(--gold)">✦</span> Mystery Spaces</h3>
-            <p><b>Fairy Ring</b> and <b>Smuggler Cove</b> (Purple) are unstable locations. They cannot be captured.</p>
-            <p>When you land here, you must face an Encounter. If you succeed, you are instantly <b>Teleported</b> to a random space on the board!</p>
-
-            <h3><span style="color:var(--gold)">✦</span> The Dungeon</h3>
-            <p>If you land on "Go to Dungeon," you are arrested! You must <b>Skip your next turn</b>. If you land on the Dungeon space itself (Just Visiting), you are safe.</p>
         </div>
 
-        <!-- TAB 2: CONQUEST -->
-        <div id="tab-combat" class="help-section">
-            <h3><span style="color:var(--gold)">✦</span> Empty Lands</h3>
-            <p>When you discover a new location, you draw an <b>Encounter Card</b>. You must pass a Stat Check (Str, Dex, or Int) to save the town.</p>
+        <!-- TAB 2: HERO & SKILLS -->
+        <div id="tab-hero" class="help-section">
+            <h3><span style="color:var(--gold-main)">✦</span> Stats</h3>
+            <p>Your ability to succeed in checks depends on your stats:</p>
             <ul>
-                <li><b>Success:</b> You capture the location and set up Camp. You must then assign a <b>Defending Stat</b> (STR, DEX, or INT) to protect the land.</li>
-                <li><b>Failure:</b> You pay a fine to the Treasury (Capital City) to repair damages.</li>
+                <li><b style="color:#ef4444">STR (Strength):</b> Used for brute force, smashing obstacles, and heavy weapons.</li>
+                <li><b style="color:#10b981">DEX (Dexterity):</b> Used for dodging, traps, acrobatics, and ranged weapons.</li>
+                <li><b style="color:#3b82f6">INT (Intelligence):</b> Used for magic, puzzles, and resisting spells.</li>
             </ul>
 
-            <h3><span style="color:var(--gold)">✦</span> Enemy Lands</h3>
-            <p>If you land on a space owned by a rival, you have two choices:</p>
+            <h3><span style="color:var(--gold-main)">✦</span> Skills</h3>
+            <p>Every Hero has:</p>
+            <ul>
+                <li><b>Active Skill (Slot 1):</b> A powerful ability you can trigger on your turn. Once used, it must be <b>Recharged</b> by passing Start.</li>
+                <li><b>Passive Trait:</b> A permanent bonus (e.g., discounts, extra movement, immunity).</li>
+                <li><b>Equipment Skills:</b> Rare and Legendary items grant additional Active Skills.</li>
+            </ul>
+
+            <h3><span style="color:var(--gold-main)">✦</span> Status Effects</h3>
+            <p><b>Polymorph:</b> If turned into a Sheep, you cannot use skills or items, and your stats are reduced to 1. Surviving a turn cures you.</p>
+            <p><b>Stun/Jail:</b> You lose your turn.</p>
+        </div>
+
+        <!-- TAB 3: CONQUEST -->
+        <div id="tab-conquest" class="help-section">
+            <h3><span style="color:var(--gold-main)">✦</span> Capturing Land</h3>
+            <p>When you land on an empty location, you face an <b>Encounter Card</b>. You must roll dice equal to your specific Stat (STR/DEX/INT) against a Target Number (TN).</p>
+            <ul>
+                <li><b>Success:</b> You capture the land and set up a Camp. You choose which Stat defends it.</li>
+                <li><b>Failure:</b> You pay a fine to the Treasury.</li>
+            </ul>
+
+            <h3><span style="color:var(--gold-main)">✦</span> Enemy Territory</h3>
+            <p>Landing on a rival's land offers a choice:</p>
             <ol>
-                <li><b>Pay Rent:</b> Pay the fee directly to the owner.</li>
-                <li><b>Siege (Attack):</b> Attempt to steal the land! You must roll against the location's assigned <b>Defending Stat</b>.
+                <li><b>Pay Rent:</b> Simple and safe.</li>
+                <li><b>Siege (Attack):</b> Roll your stats against the land's Defense.
                     <ul>
-                        <li><b>Win Siege:</b> You take the land (or kill a guard).</li>
-                        <li><b>Lose Siege:</b> You pay <b>DOUBLE</b> the rent to the owner.</li>
+                        <li><i>Win:</i> You downgrade the building or destroy it. If the owner hired <b>Guards</b>, you kill one Guard instead.</li>
+                        <li><i>Lose:</i> You pay <b>Double Rent</b> to the owner.</li>
                     </ul>
                 </li>
             </ol>
+            <p><i>Note: Buildings upgraded to <b>Taverns</b> (Level 2) are harder to siege.</i></p>
         </div>
 
-        <!-- TAB 3: UPGRADES -->
-        <div id="tab-upgrades" class="help-section">
-            <h3><span style="color:var(--gold)">✦</span> Building Taverns</h3>
-            <p>If you land on a location you already own, you can upgrade your Camp into a <b>Tavern</b>.</p>
-            <p>Taverns force enemies to draw harder <b>Skirmish Cards</b> when attacking.</p>
-
-            <h3><span style="color:var(--gold)">✦</span> Guards</h3>
-            <p>Owners of a Tavern can hire <b>Bodyguards</b> for <span style="color:var(--gold)">50G</span> each.</p>
-            <p>If an enemy successfully Sieges your land, a Guard dies to protect the property. You only lose the property if there are no Guards left.</p>
+        <!-- TAB 4: EVENTS & DUNGEONS -->
+        <div id="tab-dungeons" class="help-section">
+            <h3><span style="color:var(--gold-main)">✦</span> World Events</h3>
+            <p>Random events occur periodically. These can be weather effects (Blizzards slowing movement), economic booms, or visiting Merchants.</p>
+            
+            <h3><span style="color:var(--gold-main)">✦</span> Dungeons</h3>
+            <p>Rarely, a mythical <b>Dungeon</b> may appear attached to a specific location (e.g., The Void Edge or Demon Gate).</p>
+            <ul>
+                <li><b>Entering:</b> You must be at the entrance tile to enter. Dungeons are High Difficulty areas.</li>
+                <li><b>Movement:</b> Inside a dungeon, you move 1 tile per turn automatically.</li>
+                <li><b>Combat:</b> Every step triggers a dangerous encounter. If you fail, you are cast out to the Inn.</li>
+                <li><b>The Boss:</b> At the end lies a Boss. Defeating them grants massive Treasure loot. Failing expels you from the dungeon.</li>
+                <li><b>Ambush:</b> Beware! Rolling a 6 while inside a dungeon may summon the Boss immediately to your location.</li>
+            </ul>
         </div>
 
-        <!-- TAB 4: LOOT -->
-        <div id="tab-loot" class="help-section">
-            <h3><span style="color:var(--gold)">✦</span> Treasure</h3>
-            <p>Items range from <span style="color:#fff">Common</span>, <span style="color:var(--rare)">Magic</span>, <span style="color:var(--epic)">Rare</span>, to <span style="color:var(--legend)">Legendary</span>.</p>
-            <p>Some items grant passive stat bonuses, while others provide active skills. <b>Scrolls</b> (like Town Portals) are one-time use.</p>
+        <!-- TAB 5: ECONOMY -->
+        <div id="tab-economy" class="help-section">
+            <h3><span style="color:var(--gold-main)">✦</span> Shops & Items</h3>
+            <p><b>Merchants:</b> Found at Start, Ports, and via Roaming Events. You can buy Equipment (Stat boosts) or Scrolls (One-time use spells).</p>
+            <p><b>Selling:</b> You can sell items back to any merchant for half price. (Long-press an item in the shop menu).</p>
+            <p><b>Inventory Limit:</b> You can carry up to 12 items.</p>
 
-            <h3><span style="color:var(--gold)">✦</span> Capital City</h3>
-            <p>Taxes collected from the Tax spaces and fines from failed captures are stored in the Kingdom's Treasury.</p>
-            <p><b>Landing on Capital City</b> awards you the entire contents of the Treasury!</p>
+            <h3><span style="color:var(--gold-main)">✦</span> The Treasury</h3>
+            <p>Fines and Taxes are paid into the Kingdom's Treasury. If you land on the <b>Capital City</b> (Free Parking), you win the entire pot!</p>
+        </div>
+
+        <!-- TAB 6: MULTIPLAYER -->
+        <div id="tab-multiplayer" class="help-section">
+            <h3><span style="color:var(--gold-main)">✦</span> Etiquette</h3>
+            <ul>
+                <li><b>Turn Timer:</b> You have 15 seconds to take your turn (45s in Shops). If you run out of time, your turn is skipped.</li>
+                <li><b>AFK Penalty:</b> Missing 3 turns in a row results in being kicked from the game.</li>
+                <li><b>Reconnecting:</b> If you disconnect, reload the page. The game state is saved on the server.</li>
+            </ul>
+            
+            <h3><span style="color:var(--gold-main)">✦</span> Communication</h3>
+            <p>Use the Global Chat in the lobby or Room Chat in-game. You can also right-click (or long-press) a player in the Leaderboard to send a <b>Direct Message</b>.</p>
         </div>
 
         <div style="text-align: center; margin-top: auto; padding: 15px; border-top: 1px solid #444; background: #111;">
-            <button class="primary" onclick="toggleHelpModal()">Return to Game</button>
+            <button class="primary" onclick="toggleHelpModal()">Return to Adventure</button>
         </div>
     </div>
 </div>
-
 <div id="game-over-modal" class="modal-overlay">
     <div class="modal-content" style="max-width: 700px;">
         <h1 id="go-title" style="font-size:3rem; margin:20px 0; text-shadow:0 0 10px #000;">GAME OVER</h1>
