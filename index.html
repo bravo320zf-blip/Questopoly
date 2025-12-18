@@ -3997,8 +3997,8 @@ const EQUIP_ORDER = ['head', 'body', 'main', 'off'];
 
 
 // --- DUNGEON GLOBALS ---
-let activeDungeon = null; // Stores { type: 'Void Edge', tiles: [], bossMesh: obj, hostId: pid }
-let dungeonGroup = null;  // ThreeJS Group for easy cleanup
+let activeDungeons = {}; // NOW AN OBJECT MAP: { "Void Edge": { ... }, "Demon Gate": { ... } }
+let dungeonGroup = null; // Container for all dungeon meshes
 
 // --- DUNGEON CONFIGURATION ---
 const DUNGEON_DATA = {
@@ -4140,14 +4140,19 @@ function getDungeonDifficulty() {
 }
 
 function spawnDungeonVisuals(entranceTileName) {
-    // 1. Cleanup Old Dungeon
-    if (dungeonGroup) scene.remove(dungeonGroup);
-    dungeonGroup = new THREE.Group();
+    // 1. Initialize Group (Only once)
+    if (!dungeonGroup) {
+        dungeonGroup = new THREE.Group();
+        scene.add(dungeonGroup);
+    }
+    
+    // 2. Prevent Duplicate Spawns
+    if (activeDungeons[entranceTileName]) return;
 
     const config = DUNGEON_DATA[entranceTileName];
     if (!config) return;
 
-    // 2. Locate Start Point
+    // 3. Locate Start Point
     const startTile = tiles.find(t => t.userData.info.name === entranceTileName);
     if (!startTile) {
         console.error("Dungeon Spawn Error: Tile not found " + entranceTileName);
@@ -4157,14 +4162,20 @@ function spawnDungeonVisuals(entranceTileName) {
     const TILE_SIZE = 3.5;
     const SPACING = 4.0; 
 
-    // 3. Determine Direction
+    // 4. Determine Direction
     const center = new THREE.Vector3(0,0,0);
     let mainDir = new THREE.Vector3().subVectors(startTile.position, center).normalize();
     if (Math.abs(mainDir.x) > Math.abs(mainDir.z)) mainDir.set(Math.sign(mainDir.x), 0, 0); 
     else mainDir.set(0, 0, Math.sign(mainDir.z)); 
     const sideDir = new THREE.Vector3(-mainDir.z, 0, mainDir.x);
 
-    activeDungeon = { type: entranceTileName, tiles: [], bossMesh: null };
+    // 5. Initialize Instance State
+    const newDungeon = {
+        type: entranceTileName,
+        tiles: [],
+        bossMesh: null,
+        group: new THREE.Group() // Sub-group for this specific dungeon
+    };
 
     const loader = new THREE.TextureLoader();
     const floorTex = loader.load(config.floorImg);
@@ -4175,24 +4186,15 @@ function spawnDungeonVisuals(entranceTileName) {
     occupied.add(toKey(currentPos));
     const centerSum = currentPos.clone(); 
 
-    // 4. Generate Tiles
+    // 6. Generate Tiles
     for (let i = 1; i <= config.length; i++) {
-        
         const geo = new THREE.BoxGeometry(TILE_SIZE, 0.5, TILE_SIZE);
+        
         let mat;
-
-        // --- FIX: USE BASIC MATERIAL FOR VOID ---
-        if (config.spawnStyle === 'float_up') {
-            // MeshBasicMaterial ignores lighting => Shows texture perfectly
-            mat = new THREE.MeshBasicMaterial({ map: floorTex }); 
-        } 
+        if (config.spawnStyle === 'float_up') mat = new THREE.MeshBasicMaterial({ map: floorTex }); 
         else {
-            // Others use Standard for lighting effects
             const matParams = { map: floorTex, color: 0xffffff, roughness: 0.7 };
-            if (config.spawnStyle === 'rise_lava') {
-                matParams.emissive = 0x330000; 
-                matParams.emissiveIntensity = 0.2;
-            }
+            if (config.spawnStyle === 'rise_lava') { matParams.emissive = 0x330000; matParams.emissiveIntensity = 0.2; }
             mat = new THREE.MeshStandardMaterial(matParams);
         }
 
@@ -4200,17 +4202,17 @@ function spawnDungeonVisuals(entranceTileName) {
         mesh.position.copy(currentPos);
         mesh.visible = false; 
         
-        mesh.userData = { isDungeon: true, index: i, finalY: 0, spawnStyle: config.spawnStyle };
+        mesh.userData = { isDungeon: true, dungeonType: entranceTileName, index: i, finalY: 0, spawnStyle: config.spawnStyle };
 
         if(config.spawnStyle === 'fall_sky') mesh.position.y = 50;
         else if(config.spawnStyle === 'rise_lava') mesh.position.y = -10;
         else if(config.spawnStyle === 'float_up') mesh.position.y = -20;
         else mesh.position.y = -5; 
         
-        dungeonGroup.add(mesh);
-        activeDungeon.tiles.push(mesh);
+        newDungeon.group.add(mesh);
+        newDungeon.tiles.push(mesh);
 
-        // Path Logic (Maze)
+        // Path Logic
         if (i < config.length) {
             const possibleMoves = [];
             const fwdPos = currentPos.clone().add(mainDir.clone().multiplyScalar(SPACING));
@@ -4247,21 +4249,28 @@ function spawnDungeonVisuals(entranceTileName) {
         }
     }
 
-    // 5. Boss & Scenery
+    // 7. Boss & Scenery
     const dungeonCenter = centerSum.multiplyScalar(1 / config.length);
-    activeDungeon.bossMesh = createBossMesh(config.bossName, config.bossColor);
-    activeDungeon.bossMesh.position.set(dungeonCenter.x, 25, dungeonCenter.z);
-    activeDungeon.bossMesh.visible = false; 
-    
-    activeDungeon.bossMesh.traverse((child) => {
+    newDungeon.bossMesh = createBossMesh(config.bossName, config.bossColor);
+    newDungeon.bossMesh.position.set(dungeonCenter.x, 25, dungeonCenter.z);
+    newDungeon.bossMesh.visible = false; 
+    newDungeon.bossMesh.traverse((child) => {
         if (child.isMesh) { child.material.transparent = true; child.material.opacity = 1; }
     });
 
-    dungeonGroup.add(activeDungeon.bossMesh);
-    if (typeof spawnDungeonScenery === 'function') spawnDungeonScenery(config, activeDungeon.tiles, dungeonGroup);
+    newDungeon.group.add(newDungeon.bossMesh);
+    
+    if (typeof spawnDungeonScenery === 'function') {
+        spawnDungeonScenery(config, newDungeon.tiles, newDungeon.group);
+    }
 
-    scene.add(dungeonGroup);
-    runDungeonCinematic(config);
+    // Add this specific dungeon group to the main container
+    dungeonGroup.add(newDungeon.group);
+    
+    // Store in Global Map
+    activeDungeons[entranceTileName] = newDungeon;
+
+    runDungeonCinematic(newDungeon, config);
 }
 
 let isCinematic = false; // Global flag to block controls
@@ -4489,156 +4498,100 @@ function createVoidFog(tiles, group) {
     dungeonSceneryMesh.push(sys); // To animate pop-in opacity
 }
 
-function runDungeonCinematic(config) {
-    // Lock Controls
+function runDungeonCinematic(dungeonInstance, config) {
     isCinematic = true; 
     const oldTarget = cameraTarget; 
     isZoomed = true; 
 
-    // 1. Initial Zoom to Dungeon Entrance
-    const startTile = activeDungeon.tiles[0];
+    // 1. Zoom to THIS dungeon's entrance
+    const startTile = dungeonInstance.tiles[0];
     
     new TWEEN.Tween(camera.position)
         .to({ x: startTile.position.x, y: 35, z: startTile.position.z + 25 }, 1200)
         .easing(TWEEN.Easing.Cubic.Out)
-        .onComplete(() => {
-            playSpawnSequence();
-        })
+        .onComplete(() => playSpawnSequence())
         .start();
 
-    // 2. Tile & Scenery Sequence
     const playSpawnSequence = () => {
         let delay = 0;
-        const stepTime = 100; // Speed of path generation
+        const stepTime = 100;
 
-        // A. Animate Tiles
-        activeDungeon.tiles.forEach((tile, index) => {
+        dungeonInstance.tiles.forEach((tile, index) => {
             setTimeout(() => {
                 tile.visible = true;
-                
-                // Animate Tile Entry
                 new TWEEN.Tween(tile.position)
                     .to({ y: tile.userData.finalY }, 600)
                     .easing(TWEEN.Easing.Bounce.Out)
                     .start();
-
-                // VFX based on theme
+                
                 if (config.spawnStyle === 'rise_lava') VFX.trigger('burst_up', tile.position, null, 0xff4500);
                 else if (config.spawnStyle === 'fade_mist') VFX.trigger('smoke', tile.position, null, 0x990000);
-                else if (config.spawnStyle === 'float_up') {
-                    // Small purple flash for void
-                    new TWEEN.Tween(tile.material).to({emissive: 0x4c1d95}, 100).yoyo(true).repeat(1).start();
-                }
                 
-                // Camera follows path slightly
                 if (index % 3 === 0) {
                     new TWEEN.Tween(camera.position)
                         .to({ x: tile.position.x, z: tile.position.z + 20 }, 800)
                         .start();
                 }
-
             }, delay);
             delay += stepTime;
         });
-
-        // B. Animate Scenery (Pop-In)
-        // Wait until tiles are mostly done
+        
+        // Pop-In Scenery
         setTimeout(() => {
-            if (typeof dungeonSceneryMesh !== 'undefined') {
-                dungeonSceneryMesh.forEach((mesh, i) => {
-                    setTimeout(() => {
-                        // Handle Fog Particles (Points) vs Solid Meshes
-                        if (mesh.isPoints) {
-                            mesh.material.opacity = 0;
-                            // Reset position for Void Fog
-                            if (mesh.userData.isVoidFog) mesh.position.y = 0; 
-                            new TWEEN.Tween(mesh.material).to({opacity: 0.6}, 1500).start();
-                        } else {
-                            mesh.visible = true;
-                            // Save scale if not set
-                            const targetS = mesh.userData.targetScale || 1;
-                            
-                            // Pop Up Animation
-                            new TWEEN.Tween(mesh.scale)
-                                .to({ x: targetS, y: targetS, z: targetS }, 800)
-                                .easing(TWEEN.Easing.Elastic.Out)
-                                .start();
-                        }
-                    }, i * 50); // Stagger scenery
+            if(dungeonInstance.group) {
+                dungeonInstance.group.children.forEach(mesh => {
+                    // Check if it's scenery (not a tile or boss)
+                    if(!mesh.userData.isDungeon && !mesh.userData.isBoss) {
+                        mesh.visible = true;
+                        // Simple scale pop
+                        const targetS = mesh.userData.targetScale || 1;
+                        mesh.scale.set(0,0,0);
+                        new TWEEN.Tween(mesh.scale).to({x:targetS,y:targetS,z:targetS}, 800).start();
+                    }
                 });
             }
         }, delay);
 
-        // 3. Boss Intro
-        setTimeout(() => {
-            bossSkyIntro(config);
-        }, delay + 1000); 
+        setTimeout(() => bossSkyIntro(), delay + 1000); 
     };
 
-    // 4. Boss Sky Intro
-    const bossSkyIntro = (config) => {
-        const boss = activeDungeon.bossMesh;
+    const bossSkyIntro = () => {
+        const boss = dungeonInstance.bossMesh;
         boss.visible = true;
         boss.scale.set(0.1, 0.1, 0.1);
 
-        // Move camera to look up at boss
         new TWEEN.Tween(camera.position)
             .to({ x: boss.position.x, y: 40, z: boss.position.z + 40 }, 1500)
             .onUpdate(() => camera.lookAt(boss.position))
             .start();
 
-        // Boss Grows Huge
         new TWEEN.Tween(boss.scale)
             .to({ x: 3.0, y: 3.0, z: 3.0 }, 2000) 
             .easing(TWEEN.Easing.Elastic.Out)
             .onComplete(() => {
-                // Roar / FX
                 VFX.trigger('shockwave', boss.position, null, config.bossColor);
-                AUDIO.playSound('sfx_fail'); // Intimidating sound
+                AUDIO.playSound('sfx_fail');
                 
-                // 5. Fade Out & Finish
                 setTimeout(() => {
-                    // Fade Material
-                    boss.traverse((child) => {
-                        if (child.isMesh) {
-                            new TWEEN.Tween(child.material)
-                                .to({ opacity: 0 }, 1200)
-                                .start();
-                        }
-                    });
-                    
-                    // After Fade, Hide and Reset Camera
-                    setTimeout(() => {
-                        finishCinematic(oldTarget);
-                    }, 1200);
+                    boss.traverse((child) => { if (child.isMesh) new TWEEN.Tween(child.material).to({ opacity: 0 }, 1200).start(); });
+                    setTimeout(() => finishCinematic(), 1200);
                 }, 1500);
             })
             .start();
     };
 
-    // 6. Finish & Restore
-    const finishCinematic = (oldTarget) => {
-        const boss = activeDungeon.bossMesh;
-        boss.visible = false; // Completely hide
+    const finishCinematic = () => {
+        dungeonInstance.bossMesh.visible = false; 
         
-        // Zoom out to "God View" to see whole board + dungeon
         new TWEEN.Tween(camera.position)
             .to({ x: 0, y: 80, z: 20 }, 2000)
             .easing(TWEEN.Easing.Quadratic.InOut)
             .onUpdate(() => camera.lookAt(0, 0, 0))
             .onComplete(() => {
-                // Unlock Controls
                 isCinematic = false;
-                
-                // Return to Active Player
                 const p = players[turnIndex];
-                if (p) {
-                    cameraTarget = p.mesh;
-                    isZoomed = true;
-                    zoomToPiece(p);
-                }
-                
-                addLog("The Dungeon has risen!", "log-epic");
+                if (p) { cameraTarget = p.mesh; isZoomed = true; zoomToPiece(p); }
+                addLog(`The ${config.bossName} awaits!`, "log-epic");
             })
             .start();
     };
@@ -6875,35 +6828,38 @@ function animate() {
         if (ev.mesh) ev.mesh.rotation.y += 0.01; 
     });
 
-// --- 6. NEW: DETAILED BOSS ANIMATION ---
-    if (activeDungeon && activeDungeon.bossMesh && activeDungeon.bossMesh.visible) {
-        const boss = activeDungeon.bossMesh;
-        
-        // Base Movement
-        boss.position.y = 1.5 + Math.sin(time) * 0.2; 
-        
-        // Specific Logic
-        if (activeDungeon.type === "Void Edge") {
-            // Spin rings randomly
-            boss.children.forEach(child => {
-                if (child.geometry && child.geometry.type === 'TorusGeometry') {
-                    child.rotation.x += 0.02;
-                    child.rotation.y += 0.02;
-                }
-            });
-        } 
-        else if (activeDungeon.type === "Wyvern Peak") {
-            // Jitter for lightning effect
-            boss.position.x += (Math.random() - 0.5) * 0.05;
+    // --- 6. NEW: DETAILED BOSS ANIMATION (Multi-Boss Support) ---
+    // Iterate over the keys of activeDungeons
+    Object.values(activeDungeons).forEach(dungeon => {
+        if (dungeon.bossMesh && dungeon.bossMesh.visible) {
+            const boss = dungeon.bossMesh;
+            
+            // Base Float
+            boss.position.y = 1.5 + Math.sin(time) * 0.2; 
+            
+            // Unique Animations based on Dungeon Type
+            if (dungeon.type === "Void Edge") {
+                // Spin rings
+                boss.children.forEach(child => {
+                    if (child.userData && child.userData.rotateSpeed) {
+                        child.rotation.x += child.userData.rotateSpeed;
+                        child.rotation.y += child.userData.rotateSpeed;
+                    }
+                });
+            } 
+            else if (dungeon.type === "Wyvern Peak") {
+                // Jitter
+                boss.position.x += (Math.random() - 0.5) * 0.05;
+            } 
+            else {
+                // Standard Intimidating Spin
+                boss.rotation.y += 0.01; 
+            }
+            
+            // Pulse
+            boss.scale.setScalar(1.5 + Math.sin(time * 2) * 0.05); 
         }
-        else {
-            // Standard Intimidating Spin
-            boss.rotation.y += 0.01; 
-        }
-        
-        // Breathing
-        boss.scale.setScalar(1.5 + Math.sin(time * 2) * 0.05); 
-    }
+    });
 
     // --- 7. CAMERA TRACKING (UPDATED FOR CINEMATICS) ---
     // We only auto-track if we are NOT in a cinematic sequence
@@ -6911,7 +6867,7 @@ function animate() {
         camera.lookAt(cameraTarget.position.x, 0, cameraTarget.position.z);
     }
 
-    // 8. Turn Timer Logic
+    // --- 8. TURN TIMER LOGIC ---
     const timerContainer = document.getElementById('timer-container');
     const timerBar = document.getElementById('timer-bar');
     
@@ -6962,27 +6918,28 @@ function animate() {
     } else {
         if(timerContainer) timerContainer.style.display = 'none';
     }
-	
-	    // --- 9. DUNGEON SCENERY PARTICLES ---
+
+    // --- 9. DUNGEON SCENERY PARTICLES (Multi-Dungeon) ---
     if (activeSceneryParticles.length > 0) {
-        // A. Volcanic Smoke (Spawning temporary particles)
-        // Since managing individual sprites is heavy, we'll assume we used a Points system
-        // But for visual simplicity in this request, we'll skip complex particle physics 
-        // and just assume the environment is static except for the Boss.
-        
-        // B. Void Fog Swirl (If Void dungeon)
-        const voidSys = dungeonGroup ? dungeonGroup.children.find(c => c.userData.isVoidFog) : null;
-        if (voidSys) {
-            const positions = voidSys.geometry.attributes.position.array;
-            for(let i=0; i<activeSceneryParticles.length; i++) {
-                const p = activeSceneryParticles[i];
-                if (p.type === 'void') {
-                    // Swirl Y
-                    positions[i*3+1] = p.baseY + Math.sin(Date.now() * 0.001 + i) * 1;
+        // Iterate through all active dungeon groups
+        if (dungeonGroup) {
+            // Find ALL Fog Systems (one per Void dungeon potentially)
+            dungeonGroup.children.forEach(childGroup => {
+                // If the child group is a specific dungeon
+                if (childGroup.isGroup) {
+                    const voidSys = childGroup.children.find(c => c.userData.isVoidFog);
+                    if (voidSys) {
+                        const positions = voidSys.geometry.attributes.position.array;
+                        // Animate vertices
+                        for(let i=0; i<positions.length; i+=3) {
+                             // Simple wave effect on Y axis
+                             positions[i+1] += Math.sin(Date.now() * 0.001 + positions[i]) * 0.02;
+                        }
+                        voidSys.geometry.attributes.position.needsUpdate = true;
+                        voidSys.rotation.y += 0.001; 
+                    }
                 }
-            }
-            voidSys.geometry.attributes.position.needsUpdate = true;
-            voidSys.rotation.y += 0.001; // Entire cloud rotates slowly
+            });
         }
     }
 
@@ -7073,7 +7030,8 @@ function resetCamera() {
 
 // Call this from triggerTileEvent() when landing on a Dungeon Entrance
 function offerDungeonEntry(p, tileName) {
-    if (!activeDungeon || activeDungeon.type !== tileName) {
+    // Check if THIS specific dungeon is active
+    if (!activeDungeons[tileName]) {
         addLog("The Dungeon gate is sealed...", "log-fail");
         return;
     }
@@ -7082,34 +7040,21 @@ function offerDungeonEntry(p, tileName) {
         { 
             txt: "Enter Dungeon", 
             act: () => {
-                // 1. Set State locally first
                 p.inDungeon = true;
+                p.dungeonType = tileName; // <--- CRITICAL UPDATE
                 p.dungeonProgress = 0; 
                 p.bossAttempts = 3; 
 
-                // 2. Sync State to DB (Data)
                 if (isMultiplayer) {
                     syncPlayerState(); 
-                    
-                    // 3. Sync Visuals (Animation for everyone)
-                    // We use the dummy index '100' or similar to indicate "Dungeon Start" 
-                    // or simply rely on the listener seeing 'p.inDungeon' is true.
-                    // We treat the first dungeon tile as target 0 relative to the dungeon.
                     db.ref(`games/${gameId}/teleportLog`).push({ 
-                        pid: p.id, 
-                        targetPos: 999, // Special flag for Dungeon Entry
-                        dungeonStep: 0, // Explicit dungeon index
-                        timestamp: firebase.database.ServerValue.TIMESTAMP 
+                        pid: p.id, targetPos: 999, dungeonStep: 0, timestamp: firebase.database.ServerValue.TIMESTAMP 
                     });
                 } else {
-                    // Single Player
-                    const firstTile = activeDungeon.tiles[0];
+                    const firstTile = activeDungeons[tileName].tiles[0];
                     gameState = 'MOVING';
-                    animateTeleport(p, firstTile, () => {
-                        resolveDungeonStep(p);
-                    });
+                    animateTeleport(p, firstTile, () => { resolveDungeonStep(p); });
                 }
-                
                 document.getElementById('card-modal').classList.remove('active');
             }
         },
@@ -7119,43 +7064,38 @@ function offerDungeonEntry(p, tileName) {
 
 // Replaces rollMove() logic for players inside dungeon
 function advanceDungeon(p) {
-    // 1. Calculate Next Step
+    // Safety check
+    if (!p.dungeonType || !activeDungeons[p.dungeonType]) {
+        console.error("Player in invalid dungeon");
+        p.inDungeon = false;
+        return;
+    }
+
+    const currentDungeon = activeDungeons[p.dungeonType];
     const nextStep = (p.dungeonProgress || 0) + 1;
 
-    // 2. Check if we reached the Boss (Last Tile)
-    if (nextStep >= activeDungeon.tiles.length) {
+    if (nextStep >= currentDungeon.tiles.length) {
         triggerDungeonBoss(p);
         return;
     }
 
     addLog(`${p.name} ventures deeper...`);
 
-    // 3. Multiplayer Sync
     if (isMultiplayer && gameId) {
-        // Update data
         p.dungeonProgress = nextStep;
         syncPlayerState();
-
-        // Broadcast Movement
         db.ref(`games/${gameId}/teleportLog`).push({ 
-            pid: p.id, 
-            targetPos: 999, // Flag: Dungeon Move
-            dungeonStep: nextStep, 
-            timestamp: firebase.database.ServerValue.TIMESTAMP 
+            pid: p.id, targetPos: 999, dungeonStep: nextStep, timestamp: firebase.database.ServerValue.TIMESTAMP 
         });
     } 
-    // 4. Single Player Logic
     else {
         p.dungeonProgress = nextStep;
-        const targetTile = activeDungeon.tiles[nextStep];
+        const targetTile = currentDungeon.tiles[nextStep];
         gameState = 'MOVING';
-        
         new TWEEN.Tween(p.mesh.position)
             .to({ x: targetTile.position.x, z: targetTile.position.z }, 1000)
             .easing(TWEEN.Easing.Quadratic.Out)
-            .onComplete(() => {
-                resolveDungeonStep(p);
-            })
+            .onComplete(() => { resolveDungeonStep(p); })
             .start();
     }
 }
@@ -7227,110 +7167,180 @@ function resolveDungeonStep(p) {
 }
 
 function triggerDungeonBoss(p, isAmbush = false) {
-    const config = DUNGEON_DATA[activeDungeon.type];
+    // Safety Check: Ensure player knows which dungeon they are in
+    if (!p.dungeonType || !activeDungeons[p.dungeonType]) {
+        console.error("Boss Trigger Error: Dungeon data missing for " + p.name);
+        return;
+    }
+
+    const myDungeon = activeDungeons[p.dungeonType];
+    const config = DUNGEON_DATA[p.dungeonType];
+    
     const attempts = p.bossAttempts || 3;
     const diff = getDungeonDifficulty();
     const tn = diff.tnBase + 1;
-    const req = diff.req + 1;
+    const req = diff.req + 1; // Bosses are harder than normal rooms
 
-    // 1. Move Boss Visuals to Player
-    const boss = activeDungeon.bossMesh;
+    // 1. Setup Boss Visuals
+    const boss = myDungeon.bossMesh;
     
-    // Reset opacity in case it was faded out
-    boss.traverse((child) => { if(child.isMesh) child.material.opacity = 1; });
+    // Reset transparency from the fade-in cinematic
+    boss.traverse((child) => { 
+        if(child.isMesh) {
+            child.material.transparent = true; 
+            child.material.opacity = 1; 
+        }
+    });
+    
     boss.visible = true;
-    boss.scale.set(1.5, 1.5, 1.5); // Normal size
+    boss.scale.set(1.5, 1.5, 1.5); // Ensure normal size
 
+    // Position Boss
     if (isAmbush) {
-        // Teleport boss to player's current dungeon tile
+        // Teleport boss to player's current tile
         boss.position.copy(p.mesh.position);
-        boss.position.y = 0;
-        // Offset slightly so they don't clip
-        boss.position.z -= 1.5; 
+        boss.position.y = 0; 
+        boss.position.z -= 1.5; // Slight offset so they face each other
         boss.lookAt(p.mesh.position);
     } else {
-        // Standard End Boss Position (Last tile)
-        const endTile = activeDungeon.tiles[activeDungeon.tiles.length - 1];
+        // Standard End Boss Position (Last tile of THIS dungeon)
+        const endTile = myDungeon.tiles[myDungeon.tiles.length - 1];
         boss.position.copy(endTile.position);
         boss.position.y = 0;
+        
+        // Orient boss towards the path
+        if (myDungeon.tiles.length > 1) {
+            const prevTile = myDungeon.tiles[myDungeon.tiles.length - 2];
+            boss.lookAt(prevTile.position);
+        }
     }
 
-    VFX.trigger('smoke', boss.position); // Visual entrance
+    VFX.trigger('smoke', boss.position);
+    AUDIO.playSound('sfx_transition');
 
+    // 2. UI Modal Setup
     const m = document.getElementById('card-modal');
     const title = isAmbush ? `AMBUSH: ${config.bossName}` : `BOSS: ${config.bossName}`;
     document.getElementById('enc-title').innerText = title;
-    document.getElementById('enc-desc').innerText = `Attempts Left: ${attempts}. Roll Highest Stat vs TN ${tn}.`;
+    document.getElementById('enc-desc').innerText = `Attempts Left: ${attempts}. Roll Highest Stat vs TN ${tn}. (${req} successes needed)`;
     document.getElementById('enc-header').className = 'card-header skirmish';
     
     const l = document.getElementById('choice-list');
     l.innerHTML = '';
+    document.getElementById('dice-result').innerHTML = '';
+    document.getElementById('market-sell-area').style.display = 'none';
 
+    // Determine Best Stat
     const highestStat = (p.stats.str >= p.stats.dex && p.stats.str >= p.stats.int) ? 'str' : (p.stats.dex >= p.stats.int ? 'dex' : 'int');
 
     let b = document.createElement('div');
     b.className = 'choice-btn';
     b.style.borderColor = '#ef4444';
-    b.innerText = `Attack Boss (${highestStat.toUpperCase()})`;
+    b.innerHTML = `<span>ATTACK BOSS</span> <span style="font-size:0.8rem">Use ${highestStat.toUpperCase()}</span>`;
     
     b.onclick = () => {
+        // Roll Logic
         let pool = p.stats[highestStat] || 1;
         let wins = 0;
+        let rolls = [];
+        
         for(let i=0; i<pool; i++) {
-            if (Math.floor(Math.random()*6)+1 >= tn) wins++;
-        }
-
-        if (wins >= req) {
-            globalLog(`${p.name} SLAIN THE ${config.bossName}!`, "log-epic");
-            VFX.trigger('implode', boss.position, null, 0xffd700);
-            
-            const lootRoll = Math.floor(Math.random() * 6) + 1;
-            addLog(`Boss Drop Roll: ${lootRoll}`, "log-gold");
-            
-            for(let i=0; i<lootRoll; i++) {
-                const card = createItemInstance(DECK_TREASURE[Math.floor(Math.random() * DECK_TREASURE.length)]);
-                p.inventory.push(card);
-            }
-            
-            // Cleanup
-            p.inDungeon = false;
-            p.dungeonProgress = 0;
-            
-            const entranceTile = tiles.find(t => t.userData.info.name === activeDungeon.type);
-            animateTeleport(p, entranceTile, () => {
-                if (dungeonGroup) {
-                    scene.remove(dungeonGroup);
-                    dungeonGroup = null;
-                    activeDungeon = null;
-                }
-                if (isMultiplayer && myPlayerId === 0) {
-                    db.ref(`games/${gameId}/dungeonActive`).remove();
-                }
-            });
-
-        } else {
-            p.bossAttempts--;
-            if (p.bossAttempts > 0) {
-                addLog(`Boss blocked the attack! (${p.bossAttempts} tries left)`, "log-fail");
-                // Don't hide boss yet if it's the final room
-                // If ambush, maybe boss disappears? Let's assume boss disappears if you fail an ambush?
-                // For now, simple logic: Boss vanishes if ambush failed (you survive current tile)
-                if (isAmbush) {
-                    addLog("The boss vanishes into the shadows...", "log-rare");
-                    boss.visible = false;
-                }
-            } else {
-                addLog(`${p.name} exhausted and fled the dungeon!`, "log-fail");
-                p.inDungeon = false;
-                p.pos = 0;
-                animateTeleport(p, tiles[0]);
-            }
+            let r = Math.floor(Math.random()*6)+1;
+            rolls.push(r);
+            if (r >= tn) wins++;
         }
         
-        if (isMultiplayer) syncPlayerState();
-        m.classList.remove('active');
-        endStep();
+        // Display Dice
+        const resDiv = document.getElementById('dice-result');
+        resDiv.innerHTML = '';
+        rolls.forEach(r => {
+            let die = document.createElement('div');
+            die.className = 'mini-die ' + (r >= tn ? 'win' : 'lose');
+            die.innerText = r;
+            resDiv.appendChild(die);
+        });
+
+        // 3. Resolve Combat
+        setTimeout(() => {
+            if (wins >= req) {
+                // --- VICTORY ---
+                globalLog(`${p.name} SLAIN THE ${config.bossName}!`, "log-epic");
+                AUDIO.playSound('sfx_win');
+                VFX.trigger('implode', boss.position, null, 0xffd700);
+                
+                // Loot
+                const lootRoll = Math.floor(Math.random() * 6) + 1;
+                addLog(`Boss Drop Roll: ${lootRoll} items found!`, "log-gold");
+                
+                for(let i=0; i<lootRoll; i++) {
+                    const card = createItemInstance(DECK_TREASURE[Math.floor(Math.random() * DECK_TREASURE.length)]);
+                    p.inventory.push(card);
+                }
+                
+                // --- CLEANUP SPECIFIC DUNGEON ---
+                p.inDungeon = false;
+                p.dungeonProgress = 0;
+                const typeToRemove = p.dungeonType; // Save type before clearing player
+                p.dungeonType = null;
+                
+                // Find entrance tile to return to
+                const entranceTile = tiles.find(t => t.userData.info.name === typeToRemove) || tiles[0];
+                
+                animateTeleport(p, entranceTile, () => {
+                    // Remove Visuals for THIS dungeon only
+                    if (activeDungeons[typeToRemove]) {
+                        dungeonGroup.remove(activeDungeons[typeToRemove].group);
+                        // Optional: Dispose of geometries to free memory here
+                        delete activeDungeons[typeToRemove];
+                    }
+                    
+                    // Sync Removal to DB (Host Only)
+                    if (isMultiplayer && myPlayerId === 0) {
+                        // Use the specific key to remove just this dungeon
+                        // Note: Ensure your setupListener saves dungeons with keys if using this
+                        // Fallback: Remove from the active list logic
+                         db.ref(`games/${gameId}/dungeonActive/${typeToRemove}`).remove();
+                    }
+                    
+                    updateHUD();
+                });
+
+                m.classList.remove('active');
+                endStep();
+
+            } else {
+                // --- DEFEAT ---
+                AUDIO.playSound('sfx_fail');
+                p.bossAttempts--;
+                
+                if (p.bossAttempts > 0) {
+                    addLog(`Boss blocked the attack! (${p.bossAttempts} tries left)`, "log-fail");
+                    // Boss stays visible if End Boss. If Ambush, flavor choice:
+                    if (isAmbush) {
+                        addLog("The boss vanishes into the shadows...", "log-rare");
+                        boss.visible = false;
+                    }
+                    // Update UI text for re-try
+                    document.getElementById('enc-desc').innerText = `Attempts Left: ${p.bossAttempts}. Roll Highest Stat vs TN ${tn}.`;
+                } else {
+                    addLog(`${p.name} exhausted and fled the dungeon!`, "log-fail");
+                    p.inDungeon = false;
+                    p.dungeonType = null;
+                    p.dungeonProgress = 0;
+                    p.pos = 0; // Return to Inn
+                    
+                    animateTeleport(p, tiles[0], () => {
+                        m.classList.remove('active');
+                        endStep();
+                    });
+                }
+            }
+            
+            if (isMultiplayer) syncPlayerState();
+            
+        }, 800); // Wait for dice reveal
     };
+    
     l.appendChild(b);
     m.classList.add('active');
 }
