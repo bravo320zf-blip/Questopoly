@@ -4597,42 +4597,83 @@ fireball: {
         img: "https://static.wixstatic.com/media/b16479_8dc7a78f86354f4b8c7617155971f54d~mv2.jpg" 
     },
 polymorph: { 
-        name: "Polymorph", desc: "Turn enemy into a Sheep (1 Turn).", 
+        name: "Polymorph", 
+        desc: "Turn enemy into a Sheep (1 Turn).", 
         fn: (p) => { 
             const targets = players.filter(x => x.id !== p.id && !x.isDead && !x.isBoss && !x.isEventEntity); 
+            
             if(targets.length > 0) { 
                 const t = targets[Math.floor(Math.random() * targets.length)]; 
                 
-                // 1. Camera Zoom to Target
-                if (isZoomed) {
-                    const offset = { x: 0, y: 22, z: 18 }; 
-                    new TWEEN.Tween(camera.position)
-                        .to({ x: t.mesh.position.x + offset.x, z: t.mesh.position.z + offset.z }, 800)
-                        .start();
-                }
+                // 1. Hijack Camera Focus
+                // Save who we were looking at (usually the active player 'p')
+                const previousCameraTarget = cameraTarget; 
+                
+                // Set focus to the Victim
+                cameraTarget = t.mesh;
+                isZoomed = true;
 
-                // 2. Surprised Animation (Jump & Spin)
+                // Animate Camera Position closer to victim
+                const zoomOffset = { x: 0, y: 15, z: 12 }; 
+                new TWEEN.Tween(camera.position)
+                    .to({ 
+                        x: t.mesh.position.x + zoomOffset.x, 
+                        y: zoomOffset.y, 
+                        z: t.mesh.position.z + zoomOffset.z 
+                    }, 800)
+                    .easing(TWEEN.Easing.Quadratic.Out)
+                    .start();
+
+                // 2. Play "Freaked Out" Animation (High Jump + Fast Spin)
                 new TWEEN.Tween(t.mesh.position)
-                    .to({ y: 2 }, 300).yoyo(true).repeat(1).start();
+                    .to({ y: 3 }, 400) // Jump high
+                    .yoyo(true)
+                    .repeat(1)
+                    .start();
+
                 new TWEEN.Tween(t.mesh.rotation)
-                    .to({ y: t.mesh.rotation.y + (Math.PI * 4) }, 600) // Fast spin
+                    .to({ y: t.mesh.rotation.y + (Math.PI * 8) }, 800) // Spin very fast
                     .onComplete(() => {
                         // 3. Poof Effect
                         VFX.trigger('smoke', t.mesh.position); 
                         
-                        // 4. Transform
+                        // 4. Transform Logic
                         makeSheep(t); 
+                        
+                        // CRITICAL FIX: Update camera to look at the NEW sheep mesh
+                        // (Since makeSheep replaces t.mesh, the old cameraTarget reference is dead)
+                        cameraTarget = t.mesh; 
+
                         addLog(`${p.name} turned ${t.name} into a sheep!`, "log-epic"); 
                         
                         if (isMultiplayer && db && gameId) {
                             db.ref(`games/${gameId}/players/${t.id}`).update({ isPolymorphed: true });
                         }
+
+                        // 5. Return Camera to Player after a short delay
+                        setTimeout(() => {
+                            // Restore target to active player
+                            cameraTarget = (p.mesh) ? p.mesh : previousCameraTarget;
+                            
+                            // Animate camera back to standard view
+                            const stdOffset = { x: 0, y: 22, z: 18 }; 
+                            new TWEEN.Tween(camera.position)
+                                .to({
+                                    x: p.mesh.position.x + stdOffset.x,
+                                    y: stdOffset.y,
+                                    z: p.mesh.position.z + stdOffset.z
+                                }, 1000)
+                                .easing(TWEEN.Easing.Quadratic.Out)
+                                .start();
+                        }, 1500); // Wait 1.5s so we can admire the sheep
                     })
                     .start();
 
                 return true; 
             } 
-            addLog("No valid targets.", "log-fail"); return false; 
+            
+            addLog("No valid targets.", "log-fail"); 
+            return false; 
         }, 
         img: "https://static.wixstatic.com/media/b16479_fbec81995dd34d0ebeb4b837d2e26b8d~mv2.jpg" 
     },
