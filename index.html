@@ -5356,6 +5356,7 @@ fireball: {
         fn: (p) => { 
             if(p.gold < 100) return false; 
             
+            // Find valid targets (Owned by others)
             const ts = tiles.filter(t => t.userData.owner !== null && String(t.userData.owner) !== String(p.id)); 
             
             if(ts.length){ 
@@ -5365,7 +5366,7 @@ fireball: {
                 // Visuals
                 VFX.trigger('fireball', p.mesh.position, t.position);
                 
-                // DELAYED LOGIC
+                // DELAYED LOGIC (Wait for impact)
                 setTimeout(() => {
                     let guardDied = false;
                     let msg = "";
@@ -5383,11 +5384,28 @@ fireball: {
                             t.userData.buildingLevel = 1; 
                             msg = `Fireball downgraded ${t.userData.info.name}!`;
                         } else {
+                            // FULL DESTRUCTION
                             t.userData.owner = null; 
+                            t.userData.buildingLevel = 0;
+                            t.userData.guardCount = 0;
+                            t.userData.defendingStat = null;
+                            
+                            // Local Visual Removal (Instant feedback for SP)
                             if(t.userData.prop) {
                                 new TWEEN.Tween(t.userData.prop.scale).to({y: 0}, 500).start();
                                 setTimeout(() => { t.remove(t.userData.prop); t.userData.prop = null; }, 500);
                             }
+                            // Clear guards locally
+                            if (typeof activeGuards !== 'undefined') {
+                                activeGuards = activeGuards.filter(g => {
+                                    if(g.tileId === t.userData.id) {
+                                        if(g.mesh) scene.remove(g.mesh);
+                                        return false;
+                                    }
+                                    return true;
+                                });
+                            }
+                            
                             msg = `Fireball destroyed ${t.userData.info.name}!`;
                         }
                     }
@@ -5398,26 +5416,26 @@ fireball: {
                     victims.forEach(v => {
                         v.gold = Math.max(0, v.gold - 100);
                         addLog(`${v.name} caught in the blast! Lost 100G.`, "log-fail");
-                        
-                        // Sync Victim Gold
                         if (typeof isMultiplayer !== 'undefined' && isMultiplayer && myPlayerId === 0) {
                             db.ref(`games/${gameId}/players/${v.id}/gold`).set(v.gold);
                         }
                     });
 
                     // --- 4. SYNC BOARD ---
+                    // Sync regardless of destruction or downgrade
                     if (typeof isMultiplayer !== 'undefined' && isMultiplayer && (p.id === myPlayerId || myPlayerId === 0)) {
                         db.ref(`games/${gameId}/board/${t.userData.id}`).set({
-                            owner: t.userData.owner,
+                            owner: t.userData.owner, // Null if destroyed
                             level: t.userData.buildingLevel,
-                            guardCount: t.userData.guardCount || 0 // Sync new guard count
+                            guardCount: t.userData.guardCount || 0
                         });
                         syncPlayerState();
                     }
                     
-                    // --- 5. VISUAL UPDATE ---
-                    // This will redraw the tile with 1 less guard if a guard died
-                    if (t.userData.owner) {
+                    // --- 5. VISUAL UPDATE (Downgrade/Guard Loss only) ---
+                    // If owner still exists, refresh visuals (e.g., show fewer guards or smaller tent)
+                    // If destroyed, logic above handled removal.
+                    if (t.userData.owner !== null) {
                         applyCaptureVisuals(t, players.find(pl=>pl.id===t.userData.owner), t.userData.buildingLevel);
                     }
 
@@ -13574,21 +13592,61 @@ function handleBoardUpdate(snap) {
     const data = snap.val();
     
     const tile = tiles[tileId];
+    // Attempt to find owner. If data.owner is null/undefined, this returns undefined.
     const owner = players.find(p => p.id === data.owner);
     
-    if(tile && owner) {
-        tile.userData.owner = owner.id;
-        tile.userData.buildingLevel = parseInt(data.level); // <--- ENSURE PARSEINT
-        tile.userData.guardCount = data.guardCount || 0;
-        tile.userData.defendingStat = data.defendingStat || 'str';
+    if (tile) {
+        // CASE 1: Valid Owner (Update/Create Building)
+        if (owner) {
+            tile.userData.owner = owner.id;
+            tile.userData.buildingLevel = parseInt(data.level);
+            tile.userData.guardCount = data.guardCount || 0;
+            tile.userData.defendingStat = data.defendingStat || 'str';
 
-        if(gameState === 'MOVING') {
-            setTimeout(() => {
+            // Delay visuals if moving to prevent popping during animation
+            if (gameState === 'MOVING') {
+                setTimeout(() => {
+                    applyCaptureVisuals(tile, owner, parseInt(data.level));
+                }, 3000);
+            } else {
                 applyCaptureVisuals(tile, owner, parseInt(data.level));
-            }, 3000);
-        } else {
-            applyCaptureVisuals(tile, owner, parseInt(data.level));
+            }
+        } 
+        // CASE 2: No Owner (Destroy/Clear Building)
+        else {
+            tile.userData.owner = null;
+            tile.userData.buildingLevel = 0;
+            tile.userData.guardCount = 0;
+            tile.userData.defendingStat = null;
+
+            // Remove 3D Prop
+            if (tile.userData.prop) {
+                // Shrink animation for smooth removal
+                new TWEEN.Tween(tile.userData.prop.scale).to({y: 0}, 500).onComplete(() => {
+                    tile.remove(tile.userData.prop);
+                    tile.userData.prop = null;
+                }).start();
+            } else {
+                // Just in case it was already removed or glitchy
+                if(tile.getObjectByName("BuildingGroup")) tile.remove(tile.getObjectByName("BuildingGroup"));
+            }
+
+            // Clean up any guards on this tile
+            if (typeof activeGuards !== 'undefined') {
+                activeGuards = activeGuards.filter(g => {
+                    if (g.tileId === tile.userData.id) {
+                        if (g.mesh) scene.remove(g.mesh);
+                        return false; // Remove from array
+                    }
+                    return true; // Keep others
+                });
+            }
         }
+        
+        // Sync Traps (Separate from Building Owner)
+        if (data.trapOwner !== undefined) tile.userData.trapOwner = data.trapOwner; 
+        else tile.userData.trapOwner = null;
+        if (typeof updateTrapVisuals === 'function') updateTrapVisuals(tile);
     }
 }
 function forcePortrait() {
