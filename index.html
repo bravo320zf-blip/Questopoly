@@ -9320,14 +9320,128 @@ function checkAndTriggerTrap(p, tile, onComplete) {
 function resolveLanding(p) {
     const tile = tiles[p.pos];
 
-    // Check for a trap. If one is triggered, it will handle calling 'continueLandingLogic' as a callback.
-    // If it returns false, it means no trap was found, so we proceed immediately.
-    const trapWasHandled = checkAndTriggerTrap(p, tile, () => {
+    // --- 1. TRAP CHECK ---
+    // We run the check first. If it returns true (trap triggered), 
+    // the callback will handle the rest of the landing logic after the animation.
+    const trapTriggered = checkAndTriggerTrap(p, tile, () => {
+        // This runs after trap animation finishes
         continueLandingLogic(p, tile);
     });
 
-    if (!trapWasHandled) {
+    // If trap triggered, stop here and wait for callback. 
+    // If false (no trap), continue immediately.
+    if (!trapTriggered) {
         continueLandingLogic(p, tile);
+    }
+}
+
+function continueLandingLogic(p, tile) {
+    // --- 2. MEDIC PASSIVE CHECK (FIXED) ---
+    if (p.passiveSkillId === 'medic' && !p.isAi) {
+        const patient = players.find(x => x.id !== p.id && !x.isDead && x.pos === p.pos);
+        if (patient) {
+            showModal("Medic", `Give 100G to ${patient.name} to gain +1 Permanent Stat?`, [
+                {
+                    txt: "Heal (Give 100G)",
+                    act: () => {
+                        if (p.gold >= 100) {
+                            p.gold -= 100;
+                            patient.gold += 100;
+                            addLog(`${p.name} healed ${patient.name}!`, "log-success");
+                            
+                            // Initialize Perm Bonuses if missing
+                            if (!p.permBonuses) p.permBonuses = {str:0, dex:0, int:0};
+
+                            // Sync Gold Changes Immediately
+                            if (isMultiplayer) {
+                                syncPlayerState(); 
+                                db.ref(`games/${gameId}/players/${patient.id}/gold`).set(patient.gold);
+                            }
+
+                            // Show Choice for Permanent Stat
+                            showModal("Divine Reward", "Choose a PERMANENT stat boost:", [
+                                { txt: "+1 STR", act: () => { 
+                                    p.permBonuses.str++; 
+                                    recalcStats(p); 
+                                    addLog("Medic: Gained Permanent +1 STR"); 
+                                    if(isMultiplayer) syncPlayerState(); 
+                                    triggerTileEvent(p); 
+                                }},
+                                { txt: "+1 DEX", act: () => { 
+                                    p.permBonuses.dex++; 
+                                    recalcStats(p); 
+                                    addLog("Medic: Gained Permanent +1 DEX"); 
+                                    if(isMultiplayer) syncPlayerState(); 
+                                    triggerTileEvent(p); 
+                                }},
+                                { txt: "+1 INT", act: () => { 
+                                    p.permBonuses.int++; 
+                                    recalcStats(p); 
+                                    addLog("Medic: Gained Permanent +1 INT"); 
+                                    if(isMultiplayer) syncPlayerState(); 
+                                    triggerTileEvent(p); 
+                                }}
+                            ]);
+                        } else {
+                            addLog("Not enough gold to Heal.");
+                            triggerTileEvent(p);
+                        }
+                    }
+                },
+                { txt: "Ignore", act: () => triggerTileEvent(p) }
+            ]);
+            return; 
+        }
+    }
+
+    debugLog(`Landed: ${p.name} at Tile ${p.pos} (AI: ${p.isAi})`);
+    
+    // --- 3. SINGLE PLAYER LOGIC ---
+    if (!isMultiplayer) {
+        if (p.isAi) { 
+            triggerTileEvent(p); 
+            return; 
+        }
+
+        // A. Dynamic Merchant Event Check
+        const merchantEvent = activeEvents.find(e => e.data.type === 'merchant' && e.playerRef && e.playerRef.pos === p.pos);
+        if (merchantEvent) {
+            let stock = [];
+            if (merchantEvent.data.id === 'merch_alchemist') stock = DECK_TREASURE.filter(it => it.type === 'scroll' && !it.name.includes('Gold'));
+            else if (merchantEvent.data.id === 'merch_armorer') stock = DECK_TREASURE.filter(it => ['head', 'body', 'off'].includes(it.slot) && !it.name.includes('Gold'));
+            else if (merchantEvent.data.id === 'merch_weaponsmith') stock = DECK_TREASURE.filter(it => it.slot === 'main' && !it.name.includes('Gold'));
+            
+            const items = [];
+            for(let k=0; k<3; k++) items.push(createItemInstance(stock[Math.floor(Math.random()*stock.length)]));
+            openCustomShop(p, items, merchantEvent.data.name, () => endStep());
+            AUDIO.playSound('sfx_gold');
+            return;
+        }
+
+        // B. Old Crooks Inn (Start Tile)
+        const i = tile.userData.info;
+        if (i.type === 'start') {
+            const stock = DECK_TREASURE.filter(it => !it.name.includes('Gold')); 
+            const items = [];
+            for(let k=0; k<3; k++) items.push(createItemInstance(stock[Math.floor(Math.random()*stock.length)]));
+            openCustomShop(p, items, "Old Crooks General Store", () => endStep());
+            AUDIO.playSound('sfx_gold');
+            return;
+        }
+
+        // C. Standard Tile Event
+        triggerTileEvent(p); 
+        return;
+    }
+
+    // --- 4. MULTIPLAYER SYNC ---
+    const isMe = (p.id === myPlayerId);
+    const isMyAi = (p.isAi && myPlayerId === 0); 
+    if (isMe || isMyAi) {
+        // Broadcast new position to DB
+        db.ref(`games/${gameId}/players/${p.id}`).update({ pos: p.pos });
+        // Ask for event
+        triggerTileEvent(p); 
     }
 }
 
@@ -10072,53 +10186,37 @@ function evaluateAndBuy(p, items) {
 function syncPlayerState() {
     if (!isMultiplayer || !db || !gameId) return;
     
-    // 1. Sync Myself (Human)
-    const me = players.find(pl => pl.id === myPlayerId);
-    if (me) {
-        // Serialize Equipment
+    const updatePlayer = (player) => {
         const cleanEquip = {};
         ['head','body','main','off'].forEach(s => {
-            if(me.equipment[s]) cleanEquip[s] = serializeItem(me.equipment[s]);
+            if(player.equipment[s]) cleanEquip[s] = serializeItem(player.equipment[s]);
         });
-        // Serialize Inventory
-        const cleanInv = me.inventory.map(i => serializeItem(i));
+        const cleanInv = player.inventory.map(i => serializeItem(i));
 
-        db.ref(`games/${gameId}/players/${myPlayerId}`).update({
-            gold: me.gold,
-            stats: me.stats,
-            metrics: me.metrics, // <--- SYNC METRICS (For Recharge Steps)
-            activeSkillId: me.activeSkillId || null,
-            passiveSkillId: me.passiveSkillId || null,
+        db.ref(`games/${gameId}/players/${player.id}`).update({
+            gold: player.gold,
+            stats: player.stats,
+            permBonuses: player.permBonuses || {str:0, dex:0, int:0}, // <--- ADDED
+            metrics: player.metrics,
+            activeSkillId: player.activeSkillId || null,
+            passiveSkillId: player.passiveSkillId || null,
             equipment: cleanEquip,
             inventory: cleanInv
         });
-    }
+    };
 
-    // 2. If Host, Sync ALL AI Players
+    // Sync Self
+    const me = players.find(pl => pl.id === myPlayerId);
+    if (me) updatePlayer(me);
+
+    // Sync AI (Host)
     if (myPlayerId === 0) {
         players.forEach(p => {
-            if (p.isAi) {
-                const cleanEquip = {};
-                ['head','body','main','off'].forEach(s => {
-                    if(p.equipment[s]) cleanEquip[s] = serializeItem(p.equipment[s]);
-                });
-                const cleanInv = p.inventory.map(i => serializeItem(i));
-
-                db.ref(`games/${gameId}/players/${p.id}`).update({
-                    gold: p.gold,
-                    stats: p.stats,
-                    metrics: p.metrics, // <--- SYNC METRICS (AI)
-                    activeSkillId: p.activeSkillId || null,
-                    passiveSkillId: p.passiveSkillId || null,
-                    equipment: cleanEquip,
-                    inventory: cleanInv
-                });
-            }
+            if (p.isAi) updatePlayer(p);
         });
     }
 }
 
-// NEW HELPER: Headless Combat for AI (No UI)
 // NEW HELPER: Headless Combat for AI (No UI)
 function resolveAiCombat(p, stat, tn, req, t, mode, rewardVal, failCost) {
     // Prevent double triggers
@@ -11121,27 +11219,33 @@ function pay(p, amount, recipient) {
     AUDIO.playSound('sfx_gold');
 }
 function handleDebt(p, debtAmount, recipient) {
-    const ownedTiles = tiles.filter(t => t.userData.owner === p.id);
+    // 1. Identify Assets
+    const ownedTiles = tiles.filter(t => String(t.userData.owner) === String(p.id));
     
-    // --- RESURRECTION CHECK ---
+    // --- RESURRECTION PASSIVE CHECK ---
     if (p.passiveSkillId === 'resurrection' && !p.resurrectionUsed && p.gold < 0 && ownedTiles.length === 0) {
         p.gold = 500;
         p.resurrectionUsed = true;
-        // Perm stats penalty
-        p.stats.str = Math.max(1, p.stats.str - 1);
-        p.stats.dex = Math.max(1, p.stats.dex - 1);
-        p.stats.int = Math.max(1, p.stats.int - 1);
+        // Apply Perm Stats Penalty (stored in permBonuses to persist)
+        if (!p.permBonuses) p.permBonuses = {str:0, dex:0, int:0};
+        p.permBonuses.str -= 1;
+        p.permBonuses.dex -= 1;
+        p.permBonuses.int -= 1;
+        
+        recalcStats(p);
+        
         addLog(`${p.name} RESURRECTED! (+500G, -1 Perm Stats)`, "log-epic");
         updateHUD();
-        if(isMultiplayer) syncPlayerState();
+        
+        if(isMultiplayer && (p.id === myPlayerId || myPlayerId === 0)) syncPlayerState();
         return; 
     }
 
     // --- AI LOGIC: Auto-Sell ---
     if (p.isAi) {
-        // Keep selling until positive OR out of properties
+        // While in debt AND has property...
         while (p.gold < 0 && ownedTiles.length > 0) {
-            // Sell the most expensive property first to save logic
+            // Sell most expensive first
             ownedTiles.sort((a,b) => b.userData.info.cost - a.userData.info.cost);
             const t = ownedTiles.shift(); 
             const val = Math.floor(t.userData.info.cost / 2); 
@@ -11150,36 +11254,29 @@ function handleDebt(p, debtAmount, recipient) {
             addLog(`${p.name} sold ${t.userData.info.name} for ${val}G.`, "log-fail");
         }
 
-        // Final Check
+        // Final Check: Still Broke?
         if (p.gold < 0) {
             eliminatePlayer(p);
         } else {
             // Debt Cleared
-            // If there was a specific recipient, they get the gold now
-            // (Note: p.gold is the remaining balance, debtAmount was the original hole)
-            // But we actually just need to ensure the recipient gets what was paid.
-            // Simplified: The gold was already subtracted. If p.gold is now >= 0, the money "exists".
-            
             if (recipient) {
-                // Determine how much was actually paid. 
-                // Original debt was 'debtAmount'. 
-                // If p.gold is 0 or more, they paid full.
                 recipient.gold += debtAmount; 
-                if(isMultiplayer && myPlayerId === 0) db.ref(`games/${gameId}/players/${recipient.id}`).update({gold: recipient.gold});
+                if(isMultiplayer && myPlayerId === 0) db.ref(`games/${gameId}/players/${recipient.id}/gold`).set(recipient.gold);
             } else {
                 treasuryGold += debtAmount;
                 if(isMultiplayer && gameId && myPlayerId === 0) db.ref(`games/${gameId}/treasury`).set(treasuryGold);
             }
             updateHUD();
-            if(isMultiplayer) syncPlayerState();
+            if(isMultiplayer && myPlayerId === 0) syncPlayerState();
         }
     } 
     // --- HUMAN LOGIC ---
     else {
         if (ownedTiles.length === 0) {
-            // No assets, immediate game over
+            // No assets to sell, immediate Game Over
             eliminatePlayer(p);
         } else {
+            // Show UI to let human choose what to sell
             showBankruptcyModal(p, debtAmount, recipient, ownedTiles);
         }
     }
@@ -11187,17 +11284,31 @@ function handleDebt(p, debtAmount, recipient) {
 
 function sellPropertyLogic(t, p, val) {
     p.gold += val;
+    
+    // Clear Data
     t.userData.owner = null;
     t.userData.buildingLevel = 0;
     t.userData.guardCount = 0;
     t.userData.defendingStat = null;
+    
+    // Clear Visuals
     if (t.userData.prop) {
-        t.remove(t.userData.prop);
+        const prop = t.userData.prop;
+        new TWEEN.Tween(prop.scale).to({y:0}, 500).onComplete(() => {
+             t.remove(prop);
+        }).start();
         t.userData.prop = null;
     }
-    // Remove from active guards list
+    
+    // Clear Guards
     if (typeof activeGuards !== 'undefined') {
-        activeGuards = activeGuards.filter(g => g.tileId !== t.userData.id);
+        activeGuards = activeGuards.filter(g => {
+            if (g.tileId === t.userData.id) {
+                if (g.mesh) scene.remove(g.mesh);
+                return false;
+            }
+            return true;
+        });
     }
     
     // Sync Board if Multiplayer Host/Self
@@ -11287,36 +11398,82 @@ function showBankruptcyModal(p, originalDebt, recipient, ownedTiles) {
 }
 function eliminatePlayer(p) { 
     p.isDead = true; 
-    
-    // --- INHERITANCE LOGIC (Resurrection Passive) ---
+    p.gold = 0; 
+
+    // --- 1. INHERITANCE LOGIC (Resurrection Passive) ---
+    // If someone else has Resurrection, they get the dead player's remaining gold (if positive)
+    // Note: We check this *before* setting gold to 0 in logic, but here we assume p.gold might have been drained.
+    // If you want them to inherit assets before debt wipe, logic needs to be in handleDebt, 
+    // but here is a basic implementation if they had cash left.
     const inheritor = players.find(x => !x.isDead && x.id !== p.id && x.passiveSkillId === 'resurrection');
     if (inheritor && p.gold > 0) {
         const loot = Math.floor(p.gold * 0.5); 
         inheritor.gold += loot;
         addLog(`${inheritor.name} inherits ${loot}G from ${p.name}.`, "log-epic");
+        if (isMultiplayer && myPlayerId === 0) {
+            db.ref(`games/${gameId}/players/${inheritor.id}/gold`).set(inheritor.gold);
+        }
     }
-    // ------------------------------------------------
     
-    p.gold = 0; 
-    if(p.mesh) scene.remove(p.mesh); 
+    // --- 2. VISUAL REMOVAL ---
+    if(p.mesh) {
+        new TWEEN.Tween(p.mesh.scale).to({x:0, y:0, z:0}, 1000)
+            .onComplete(() => { scene.remove(p.mesh); })
+            .start();
+    }
     
-    // Clear Properties
+    // --- 3. CLEAR PROPERTIES ---
     tiles.forEach(t => { 
-        if(t.userData.owner === p.id) { 
+        if(String(t.userData.owner) === String(p.id)) { 
             t.userData.owner = null; 
             t.userData.buildingLevel = 0; 
-            if(t.userData.prop) { t.remove(t.userData.prop); t.userData.prop = null; } 
+            t.userData.guardCount = 0;
+            t.userData.defendingStat = null;
+            
+            // Remove Visuals
+            if(t.userData.prop) { 
+                t.remove(t.userData.prop); 
+                t.userData.prop = null; 
+            } 
+
+            // Cleanup Guards
+            if (typeof activeGuards !== 'undefined') {
+                activeGuards = activeGuards.filter(g => {
+                    if (g.tileId === t.userData.id) {
+                        if (g.mesh) scene.remove(g.mesh);
+                        return false;
+                    }
+                    return true;
+                });
+            }
+            
+            // Sync Board Clearing (Host Only)
+            if (isMultiplayer && myPlayerId === 0) {
+                db.ref(`games/${gameId}/board/${t.userData.id}`).set({
+                    owner: null, level: 0, guardCount: 0
+                });
+            }
         } 
     }); 
     
     addLog(`${p.name} has been ELIMINATED!`, "log-fail"); 
+    
+    // --- 4. MULTIPLAYER SYNC ---
+    if (isMultiplayer && (p.id === myPlayerId || myPlayerId === 0)) {
+        db.ref(`games/${gameId}/players/${p.id}`).update({ 
+            isDead: true, 
+            gold: 0,
+            pos: -1 
+        });
+    }
+    
     updateHUD(); 
     
-    // --- FIX: ONLY SHOW DEFEAT SCREEN IF IT IS ME ---
+    // --- 5. END GAME CHECK ---
     if (p.id === myPlayerId) { 
-        showGameOver(false); // I died, so I see defeat
+        showGameOver(false); 
     } else { 
-        checkWinCondition(); // Someone else died, check if I won
+        checkWinCondition(); 
     } 
 }
 function checkWinCondition() { const livingAi = players.filter(pl => pl.isAi && !pl.isDead); const human = players[0]; if (livingAi.length === 0 && !human.isDead) { showGameOver(true); } }
@@ -12901,515 +13058,48 @@ function hydrateItem(item) {
 }
 
 // --- NEW HELPER FUNCTION FOR MP LISTENERS ---
-function setupMultiplayerListeners() {
-    if(listenersActive) return;
-    listenersActive = true;
+function recalcStats(p) {
+    if (!p || p.isBoss || p.isEventEntity || !p.race) return;
 
-    console.log("Setting up Host-Authoritative Listeners...");
-    const connectionTime = Date.now();
+    // 1. Reset to Base Stats
+    p.stats.str = p.race.stats.str; 
+    p.stats.dex = p.race.stats.dex; 
+    p.stats.int = p.race.stats.int;
+    
+    // 2. Add Permanent Bonuses (MEDIC FIX)
+    if (p.permBonuses) {
+        p.stats.str += (p.permBonuses.str || 0);
+        p.stats.dex += (p.permBonuses.dex || 0);
+        p.stats.int += (p.permBonuses.int || 0);
+    }
+    
+    // 3. Add Items
+    ['head', 'body', 'main', 'off'].forEach(slot => { 
+        const item = p.equipment[slot]; 
+        if(item && item.bonus) { 
+            const k = Object.keys(item.bonus)[0]; 
+            if (p.stats[k] !== undefined) p.stats[k] += item.bonus[k]; 
+        } 
+    });
 
-    // ==========================================
-    //  SECTION A: HOST LOGIC (Game State Management)
-    // ==========================================
-    if (myPlayerId === 0) {
-        db.ref(`games/${gameId}/request`).on('child_added', snap => {
-            const req = snap.val();
-            const reqKey = snap.key;
-            if(!req) return;
+    // 4. Passives
+    const pas = ABILITY_LIBRARY[p.passiveSkillId]; 
+    if(pas && pas.effect) pas.effect(p.stats);
 
-            // 1. ROLL REQUEST
-            if (req.type === 'ROLL') {
-                const p = players.find(pl => pl.id === req.pid);
-                if (p) {
-                    let d1 = 0, d2 = 0, total = 0;
-                    if (p.isPolymorphed) { d1 = 1; d2 = 0; total = 1; } 
-                    else {
-                        d1 = Math.floor(Math.random() * 6) + 1;
-                        d2 = Math.floor(Math.random() * 6) + 1;
-                        total = d1 + d2;
-                        if (p.passiveSkillId && ABILITY_LIBRARY[p.passiveSkillId] && ABILITY_LIBRARY[p.passiveSkillId].name === "Shadow Step") total += 1;
-                        if (activeEvents.some(e => e.data && e.data.id === 'weather_blizzard')) total = Math.max(1, total - 1);
-                        if (activeEvents.some(e => e.data && e.data.id === 'weather_goldrain')) {
-                            const bonus = total * 10;
-                            p.gold += bonus; 
-                            db.ref(`games/${gameId}/players/${p.id}/gold`).set(p.gold);
-                        }
-                    }
-                    db.ref(`games/${gameId}/moveHistory`).push({
-                        pid: p.id, d1: d1, d2: d2, finalSteps: total, startPos: p.pos,
-                        timestamp: firebase.database.ServerValue.TIMESTAMP
-                    });
-                }
-                db.ref(`games/${gameId}/request/${reqKey}`).remove();
-            }
-
-            // 2. TILE_EVENT REQUEST
-            if (req.type === 'TILE_EVENT') {
-                const p = players.find(pl => pl.id === req.pid);
-                const tile = tiles[req.tileIndex];
-                const info = tile.userData.info;
-                let eventData = { pid: req.pid, tileIndex: req.tileIndex, timestamp: firebase.database.ServerValue.TIMESTAMP, mode: 'normal' };
-
-                // Check for Dynamic Merchant
-                const merchantEvent = activeEvents.find(e => e.data.type === 'merchant' && e.playerRef && e.playerRef.pos === req.tileIndex);
-
-                if (merchantEvent) {
-                    eventData.mode = 'shop';
-                    let stock = [];
-                    if (merchantEvent.data.id === 'merch_alchemist') stock = DECK_TREASURE.filter(it => it.type === 'scroll' && !it.name.includes('Gold'));
-                    else if (merchantEvent.data.id === 'merch_armorer') stock = DECK_TREASURE.filter(it => ['head', 'body', 'off'].includes(it.slot) && !it.name.includes('Gold'));
-                    else if (merchantEvent.data.id === 'merch_weaponsmith') stock = DECK_TREASURE.filter(it => it.slot === 'main' && !it.name.includes('Gold'));
-                    
-                    const shopItems = [];
-                    for(let k=0; k<3; k++) shopItems.push(serializeItem(createItemInstance(stock[Math.floor(Math.random()*stock.length)])));
-                    eventData.items = shopItems;
-                }
-                else if (info.type === 'start' || info.type === 'shop') {
-                    eventData.mode = 'shop';
-                    const stock = DECK_TREASURE.filter(i => !i.name.includes('Gold'));
-                    const shopItems = [];
-                    for(let k=0; k<3; k++) shopItems.push(serializeItem(createItemInstance(stock[Math.floor(Math.random()*stock.length)])));
-                    eventData.items = shopItems;
-                } 
-                else if (info.type === 'goto') eventData.mode = 'goto';
-                else if (info.type === 'jail') eventData.mode = 'jail';
-                else if (info.type === 'park') eventData.mode = 'park';
-                else if (info.type === 'tax') { eventData.mode = 'tax_card'; eventData.card = { cost: 50 }; }
-                else if (info.type === 'chest') {
-                    eventData.mode = 'loot';
-                    eventData.card = serializeItem(createItemInstance(DECK_TREASURE[Math.floor(Math.random() * DECK_TREASURE.length)]));
-                }
-                else if (info.type === 'mystery') {
-                    eventData.mode = 'mystery_event';
-                    eventData.card = JSON.parse(JSON.stringify((isNight ? DECK_SKIRMISH : DECK_ENCOUNTER)[Math.floor(Math.random() * 15)]));
-                }
-                else {
-                    const ownerId = tile.userData.owner;
-                    if (ownerId === req.pid) { eventData.mode = 'own_property'; eventData.card = { name: "Home", desc: "Manage your property." }; }
-                    else if (ownerId !== null) { eventData.mode = 'enemy'; eventData.card = { name: "Siege or Pay", desc: "Choose your action." }; } 
-                    else { 
-                        eventData.mode = (isNight ? 'wild_skirmish' : 'wild'); 
-                        eventData.card = JSON.parse(JSON.stringify((isNight ? DECK_SKIRMISH : DECK_ENCOUNTER)[Math.floor(Math.random() * 15)]));
-                    }
-                }
-                
-                db.ref(`games/${gameId}/currentEvent`).set(eventData);
-                db.ref(`games/${gameId}/request/${reqKey}`).remove();
-            }
-
-            // 3. END_TURN REQUEST
-            if (req.type === 'END_TURN') {
-                const prevP = players[turnIndex];
-                let nextIndex = turnIndex;
-                
-                if (prevP && prevP.isPolymorphed) { db.ref(`games/${gameId}/players/${prevP.id}`).update({ isPolymorphed: false }); }
-                if (prevP && prevP.extraTurn) { db.ref(`games/${gameId}/players/${prevP.id}/extraTurn`).set(false); } 
-                else {
-                    nextIndex = (turnIndex + 1) % players.length;
-                    let safety = 0;
-                    while(players[nextIndex].isDead && safety < 4) { nextIndex = (nextIndex + 1) % players.length; safety++; }
-                }
-
-                if (nextIndex === 0 && !prevP.extraTurn) {
-                    // NEW ROUND LOGIC
-                    db.ref(`games/${gameId}/roundCount`).transaction(count => {
-                        return (count || 0) + 1;
-                    }, (error, committed, snapshot) => {
-                        if (committed) {
-                            const newCount = snapshot.val();
-                            
-                            // Day/Night Cycle
-                            if (newCount > 0 && newCount % 10 === 0) {
-                                db.ref(`games/${gameId}/isNight`).once('value', snap => {
-                                    db.ref(`games/${gameId}/isNight`).set(!snap.val());
-                                });
-                            }
-                            
-                            // Active Event Lifecycle
-                            db.ref(`games/${gameId}/activeEvents`).once('value', snap => {
-                                const events = snap.val() || {};
-                                Object.keys(events).forEach(key => {
-                                    const ev = events[key];
-                                    const newDur = ev.turns - 1;
-                                    
-                                    if (newDur <= 0) {
-                                        // End Event
-                                        db.ref(`games/${gameId}/activeEvents/${key}`).remove();
-                                        
-                                        // CHECK: If Dungeon Event ended, remove specific dungeon
-                                        const evDef = MAP_EVENTS[ev.idx];
-                                        if (evDef && ["Void Edge", "Vampire Manor", "Demon Gate", "Wyvern Peak"].includes(evDef.name)) {
-                                            db.ref(`games/${gameId}/dungeonActive/${evDef.name}`).remove();
-                                        }
-                                    } 
-                                    else {
-                                        db.ref(`games/${gameId}/activeEvents/${key}`).update({ turns: newDur });
-                                    }
-                                });
-
-                                // Roll for New Event
-                                if (Math.floor(Math.random() * 6) + 1 === 6) {
-                                    const idx = Math.floor(Math.random() * MAP_EVENTS.length);
-                                    const newEvDef = MAP_EVENTS[idx];
-                                    
-                                    db.ref(`games/${gameId}/activeEvents`).push({ 
-                                        idx: idx, 
-                                        turns: newEvDef.duration, 
-                                        timestamp: firebase.database.ServerValue.TIMESTAMP 
-                                    });
-
-                                    // Trigger Dungeon Creation (Multiple allowed via unique keys)
-                                    if (["Void Edge", "Vampire Manor", "Demon Gate", "Wyvern Peak"].includes(newEvDef.name)) {
-                                        db.ref(`games/${gameId}/dungeonActive/${newEvDef.name}`).set({ type: newEvDef.name });
-                                    }
-                                }
-                            });
-                        }
-                    });
-                }
-                
-                db.ref(`games/${gameId}/turnTimer`).set(firebase.database.ServerValue.TIMESTAMP);
-                db.ref(`games/${gameId}`).update({ turnIndex: nextIndex });
-                db.ref(`games/${gameId}/request/${reqKey}`).remove();
-            }
-        });
+    // 5. Polymorph Debuff (Last)
+    if (p.isPolymorphed) {
+        p.stats.str = 1; p.stats.dex = 1; p.stats.int = 1;
     }
 
-    // ==========================================
-    //  SECTION B: CLIENT LOGIC (Visuals & Data Sync)
-    // ==========================================
-
-    // 1. Move History (Standard Board)
-    db.ref(`games/${gameId}/moveHistory`).orderByChild('timestamp').startAt(connectionTime).on('child_added', snap => {
-        const move = snap.val();
-        if(!move) return;
-        const p = players.find(pl => pl.id === move.pid);
-        if(p) {
-            p.pos = move.startPos;
-            if(!p.inDungeon && tiles[p.pos]) p.mesh.position.copy(tiles[p.pos].position);
-            
-            addLog(`${p.name} rolled ${move.d1 + move.d2}.`);
-            if(p.id === myPlayerId) AUDIO.playSound('sfx_roll');
-            gameState = 'MOVING';
-            animateMove(p, move.finalSteps);
-        }
-    });
-    
-    // 2. Server Logs
-    db.ref(`games/${gameId}/serverLogs`).orderByChild('timestamp').startAt(connectionTime).on('child_added', snap => {
-        const val = snap.val();
-        if (val) addLog(val.msg, val.type);
-    });
-
-    // 3. Current Event (Modals)
-    db.ref(`games/${gameId}/currentEvent`).on('value', snap => {
-        const ev = snap.val();
-        if (!ev) return;
-        if (window.lastEventTimestamp && ev.timestamp <= window.lastEventTimestamp) return;
-        window.lastEventTimestamp = ev.timestamp;
-
-        const p = players.find(pl => pl.id === ev.pid);
-        if(!p) return;
-        
-        const isMe = (p.id === myPlayerId);
-        const isMyAi = (p.isAi && myPlayerId === 0);
-
-        if (isMe || isMyAi) {
-            const tile = tiles[ev.tileIndex]; 
-            const info = tile.userData.info;
-            if (ev.items) ev.items = ev.items.map(hydrateItem);
-            if (ev.card) ev.card = hydrateItem(ev.card);
-
-            if (p.isAi && myPlayerId === 0) {
-                // AI Logic
-                if(ev.mode === 'goto') {
-                     if (p.passiveSkillId === 'smoke_bomb') addLog("Skeleton Key Used!", "log-epic");
-                     else { p.pos=10; p.mesh.position.copy(tiles[10].position); p.isSkipping=true; db.ref(`games/${gameId}/players/${p.id}`).update({ isSkipping: true }); }
-                     endStep();
-                }
-                else if(ev.mode === 'park') { if(treasuryGold>0){ p.gold+=treasuryGold; treasuryGold=0; updateHUD(); syncPlayerState(); } endStep(); }
-                else if(ev.mode === 'jail') { if (p.passiveSkillId === 'skeleton_key' && p.gold >= 100) { p.gold-=50; tile.userData.trapOwner = p.id; db.ref(`games/${gameId}/board/${tile.userData.id}/trapOwner`).set(p.id); } endStep(); }
-                else if(ev.mode === 'tax_card') { processTax(p, ev.card ? ev.card.cost : 50); endStep(); }
-                else if(ev.mode === 'own_property') { resolveAiEvent(p, null, tile, ev.mode, null); }
-                else if (ev.mode === 'loot') { handleAiLoot(p, ev.card); }
-                else { resolveAiEvent(p, ev.card, tile, ev.mode, ev.items); }
-            } 
-            else {
-                // Human Logic
-                const executeNextStep = () => {
-                    document.getElementById('arrival-modal').classList.remove('active'); 
-                    
-                    // Dungeon Entrance Check (Multi-Dungeon)
-                    if (activeDungeons && activeDungeons[info.name] && !p.inDungeon) {
-                        offerDungeonEntry(p, info.name);
-                        return;
-                    }
-
-                    if(ev.mode === 'goto') {
-                         if (p.passiveSkillId === 'smoke_bomb') { 
-                             addLog("Skeleton Key Used!", "log-epic"); 
-                             endStep(); 
-                         } 
-                         else { 
-                             p.isSkipping = true; 
-                             db.ref(`games/${gameId}/players/${p.id}`).update({ isSkipping: true, pos: 10 }); 
-                             addLog(`${p.name} sent to Dungeon!`, "log-fail");
-                             
-                             // Teleport visual
-                             db.ref(`games/${gameId}/teleportLog`).push({ 
-                                 pid: p.id, targetPos: 10, timestamp: firebase.database.ServerValue.TIMESTAMP 
-                             });
-                             
-                             // --- FIX: Check Trap AFTER sending to Jail ---
-                             setTimeout(() => {
-                                 checkAndTriggerTrap(p, tiles[10], () => {
-                                     endStep();
-                                 });
-                             }, 1500); // Wait for teleport animation
-                         }
-                    }
-                    else if(ev.mode === 'jail') { if(p.passiveSkillId === 'skeleton_key') offerSkeletonKeyTrap(p); else { addLog("Just visiting."); endStep(); } }
-                    else if(ev.mode === 'park') { if(treasuryGold>0){ p.gold+=treasuryGold; addLog(`Won ${treasuryGold}G!`, "log-success"); treasuryGold=0; updateHUD(); syncPlayerState(); } else addLog("Treasury empty."); endStep(); }
-                    else if (ev.mode === 'tax_card') { const cost = ev.card ? ev.card.cost : 50; showModal("Royal Tax", "The King demands " + cost + "G.", [ { txt: `Pay ${cost}G`, act: () => { processTax(p, cost); syncPlayerState(); endStep(); } } ]); }
-                    else if (ev.mode === 'own_property') { 
-                        if(tile.userData.buildingLevel === 1) { showModal("Upgrade?", `Build Tavern ${info.cost*2}G?`, [ { txt: "Upgrade", act: () => { if(p.gold >= info.cost*2) { p.gold -= info.cost*2; drawCardAnim('skirmish', () => showEncounter(p, info, tile, "upgrade")); } else { addLog("No Gold"); endStep(); } }}, { txt: "Skip", act: endStep } ]); } 
-                        else { let guards = tile.userData.guardCount || 0; showModal("Manage Tavern", `Current Guards: ${guards}. Hire Bodyguard for 50G?`, [ { txt: "Hire Guard (50G)", act: () => { if(p.gold >= 50) { p.gold -= 50; tile.userData.guardCount = (tile.userData.guardCount || 0) + 1; p.metrics.guardsHired++; addLog("Guard Hired!", "log-gold"); updateHUD(); capture(tile, p, tile.userData.buildingLevel, () => endStep()); } else { addLog("Not enough Gold"); endStep(); } }}, { txt: "Rest (Skip)", act: endStep } ]); } 
-                    }
-                    else if (ev.mode === 'shop') openCustomShop(p, ev.items, info.name, () => endStep()); 
-                    else if (ev.mode === 'loot') presentLootUI(p, ev.card); 
-                    else showEncounter(p, info, tile, ev.mode, ev.card);
-                };
-                
-                const m = document.getElementById('arrival-modal');
-                const imgEl = document.getElementById('arrival-image');
-                const flavorEl = document.getElementById('arrival-flavor');
-                const btn = m.querySelector('button.primary');
-                const closeBtn = m.querySelector('.close-x');
-                
-                if(info.cardImg) { imgEl.src = info.cardImg; imgEl.style.display = 'block'; } 
-                else { imgEl.style.display = 'none'; }
-                flavorEl.innerText = info.flavor || "You arrive at " + info.name + ".";
-                
-                btn.onclick = executeNextStep;
-                closeBtn.onclick = executeNextStep;
-                m.classList.add('active');
-                
-                lastInteractionTime = Date.now();
-                AUDIO.playSound('sfx_gold');
-            }
-        }
-    });
-
-    // 4. Turn Index
-    db.ref(`games/${gameId}/turnIndex`).on('value', snap => {
-        const idx = snap.val();
-        if(idx !== null && idx !== turnIndex) {
-            turnIndex = idx;
-            lastInteractionTime = Date.now(); 
-            const curP = players[turnIndex];
-            gameState = 'ROLL'; 
-            updateHUD();
-            
-            if(curP) {
-                if (curP.isSkipping) {
-                    addLog(`${curP.name} is stunned/jailed and skips turn.`, "log-fail");
-                    if (myPlayerId === 0) {
-                        setTimeout(() => {
-                            db.ref(`games/${gameId}/players/${curP.id}`).update({ isSkipping: false });
-                            db.ref(`games/${gameId}/request`).push({ type: 'END_TURN', pid: curP.id });
-                        }, 2000); 
-                    }
-                    return; 
-                }
-                
-                zoomToPiece(curP);
-                if(curP.id === myPlayerId) { addLog("Your Turn!"); AUDIO.playSound('sfx_transition'); } 
-                else { addLog(`${curP.name}'s Turn`); }
-                
-                if (curP.isAi && myPlayerId === 0) { 
-                    setTimeout(() => { 
-                        // AI Dungeon Check
-                        if (curP.inDungeon) advanceDungeon(curP);
-                        else db.ref(`games/${gameId}/request`).push({ type: 'ROLL', pid: curP.id }); 
-                    }, 1500); 
-                }
-            }
-        }
-    });
-
-    // 5. Player Sync (including Dungeon flags)
-    db.ref(`games/${gameId}/players`).on('child_changed', snap => {
-        const pData = snap.val();
-        const pId = parseInt(snap.key);
-        const p = players.find(pl => pl.id === pId);
-        
-        if(p && pData) {
-            if(pData.gold !== undefined) p.gold = pData.gold;
-            if(pData.stats !== undefined) p.stats = pData.stats;
-            if(pData.extraTurn !== undefined) p.extraTurn = pData.extraTurn;
-            if(pData.isSkipping !== undefined) p.isSkipping = pData.isSkipping;
-            
-            // Dungeon Flags
-            if(pData.inDungeon !== undefined) p.inDungeon = pData.inDungeon;
-            if(pData.dungeonType !== undefined) p.dungeonType = pData.dungeonType; // Ensure this is synced
-            if(pData.dungeonProgress !== undefined) p.dungeonProgress = pData.dungeonProgress;
-            if(pData.bossAttempts !== undefined) p.bossAttempts = pData.bossAttempts;
-
-            if(pData.pos !== undefined) { 
-                if (gameState !== 'MOVING' || p.id !== turnIndex) { p.pos = pData.pos; } 
-            }
-            if(pData.isPolymorphed !== undefined) {
-                if (p.isPolymorphed !== pData.isPolymorphed) {
-                    if (pData.isPolymorphed) { if (!p.isPolymorphed) makeSheep(p); } 
-                    else { p.isPolymorphed = true; cureSheep(p); }
-                    p.isPolymorphed = pData.isPolymorphed;
-                    recalcStats(p); 
-                }
-            }
-            updateHUD();
-        }
-    });
-
-    // 6. Board Sync
-    const boardHandler = (snap) => {
-        const tileId = parseInt(snap.key);
-        const data = snap.val();
-        const tile = tiles[tileId];
-        
-        if(tile) {
-            if (data.owner !== undefined) {
-                const owner = players.find(p => p.id === data.owner);
-                if (owner) {
-                    tile.userData.owner = owner.id;
-                    tile.userData.buildingLevel = data.level;
-                    tile.userData.guardCount = data.guardCount || 0;
-                    tile.userData.defendingStat = data.defendingStat || 'str';
-                    if(gameState === 'MOVING') setTimeout(() => applyCaptureVisuals(tile, owner, data.level), 3000); 
-                    else applyCaptureVisuals(tile, owner, data.level);
-                } else {
-                    tile.userData.owner = null;
-                    tile.userData.buildingLevel = 0;
-                    tile.userData.guardCount = 0;
-                    if(tile.userData.prop) { tile.remove(tile.userData.prop); tile.userData.prop = null; }
-                    if (typeof activeGuards !== 'undefined') activeGuards = activeGuards.filter(g => g.tileId !== tile.userData.id);
-                }
-            }
-            if (data.trapOwner !== undefined) tile.userData.trapOwner = data.trapOwner; 
-            else tile.userData.trapOwner = null;
-            if (typeof updateTrapVisuals === 'function') updateTrapVisuals(tile);
-        }
-    };
-    db.ref(`games/${gameId}/board`).on('child_added', boardHandler);
-    db.ref(`games/${gameId}/board`).on('child_changed', boardHandler);
-
-    // 7. Teleport / Visual Log (UPDATED FOR DUNGEON)
-    db.ref(`games/${gameId}/teleportLog`).orderByChild('timestamp').startAt(connectionTime).on('child_added', snap => {
-        const data = snap.val();
-        if (!data) return;
-        
-        const p = players.find(pl => pl.id === data.pid);
-        if (p) {
-            // Is this a Dungeon Move? (Flag 999)
-            const isDungeonMove = (data.targetPos === 999);
-            
-            // Determine Target 3D Object
-            let targetObj = null;
-            
-            if (isDungeonMove) {
-                // Look up specific dungeon using player's synced state
-                if (p.dungeonType && activeDungeons[p.dungeonType]) {
-                    const stepIndex = data.dungeonStep || 0;
-                    targetObj = activeDungeons[p.dungeonType].tiles[stepIndex];
-                } else {
-                    // Fallback or race condition where state hasn't arrived
-                    return;
-                }
-            } else {
-                targetObj = tiles[data.targetPos];
-                p.pos = data.targetPos;
-            }
-
-            if (!targetObj) return;
-
-            addLog(isDungeonMove ? `${p.name} moves deeper...` : `${p.name} teleported!`, isDungeonMove ? "" : "log-epic");
-            if (!isDungeonMove) AUDIO.playSound('sfx_transition');
-            
-            closeEnc(); 
-            gameState = 'MOVING';
-
-            // Animate
-            animateTeleport(p, targetObj, () => { 
-                // Only the authority triggers logic
-                const isMe = (p.id === myPlayerId);
-                const isMyAi = (p.isAi && myPlayerId === 0);
-                const hasAuthority = isMe || isMyAi;
-
-                if (isDungeonMove) {
-                    if (hasAuthority) resolveDungeonStep(p);
-                } 
-                else {
-                    const info = tiles[data.targetPos] ? tiles[data.targetPos].userData.info : null;
-                    if (info && info.type === 'mystery') { 
-                        addLog("Teleported safely.", "log-success"); 
-                        if (hasAuthority) endStep(); 
-                    } 
-                    else { 
-                        if (hasAuthority) resolveLanding(p); 
-                    }
-                }
-            });
-        }
-    });
-
-    // 8. Dungeon Active Listener (Handles Multiple Dungeons)
-    db.ref(`games/${gameId}/dungeonActive`).on('child_added', snap => {
-        const val = snap.val();
-        // val.type contains name like "Void Edge"
-        if (val && val.type) {
-            if (!activeDungeons[val.type]) {
-                spawnDungeonVisuals(val.type);
-            }
-        }
-    });
-
-    db.ref(`games/${gameId}/dungeonActive`).on('child_removed', snap => {
-        // Find which dungeon was removed
-        // Snap key is the one we pushed, or the key we set?
-        // If we set using .set({type:name}), key is the name usually if structured that way.
-        // Based on logic: db.ref(.../dungeonActive/NAME).set(...)
-        
-        const key = snap.key; // "Void Edge", etc.
-        if (activeDungeons[key]) {
-            if (activeDungeons[key].group) {
-                // If main dungeonGroup contains this subgroup, remove it
-                dungeonGroup.remove(activeDungeons[key].group);
-            }
-            delete activeDungeons[key];
-        }
-    });
-
-    db.ref(`games/${gameId}/isNight`).on('value', snap => {
-        const val = snap.val();
-        if(val !== null && val !== isNight) { isNight = val; updateEnvironmentVisuals(); updateHUD(); }
-    });
-    
-    db.ref(`games/${gameId}/treasury`).on('value', snap => {
-        treasuryGold = snap.val() || 0;
-        updateHUD();
-    });
-
-    db.ref(`games/${gameId}/turnTimer`).on('value', snap => {
-        lastInteractionTime = snap.val() || Date.now(); 
-    });
-
-    if (myPlayerId === 0) startHostTimerLoop();
-    
-    db.ref(`games/${gameId}/vfxLog`).orderByChild('timestamp').startAt(connectionTime).on('child_added', snap => {
-        const data = snap.val();
-        if(!data) return;
-        if (Date.now() - data.timestamp > 5000) return;
-        VFX.trigger(data.type, data.start, data.end, data.color, true);
-    });
+    // 6. Temporary Debuffs/Buffs
+    if (p.shadowStrikeDebuff) {
+        p.stats.str = Math.max(1, p.stats.str - 1);
+        p.stats.dex = Math.max(1, p.stats.dex - 1);
+        p.stats.int = Math.max(1, p.stats.int - 1);
+    }
+    if (p.pacifistBuff) {
+        p.stats.str += 1; p.stats.dex += 1; p.stats.int += 1;
+    }
 }
 function resolveAiEvent(p, card, t, mode, items) {
     // 1. SHOPS & START
