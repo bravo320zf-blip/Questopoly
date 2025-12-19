@@ -4913,68 +4913,81 @@ function createSheepMesh() {
 }
 
 function makeSheep(p) {
-    // Prevent double-sheeping logic which causes mesh loss
-    if (p.isPolymorphed && p.mesh && p.mesh.userData && p.mesh.userData.isSheep) return;
+    // Safety: If already a sheep, stop.
+    if (p.mesh && p.mesh.userData && p.mesh.userData.isSheep) return;
 
     p.isPolymorphed = true;
     
-    // Save the current human mesh if we haven't already
-    // IMPORTANT: In MP, p.mesh might already be the sheep if lag occurred, so we check userData
+    // 1. Save Original Mesh (Crucial for revert)
     if (!p.mesh.userData.isSheep) {
         p.originalMesh = p.mesh;
     }
 
+    // 2. Create Sheep Visuals
     const sheep = createSheepMesh();
-    sheep.userData.isSheep = true; // Mark this mesh as a sheep
+    sheep.userData.isSheep = true; 
     
+    // Match position/rotation
     sheep.position.copy(p.mesh.position);
     sheep.rotation.copy(p.mesh.rotation);
     
+    // 3. Swap in Scene
     scene.remove(p.mesh);
     scene.add(sheep);
     
     p.mesh = sheep; 
 
-    // Play sound only if meaningful to user
-    if(p.id === myPlayerId || isZoomed) AUDIO.playSound('sfx_transition'); 
+    // 4. Update Camera Target if needed
+    if (isZoomed && cameraTarget === p.originalMesh) {
+        cameraTarget = sheep;
+    }
+
+    if (p.id === myPlayerId || isZoomed) AUDIO.playSound('sfx_transition'); 
+
+    // --- FIX: IMMEDIATE STAT UPDATE ---
+    recalcStats(p); 
+    updateHUD();
 }
 
 function cureSheep(p) {
-    // 1. Remove Sheep Mesh if it exists
-    if (p.mesh && p.mesh.userData && p.mesh.userData.isSheep) {
+    // If not polymorphic locally, do nothing
+    if (!p.isPolymorphed) return;
+
+    // 1. Remove the Sheep Mesh
+    if (p.mesh && p.mesh !== p.originalMesh) {
         scene.remove(p.mesh);
-        // dispose geometry if needed
     }
 
-    // 2. Restore Human Mesh
+    // 2. Restore Original Mesh
     if (p.originalMesh) {
         p.mesh = p.originalMesh;
         scene.add(p.mesh);
+        if(tiles[p.pos]) {
+            p.mesh.position.copy(tiles[p.pos].position); 
+            p.mesh.position.y = 0; 
+        }
     } else {
-        // FALLBACK: Rebuild mesh if original is missing/undefined
-        console.log(`Rebuilding mesh for ${p.name}`);
+        // Fallback reconstruction if original mesh was lost
         const newGroup = createPlayerMesh(p.race, p.class, p.color);
+        if(tiles[p.pos]) newGroup.position.copy(tiles[p.pos].position);
         scene.add(newGroup);
         p.mesh = newGroup;
-        // Save as new original
-        p.originalMesh = newGroup;
     }
 
-    // 3. Snap Position to current tile
-    if(tiles[p.pos]) {
-        p.mesh.position.copy(tiles[p.pos].position); 
-        p.mesh.position.y = 0; 
-    }
-
-    // 4. Update Camera Target if needed
-    if (cameraTarget && cameraTarget.userData && cameraTarget.userData.isSheep) {
-        cameraTarget = p.mesh;
-    }
-
+    // 3. Reset Local Flag
     p.isPolymorphed = false;
     addLog(`${p.name} returns to normal form.`, "log-success");
     
-    // Note: DB Sync is handled by the Host in END_TURN, so we don't write here to avoid loops
+    // 4. SYNC TO DB (Clear Flag)
+    if (isMultiplayer && db && gameId) {
+        // Only the owner of the turn (who calls endTurn -> cureSheep) or Host can clear it
+        if (p.id === myPlayerId || myPlayerId === 0) {
+            db.ref(`games/${gameId}/players/${p.id}`).update({ isPolymorphed: false });
+        }
+    }
+    
+    // --- FIX: RESTORE STATS ---
+    recalcStats(p);
     updateHUD();
 }
 
@@ -6227,9 +6240,40 @@ function generateTreasureDeck() {
         {name: "Town Portal", rarity: 'rare', cost: 100, desc: "Teleport to the Inn (Start) immediately.", fn: ABILITY_LIBRARY.teleport.fn},
         {name: "Sprint Scroll", rarity: 'common', cost: 50, desc: "Move 3 spaces forward.", fn: ABILITY_LIBRARY.dash.fn},
         {name: "Transmute Scroll", rarity: 'epic', cost: 300, desc: "Destroy first inventory item for 300G.", fn: ABILITY_LIBRARY.transmute.fn},
-        {name: "Elixir of Strength", rarity: 'epic', cost: 500, desc: "Permanently gain +1 Strength.", fn: (p) => { p.stats.str++; addLog("Strength increased!", "log-success"); updateHUD(); }},
-        {name: "Elixir of Speed", rarity: 'epic', cost: 500, desc: "Permanently gain +1 Dexterity.", fn: (p) => { p.stats.dex++; addLog("Dexterity increased!", "log-success"); updateHUD(); }},
-        {name: "Elixir of Wisdom", rarity: 'epic', cost: 500, desc: "Permanently gain +1 Intelligence.", fn: (p) => { p.stats.int++; addLog("Intelligence increased!", "log-success"); updateHUD(); }},
+        {
+            name: "Elixir of Strength", rarity: 'epic', cost: 500, desc: "Permanently gain +1 Strength.", 
+            fn: (p) => { 
+                if (!p.permBonuses) p.permBonuses = {str:0, dex:0, int:0};
+                p.permBonuses.str++; 
+                recalcStats(p); // Apply now
+                addLog("Strength increased permanently!", "log-success"); 
+                updateHUD(); 
+                return true; // Consume Item
+            }
+        },
+        {
+            name: "Elixir of Speed", rarity: 'epic', cost: 500, desc: "Permanently gain +1 Dexterity.", 
+            fn: (p) => { 
+                if (!p.permBonuses) p.permBonuses = {str:0, dex:0, int:0};
+                p.permBonuses.dex++; 
+                recalcStats(p); 
+                addLog("Dexterity increased permanently!", "log-success"); 
+                updateHUD(); 
+                return true;
+            }
+        },
+        {
+        {
+            name: "Elixir of Wisdom", rarity: 'epic', cost: 500, desc: "Permanently gain +1 Intelligence.", 
+            fn: (p) => { 
+                if (!p.permBonuses) p.permBonuses = {str:0, dex:0, int:0};
+                p.permBonuses.int++; 
+                recalcStats(p); 
+                addLog("Intelligence increased permanently!", "log-success"); 
+                updateHUD(); 
+                return true;
+            }
+        },
         {name: "Builder's Hammer", rarity: 'rare', cost: 300, desc: "Upgrade your current Camp to a Tavern.", fn: (p) => { capture(tiles[p.pos], p, 2); addLog("Tavern Built!", "log-success"); }},
         {name: "Mercenary Contract", rarity: 'rare', cost: 150, desc: "Add +1 Guard to your Tavern here.", fn: (p) => { tiles[p.pos].userData.guardCount++; addLog("Guard hired!", "log-success"); updateHUD(); }},
         {name: "Thief's Glove", rarity: 'rare', cost: 200, desc: "Attempt to steal gold from rival.", fn: (p) => { addLog("Steal!", "log-gold"); }},
@@ -8413,37 +8457,31 @@ function createDecks() {
 // --- REGION 4: PLAYER & AI (WAS MISSING) ---
 function spawnPlayer(id, n, r, c, actId, pasId, ai, col, startPos = 0) {
     // --- FAIL-SAFE: MP SLOT TYPE CHECK ---
-    // If we are in Multiplayer, trust the room data over the arguments
     if (isMultiplayer && currentRoomData && currentRoomData.slots) {
         const slotDef = currentRoomData.slots[id];
         if (slotDef && slotDef.type === 'human') {
             ai = false;
         }
     }
-    // -------------------------------------
 
     const stats = { str: r.stats.str, dex: r.stats.dex, int: r.stats.int, gold: 1000 };
     
-    // Apply Passive Stat Bonuses immediately
+    // Apply Passive Stat Bonuses immediately (e.g. Veteran +1 STR)
     const passiveDef = ABILITY_LIBRARY[pasId];
     if (passiveDef && passiveDef.effect) passiveDef.effect(stats);
     
-    // Determine AI Archetype
     let archetype = 'str';
     if(c.id === 'wizard' || c.id === 'cleric' || r.stats.int > r.stats.str) archetype = 'int';
     else if(c.id === 'rogue' || r.stats.dex > r.stats.str) archetype = 'dex';
     
-    // Create Visuals
     const g = createPlayerMesh(r, c, col);
     
-    // Set Initial Position (Default 0, modified below)
     if (tiles[startPos]) {
         g.position.copy(tiles[startPos].position);
     } else {
         g.position.copy(tiles[0].position);
     }
 
-    // Offset to prevent stacking overlap visuals
     if (id > 0) { 
         g.position.x += (Math.random() - 0.5) * 0.5; 
         g.position.z += (Math.random() - 0.5) * 0.5; 
@@ -8456,6 +8494,11 @@ function spawnPlayer(id, n, r, c, actId, pasId, ai, col, startPos = 0) {
         id: id, name: n, race: r, class: c, portrait: portraitUrl,
         activeSkillId: actId, passiveSkillId: pasId,
         stats: stats, gold: stats.gold, 
+        
+        // --- NEW: Permanent Bonus Tracker ---
+        permBonuses: { str: 0, dex: 0, int: 0 }, 
+        // ------------------------------------
+
         pos: startPos, 
         mesh: g, color: col, 
         isAi: ai, 
@@ -8484,12 +8527,11 @@ function spawnPlayer(id, n, r, c, actId, pasId, ai, col, startPos = 0) {
     // --- GREED: START WITH GOLD & ITEM ---
     if (pasId === 'greedy') {
         newPlayer.gold += 200;
-        // Draw 1 Random Treasure
         const card = createItemInstance(DECK_TREASURE[Math.floor(Math.random() * DECK_TREASURE.length)]);
         newPlayer.inventory.push(card);
     }
 
-    // --- LEYLINE WALKER: START AT MANA WELL ---
+    // --- LEYLINE WALKER ---
     if (pasId === 'leyline') {
         const manaWell = tiles.find(t => t.userData.info.name === 'Mana Well');
         if (manaWell) {
@@ -8498,7 +8540,7 @@ function spawnPlayer(id, n, r, c, actId, pasId, ai, col, startPos = 0) {
         }
     }
     
-    // --- DEVOTION: START AT SHRINE ---
+    // --- DEVOTION ---
     if (pasId === 'devotion') {
         const shrine = tiles.find(t => t.userData.info.name === 'Shrine');
         if (shrine) {
@@ -8512,12 +8554,20 @@ function spawnPlayer(id, n, r, c, actId, pasId, ai, col, startPos = 0) {
 function recalcStats(p) {
     if (!p || p.isBoss || p.isEventEntity || !p.race) return;
 
-    // Base Stats
+    // 1. Reset to Base Race Stats
     p.stats.str = p.race.stats.str; 
     p.stats.dex = p.race.stats.dex; 
     p.stats.int = p.race.stats.int;
     
-    // Items
+    // 2. Add Permanent Bonuses (MEDIC / ELIXIRS)
+    // We initialize it if missing to prevent crashes on old saves
+    if (!p.permBonuses) p.permBonuses = { str: 0, dex: 0, int: 0 };
+    
+    p.stats.str += (p.permBonuses.str || 0);
+    p.stats.dex += (p.permBonuses.dex || 0);
+    p.stats.int += (p.permBonuses.int || 0);
+    
+    // 3. Add Equipment Bonuses
     ['head', 'body', 'main', 'off'].forEach(slot => { 
         const item = p.equipment[slot]; 
         if(item && item.bonus) { 
@@ -8526,20 +8576,11 @@ function recalcStats(p) {
         } 
     });
 
-    // Passive Library Effects
+    // 4. Passive Library Effects
     const pas = ABILITY_LIBRARY[p.passiveSkillId]; 
     if(pas && pas.effect) pas.effect(p.stats);
 
-    // --- FIX: POLYMORPH DEBUFF (Last Priority) ---
-    // If sheep, all stats become 1.
-    if (p.isPolymorphed) {
-        p.stats.str = 1;
-        p.stats.dex = 1;
-        p.stats.int = 1;
-    }
-    // ---------------------------------------------
-
-    // Other Modifiers
+    // 5. Temporary Debuffs/Buffs
     if (p.shadowStrikeDebuff) {
         p.stats.str = Math.max(1, p.stats.str - 1);
         p.stats.dex = Math.max(1, p.stats.dex - 1);
@@ -8549,6 +8590,13 @@ function recalcStats(p) {
         p.stats.str += 1;
         p.stats.dex += 1;
         p.stats.int += 1;
+    }
+
+    // 6. Polymorph Debuff (Must be last)
+    if (p.isPolymorphed) {
+        p.stats.str = 1; 
+        p.stats.dex = 1; 
+        p.stats.int = 1;
     }
 }
 
@@ -9321,17 +9369,120 @@ function resolveLanding(p) {
     const tile = tiles[p.pos];
 
     // --- 1. TRAP CHECK ---
-    // We run the check first. If it returns true (trap triggered), 
-    // the callback will handle the rest of the landing logic after the animation.
     const trapTriggered = checkAndTriggerTrap(p, tile, () => {
-        // This runs after trap animation finishes
         continueLandingLogic(p, tile);
     });
 
-    // If trap triggered, stop here and wait for callback. 
-    // If false (no trap), continue immediately.
     if (!trapTriggered) {
         continueLandingLogic(p, tile);
+    }
+}
+
+function continueLandingLogic(p, tile) {
+    // --- 2. MEDIC PASSIVE CHECK (FIXED FOR PERSISTENCE) ---
+    if (p.passiveSkillId === 'medic' && !p.isAi) {
+        const patient = players.find(x => x.id !== p.id && !x.isDead && x.pos === p.pos);
+        if (patient) {
+            showModal("Medic", `Give 100G to ${patient.name} to gain +1 Permanent Stat?`, [
+                {
+                    txt: "Heal (Give 100G)",
+                    act: () => {
+                        if (p.gold >= 100) {
+                            p.gold -= 100;
+                            patient.gold += 100;
+                            addLog(`${p.name} healed ${patient.name}!`, "log-success");
+                            
+                            // Initialize Perm Bonuses if missing (Safety)
+                            if (!p.permBonuses) p.permBonuses = {str:0, dex:0, int:0};
+
+                            // Sync Gold
+                            if (isMultiplayer) {
+                                syncPlayerState(); 
+                                db.ref(`games/${gameId}/players/${patient.id}/gold`).set(patient.gold);
+                            }
+
+                            // Show Choice for Permanent Stat
+                            showModal("Divine Reward", "Choose a PERMANENT stat boost:", [
+                                { txt: "+1 STR", act: () => { 
+                                    p.permBonuses.str++; 
+                                    recalcStats(p); 
+                                    addLog("Medic: Gained Permanent +1 STR"); 
+                                    if(isMultiplayer) syncPlayerState(); 
+                                    triggerTileEvent(p); 
+                                }},
+                                { txt: "+1 DEX", act: () => { 
+                                    p.permBonuses.dex++; 
+                                    recalcStats(p); 
+                                    addLog("Medic: Gained Permanent +1 DEX"); 
+                                    if(isMultiplayer) syncPlayerState(); 
+                                    triggerTileEvent(p); 
+                                }},
+                                { txt: "+1 INT", act: () => { 
+                                    p.permBonuses.int++; 
+                                    recalcStats(p); 
+                                    addLog("Medic: Gained Permanent +1 INT"); 
+                                    if(isMultiplayer) syncPlayerState(); 
+                                    triggerTileEvent(p); 
+                                }}
+                            ]);
+                        } else {
+                            addLog("Not enough gold to Heal.");
+                            triggerTileEvent(p);
+                        }
+                    }
+                },
+                { txt: "Ignore", act: () => triggerTileEvent(p) }
+            ]);
+            return; 
+        }
+    }
+
+    debugLog(`Landed: ${p.name} at Tile ${p.pos} (AI: ${p.isAi})`);
+    
+    // --- 3. SINGLE PLAYER LOGIC ---
+    if (!isMultiplayer) {
+        if (p.isAi) { 
+            triggerTileEvent(p); 
+            return; 
+        }
+
+        // A. Dynamic Merchant Event Check
+        const merchantEvent = activeEvents.find(e => e.data.type === 'merchant' && e.playerRef && e.playerRef.pos === p.pos);
+        if (merchantEvent) {
+            let stock = [];
+            if (merchantEvent.data.id === 'merch_alchemist') stock = DECK_TREASURE.filter(it => it.type === 'scroll' && !it.name.includes('Gold'));
+            else if (merchantEvent.data.id === 'merch_armorer') stock = DECK_TREASURE.filter(it => ['head', 'body', 'off'].includes(it.slot) && !it.name.includes('Gold'));
+            else if (merchantEvent.data.id === 'merch_weaponsmith') stock = DECK_TREASURE.filter(it => it.slot === 'main' && !it.name.includes('Gold'));
+            
+            const items = [];
+            for(let k=0; k<3; k++) items.push(createItemInstance(stock[Math.floor(Math.random()*stock.length)]));
+            openCustomShop(p, items, merchantEvent.data.name, () => endStep());
+            AUDIO.playSound('sfx_gold');
+            return;
+        }
+
+        // B. Old Crooks Inn (Start Tile)
+        const i = tile.userData.info;
+        if (i.type === 'start') {
+            const stock = DECK_TREASURE.filter(it => !it.name.includes('Gold')); 
+            const items = [];
+            for(let k=0; k<3; k++) items.push(createItemInstance(stock[Math.floor(Math.random()*stock.length)]));
+            openCustomShop(p, items, "Old Crooks General Store", () => endStep());
+            AUDIO.playSound('sfx_gold');
+            return;
+        }
+
+        // C. Standard Tile Event
+        triggerTileEvent(p); 
+        return;
+    }
+
+    // --- 4. MULTIPLAYER SYNC ---
+    const isMe = (p.id === myPlayerId);
+    const isMyAi = (p.isAi && myPlayerId === 0); 
+    if (isMe || isMyAi) {
+        db.ref(`games/${gameId}/players/${p.id}`).update({ pos: p.pos });
+        triggerTileEvent(p); 
     }
 }
 
@@ -13061,19 +13212,19 @@ function hydrateItem(item) {
 function recalcStats(p) {
     if (!p || p.isBoss || p.isEventEntity || !p.race) return;
 
-    // 1. Reset to Base Stats
+    // 1. Reset to Base Race Stats
     p.stats.str = p.race.stats.str; 
     p.stats.dex = p.race.stats.dex; 
     p.stats.int = p.race.stats.int;
     
-    // 2. Add Permanent Bonuses (MEDIC FIX)
+    // 2. Add Permanent Bonuses (Medic/Elixirs)
     if (p.permBonuses) {
         p.stats.str += (p.permBonuses.str || 0);
         p.stats.dex += (p.permBonuses.dex || 0);
         p.stats.int += (p.permBonuses.int || 0);
     }
     
-    // 3. Add Items
+    // 3. Add Equipment Bonuses
     ['head', 'body', 'main', 'off'].forEach(slot => { 
         const item = p.equipment[slot]; 
         if(item && item.bonus) { 
@@ -13082,23 +13233,28 @@ function recalcStats(p) {
         } 
     });
 
-    // 4. Passives
+    // 4. Passive Library Effects
     const pas = ABILITY_LIBRARY[p.passiveSkillId]; 
     if(pas && pas.effect) pas.effect(p.stats);
 
-    // 5. Polymorph Debuff (Last)
-    if (p.isPolymorphed) {
-        p.stats.str = 1; p.stats.dex = 1; p.stats.int = 1;
-    }
-
-    // 6. Temporary Debuffs/Buffs
+    // 5. Temporary Debuffs/Buffs (Shadow Strike / Pacifist)
     if (p.shadowStrikeDebuff) {
         p.stats.str = Math.max(1, p.stats.str - 1);
         p.stats.dex = Math.max(1, p.stats.dex - 1);
         p.stats.int = Math.max(1, p.stats.int - 1);
     }
     if (p.pacifistBuff) {
-        p.stats.str += 1; p.stats.dex += 1; p.stats.int += 1;
+        p.stats.str += 1;
+        p.stats.dex += 1;
+        p.stats.int += 1;
+    }
+
+    // --- CRITICAL FIX: POLYMORPH OVERRIDE ---
+    // This MUST be the final step to ensure stats are capped at 1
+    if (p.isPolymorphed) {
+        p.stats.str = 1; 
+        p.stats.dex = 1; 
+        p.stats.int = 1;
     }
 }
 function resolveAiEvent(p, card, t, mode, items) {
