@@ -9251,26 +9251,20 @@ function endTurn(){
 }
 
 function checkAndTriggerTrap(p, tile, onComplete) {
-    // 1. Check if trap exists
-    if (tile.userData.trapOwner === undefined || tile.userData.trapOwner === null) {
-        if (onComplete) onComplete();
+    // 1. Check if trap exists & isn't ours
+    if (tile.userData.trapOwner === undefined || tile.userData.trapOwner === null || String(tile.userData.trapOwner) === String(p.id)) {
+        // NO TRAP or MY TRAP - Do nothing, return false immediately.
         return false;
     }
 
-    // 2. Check if player is the owner (Safe)
-    if (String(tile.userData.trapOwner) === String(p.id)) {
-        if (onComplete) onComplete();
-        return false;
-    }
-
-    // 3. Check Immunity (Rogue)
+    // 2. Check Immunity (Rogue)
     if (p.class && p.class.id === 'rogue') {
         addLog(`${p.name} (Rogue) bypassed the Dungeon trap!`, "log-success");
-        if (onComplete) onComplete();
-        return false;
+        if (onComplete) onComplete(); // We still need to continue the turn after bypassing.
+        return true; // A trap was present, but handled.
     }
 
-    // 4. TRIGGER TRAP
+    // 3. TRIGGER TRAP
     const trapperId = tile.userData.trapOwner;
     const trapper = players.find(pl => String(pl.id) === String(trapperId));
 
@@ -9286,21 +9280,20 @@ function checkAndTriggerTrap(p, tile, onComplete) {
 
     VFX.trigger('implode', p.mesh.position, null, 0xff0000);
 
-    // 5. Visuals & Sync
+    // 4. Visuals & Sync
+    // The onComplete callback is NOW ONLY CALLED HERE
     animateTrapSpring(tile, () => {
-        // Remove Trap Data locally
         tile.userData.trapOwner = null;
         updateTrapVisuals(tile);
         updateHUD();
 
-        // Sync MP
         if (isMultiplayer) {
-            syncPlayerState(); // Update victim gold
+            syncPlayerState();
             if (trapper) db.ref(`games/${gameId}/players/${trapper.id}/gold`).set(trapper.gold);
             db.ref(`games/${gameId}/board/${tile.userData.id}/trapOwner`).remove();
         }
 
-        if (onComplete) onComplete();
+        if (onComplete) onComplete(); // Continue the rest of the turn logic
     });
 
     return true; // Trap was triggered
@@ -9309,18 +9302,94 @@ function checkAndTriggerTrap(p, tile, onComplete) {
 function resolveLanding(p) {
     const tile = tiles[p.pos];
 
-    // --- 1. TRAP CHECK (Refactored) ---
-    // We run the check first. If it returns true (trap triggered), 
-    // the callback will handle the rest of the landing logic after the animation.
-    const trapTriggered = checkAndTriggerTrap(p, tile, () => {
-        // This runs after trap animation finishes (or immediately if no trap)
+    // Check for a trap. If one is triggered, it will handle calling 'continueLandingLogic' as a callback.
+    // If it returns false, it means no trap was found, so we proceed immediately.
+    const trapWasHandled = checkAndTriggerTrap(p, tile, () => {
         continueLandingLogic(p, tile);
     });
 
-    // If trap triggered, stop here and wait for callback. 
-    // If false (no trap), continue immediately.
-    if (!trapTriggered) {
+    if (!trapWasHandled) {
         continueLandingLogic(p, tile);
+    }
+}
+
+// This contains the rest of the original resolveLanding logic
+function continueLandingLogic(p, tile) {
+    // --- 2. MEDIC PASSIVE CHECK ---
+    if (p.passiveSkillId === 'medic' && !p.isAi) {
+        const patient = players.find(x => x.id !== p.id && !x.isDead && x.pos === p.pos);
+        if (patient) {
+            showModal("Medic", `Give 100G to ${patient.name} to gain +1 Stat?`, [
+                {
+                    txt: "Heal (Give 100G)",
+                    act: () => {
+                        if (p.gold >= 100) {
+                            p.gold -= 100;
+                            patient.gold += 100;
+                            addLog(`${p.name} healed ${patient.name}!`, "log-success");
+                            
+                            if (isMultiplayer) {
+                                syncPlayerState(); 
+                                db.ref(`games/${gameId}/players/${patient.id}/gold`).set(patient.gold);
+                            }
+
+                            showModal("Divine Reward", "Choose a permanent stat boost:", [
+                                { txt: "+1 STR", act: () => { p.stats.str++; addLog("Medic: Gained +1 STR"); if(isMultiplayer) syncPlayerState(); triggerTileEvent(p); } },
+                                { txt: "+1 DEX", act: () => { p.stats.dex++; addLog("Medic: Gained +1 DEX"); if(isMultiplayer) syncPlayerState(); triggerTileEvent(p); } },
+                                { txt: "+1 INT", act: () => { p.stats.int++; addLog("Medic: Gained +1 INT"); if(isMultiplayer) syncPlayerState(); triggerTileEvent(p); } }
+                            ]);
+                        } else {
+                            addLog("Not enough gold to Heal.");
+                            triggerTileEvent(p);
+                        }
+                    }
+                },
+                { txt: "Ignore", act: () => triggerTileEvent(p) }
+            ]);
+            return; 
+        }
+    }
+
+    debugLog(`Landed: ${p.name} at Tile ${p.pos} (AI: ${p.isAi})`);
+    
+    // --- 3. SINGLE PLAYER LOGIC ---
+    if (!isMultiplayer) {
+        if (p.isAi) { triggerTileEvent(p); return; }
+
+        const merchantEvent = activeEvents.find(e => e.data.type === 'merchant' && e.playerRef && e.playerRef.pos === p.pos);
+        if (merchantEvent) {
+            let stock = [];
+            if (merchantEvent.data.id === 'merch_alchemist') stock = DECK_TREASURE.filter(it => it.type === 'scroll' && !it.name.includes('Gold'));
+            else if (merchantEvent.data.id === 'merch_armorer') stock = DECK_TREASURE.filter(it => ['head', 'body', 'off'].includes(it.slot) && !it.name.includes('Gold'));
+            else if (merchantEvent.data.id === 'merch_weaponsmith') stock = DECK_TREASURE.filter(it => it.slot === 'main' && !it.name.includes('Gold'));
+            
+            const items = [];
+            for(let k=0; k<3; k++) items.push(createItemInstance(stock[Math.floor(Math.random()*stock.length)]));
+            openCustomShop(p, items, merchantEvent.data.name, () => endStep());
+            AUDIO.playSound('sfx_gold');
+            return;
+        }
+
+        const i = tiles[p.pos].userData.info;
+        if (i.type === 'start') {
+            const stock = DECK_TREASURE.filter(it => !it.name.includes('Gold')); 
+            const items = [];
+            for(let k=0; k<3; k++) items.push(createItemInstance(stock[Math.floor(Math.random()*stock.length)]));
+            openCustomShop(p, items, "Old Crooks General Store", () => endStep());
+            AUDIO.playSound('sfx_gold');
+            return;
+        }
+
+        triggerTileEvent(p); 
+        return;
+    }
+
+    // --- 4. MULTIPLAYER SYNC ---
+    const isMe = (p.id === myPlayerId);
+    const isMyAi = (p.isAi && myPlayerId === 0); 
+    if (isMe || isMyAi) {
+        db.ref(`games/${gameId}/players/${p.id}`).update({ pos: p.pos });
+        triggerTileEvent(p); 
     }
 }
 
@@ -9646,8 +9715,9 @@ function continueFromArrival() {
                 syncPlayerState(); 
             }
             updateHUD(); 
+        } else { 
+            globalLog(`${p.name} visited empty Treasury.`);
         } 
-        else globalLog(`${p.name} visited empty Treasury.`);
         endStep(); return; 
     }
 
@@ -9674,11 +9744,9 @@ function continueFromArrival() {
         p.isSkipping = true; 
         
         if (isMultiplayer) {
-            // Update DB state
             db.ref(`games/${gameId}/players/${p.id}`).update({ isSkipping: true, pos: 10 });
             db.ref(`games/${gameId}/teleportLog`).push({ pid: p.id, targetPos: 10, timestamp: firebase.database.ServerValue.TIMESTAMP });
-            
-            // Note: The Multiplayer Listener will handle the actual trap check
+            // The MP listener for teleportLog will trigger the trap check for all clients
             return;
         }
         
@@ -9686,10 +9754,9 @@ function continueFromArrival() {
         p.pos = 10; 
         gameState = 'MOVING';
         animateTeleport(p, tiles[10], () => { 
-            // --- FIX: Check trap upon arrival at Jail ---
-            checkAndTriggerTrap(p, tiles[10], () => {
-                endStep(); 
-            });
+            // FIX: Check trap upon arrival at Jail
+            const trapHandled = checkAndTriggerTrap(p, tiles[10], () => endStep());
+            if (!trapHandled) endStep();
         });
         return; 
     } 
