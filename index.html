@@ -10801,25 +10801,24 @@ function createGuardMesh() {
 }
 
 function capture(t, p, lvl, callback) {
+    // Force integer type safety
+    lvl = parseInt(lvl);
+
     // --- INTIMIDATE RECHARGE CHECK ---
     if (t.userData.owner !== null && String(t.userData.owner) !== String(p.id)) {
         if (p.activeSkillId === 'intimidate' && p.classSkillDepleted) {
             p.classSkillDepleted = false;
             addLog("Enemy crushed! Intimidate Recharged.", "log-accent");
             updateHUD();
-            if (isMultiplayer && p.id === myPlayerId) syncPlayerState(); // <--- ADDED SYNC
+            if (isMultiplayer && p.id === myPlayerId) syncPlayerState(); 
         }
     }
-    // ---------------------------------
-
-    const isUpgrade = (lvl > 1);
 
     // --- MULTIPLAYER LOGIC ---
     if(isMultiplayer && db && gameId) {
         
-        // A. If I am a Human Player capturing (My Turn), I need to choose the stat
+        // A. If I am a Human Player capturing (My Turn)
         if (p.id === myPlayerId) {
-            // Helper to write to DB
             const commitCapture = (stat) => {
                 db.ref(`games/${gameId}/board/${t.userData.id}`).set({
                     owner: p.id,
@@ -10827,20 +10826,16 @@ function capture(t, p, lvl, callback) {
                     guardCount: t.userData.guardCount || 0,
                     defendingStat: stat
                 });
-                // Optional callback execution (visuals handled by listener)
                 if (callback) setTimeout(callback, 1000);
             };
 
-            // If it's a new capture (Level 1), ask for defense
             if (lvl === 1) {
-                // We use the existing chooseDefense UI helper
+                // New Capture: Choose Defense
                 chooseDefense(t, () => {
-                    // When UI closes, it sets t.userData.defendingStat locally
-                    // We send that local choice to the DB
                     commitCapture(t.userData.defendingStat);
                 });
             } else {
-                // If upgrading, keep existing stat
+                // Upgrade: Keep Defense
                 commitCapture(t.userData.defendingStat || 'str');
             }
             return;
@@ -10864,21 +10859,21 @@ function capture(t, p, lvl, callback) {
             return;
         }
 
-        // C. If I am a Client watching someone else capture, do nothing.
-        // The DB Listener will handle the visuals.
         return; 
     }
 
-    // --- SINGLE PLAYER LOGIC (Preserved) ---
+    // --- SINGLE PLAYER LOGIC ---
     t.userData.owner = p.id; 
     t.userData.buildingLevel = lvl; 
     applyCaptureVisuals(t, p, lvl);
     
+    // If Human Player (0) and New Capture, show choice
     if (p.id === 0) {
         if (lvl === 1) setTimeout(() => chooseDefense(t, callback), 4000); 
         else if (callback) setTimeout(callback, 4000); 
         else setTimeout(endStep, 4000); 
     } else {
+        // AI Logic
         const s = p.stats; 
         if (s.str >= s.dex && s.str >= s.int) t.userData.defendingStat = 'str'; 
         else if (s.dex >= s.str && s.dex >= s.int) t.userData.defendingStat = 'dex'; 
@@ -10891,30 +10886,29 @@ function capture(t, p, lvl, callback) {
 
 // NEW FUNCTION: Handles the 3D graphics (Called by Capture OR DB Listener)
 function applyCaptureVisuals(t, p, lvl) {
+    // Force integer type safety
+    lvl = parseInt(lvl);
+
     // 1. Remove Old Building
     if (t.userData.prop) {
         t.remove(t.userData.prop);
         t.userData.prop = null;
     }
     
-    // --- FIX: CLEAN UP OLD GUARDS ---
+    // Cleanup active guards for this tile
     if (typeof activeGuards !== 'undefined') {
-        // Loop backwards to safely remove from array while iterating
         for (let i = activeGuards.length - 1; i >= 0; i--) {
             if (activeGuards[i].tileId === t.userData.id) {
-                // Remove visual mesh from the scene (or parent tile)
                 if (activeGuards[i].mesh) {
                     scene.remove(activeGuards[i].mesh); 
                     if (activeGuards[i].mesh.parent) activeGuards[i].mesh.parent.remove(activeGuards[i].mesh);
                 }
-                // Remove from tracking array
                 activeGuards.splice(i, 1);
             }
         }
     }
-    // --------------------------------
 
-    // Prevent closing Loot/Shop windows during sync if they are open
+    // Prevent closing specific windows during sync
     const modal = document.getElementById('card-modal');
     const header = document.getElementById('enc-header');
     if (modal && modal.classList.contains('active')) {
@@ -10930,12 +10924,12 @@ function applyCaptureVisuals(t, p, lvl) {
     const buildingMat = new THREE.MeshStandardMaterial({ color: p.color });
 
     if (lvl === 1) { 
-        // Campsite
+        // CAMPSITE (Cone Tent)
         const m = new THREE.Mesh(new THREE.ConeGeometry(1, 1.5, 4), buildingMat); 
         m.position.set(0, 0.5, 0); 
         g.add(m); 
     } else { 
-        // Tavern
+        // TAVERN (Box + Roof)
         const b = new THREE.Mesh(new THREE.BoxGeometry(1.5, 1, 1.5), new THREE.MeshStandardMaterial({ color: 0x5c4033 })); 
         b.position.set(0, 0.5, 0); 
         const r = new THREE.Mesh(new THREE.ConeGeometry(1.5, 1, 4), buildingMat); 
@@ -10951,8 +10945,6 @@ function applyCaptureVisuals(t, p, lvl) {
             const angle = Math.random() * Math.PI * 2;
             const radius = 1.1 + (Math.random() * 0.5); 
             guardMesh.position.set(Math.cos(angle)*radius, 0, Math.sin(angle)*radius);
-            
-            // Add to group so it pops up with building
             g.add(guardMesh);
             
             activeGuards.push({
@@ -10977,6 +10969,7 @@ function applyCaptureVisuals(t, p, lvl) {
         if(p.id === myPlayerId && typeof AUDIO !== 'undefined') AUDIO.playSound('sfx_win');
     }
     
+    // Log based on Level
     if(p.id === turnIndex || gameState === 'MOVING') {
         addLog(lvl === 1 ? `${p.name} captured land!` : `${p.name} upgraded!`, "log-success");
     }
@@ -13510,27 +13503,24 @@ function resolveAiEvent(p, card, t, mode, items) {
 }
 
 function handleBoardUpdate(snap) {
-    const tileId = parseInt(snap.key); // Ensure int
+    const tileId = parseInt(snap.key); 
     const data = snap.val();
     
     const tile = tiles[tileId];
     const owner = players.find(p => p.id === data.owner);
     
     if(tile && owner) {
-        // Update Internal Data immediately
         tile.userData.owner = owner.id;
-        tile.userData.buildingLevel = data.level;
+        tile.userData.buildingLevel = parseInt(data.level); // <--- ENSURE PARSEINT
         tile.userData.guardCount = data.guardCount || 0;
         tile.userData.defendingStat = data.defendingStat || 'str';
 
-        // DELAY VISUALS if game is moving
         if(gameState === 'MOVING') {
-            // Wait 3 seconds (approx move time) before showing tent
             setTimeout(() => {
-                applyCaptureVisuals(tile, owner, data.level);
+                applyCaptureVisuals(tile, owner, parseInt(data.level));
             }, 3000);
         } else {
-            applyCaptureVisuals(tile, owner, data.level);
+            applyCaptureVisuals(tile, owner, parseInt(data.level));
         }
     }
 }
@@ -14259,4 +14249,5 @@ init();
 </script>
 </body>
 </html>
+
 
