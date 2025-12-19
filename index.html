@@ -9249,40 +9249,82 @@ function endTurn(){
 
     }, 1200); // Initial small delay for UI smoothness
 }
+
+function checkAndTriggerTrap(p, tile, onComplete) {
+    // 1. Check if trap exists
+    if (tile.userData.trapOwner === undefined || tile.userData.trapOwner === null) {
+        if (onComplete) onComplete();
+        return false;
+    }
+
+    // 2. Check if player is the owner (Safe)
+    if (String(tile.userData.trapOwner) === String(p.id)) {
+        if (onComplete) onComplete();
+        return false;
+    }
+
+    // 3. Check Immunity (Rogue)
+    if (p.class && p.class.id === 'rogue') {
+        addLog(`${p.name} (Rogue) bypassed the Dungeon trap!`, "log-success");
+        if (onComplete) onComplete();
+        return false;
+    }
+
+    // 4. TRIGGER TRAP
+    const trapperId = tile.userData.trapOwner;
+    const trapper = players.find(pl => String(pl.id) === String(trapperId));
+
+    const stealAmt = Math.min(200, p.gold);
+    p.gold = Math.max(0, p.gold - stealAmt);
+    
+    if (trapper) {
+        trapper.gold += stealAmt;
+        addLog(`${p.name} triggered ${trapper.name}'s Trap! (-${stealAmt}G)`, "log-fail");
+    } else {
+        addLog(`${p.name} triggered a Dungeon Trap! (-${stealAmt}G)`, "log-fail");
+    }
+
+    VFX.trigger('implode', p.mesh.position, null, 0xff0000);
+
+    // 5. Visuals & Sync
+    animateTrapSpring(tile, () => {
+        // Remove Trap Data locally
+        tile.userData.trapOwner = null;
+        updateTrapVisuals(tile);
+        updateHUD();
+
+        // Sync MP
+        if (isMultiplayer) {
+            syncPlayerState(); // Update victim gold
+            if (trapper) db.ref(`games/${gameId}/players/${trapper.id}/gold`).set(trapper.gold);
+            db.ref(`games/${gameId}/board/${tile.userData.id}/trapOwner`).remove();
+        }
+
+        if (onComplete) onComplete();
+    });
+
+    return true; // Trap was triggered
+}
+
 function resolveLanding(p) {
     const tile = tiles[p.pos];
 
-    // --- 1. TRAP CHECK (Skeleton Key) ---
-    if (tile.userData.trapOwner !== undefined && tile.userData.trapOwner !== null) {
-        // Immunity Logic
-        if (p.class.id === 'rogue') {
-            addLog(`${p.name} (Rogue) bypassed the Dungeon trap!`, "log-success");
-        } 
-        // Trigger Logic
-        else if (String(tile.userData.trapOwner) !== String(p.id)) {
-            const trapper = players.find(pl => String(pl.id) === String(tile.userData.trapOwner));
-            
-            const stealAmt = Math.min(200, p.gold);
-            p.gold -= stealAmt;
-            if (trapper) trapper.gold += stealAmt;
+    // --- 1. TRAP CHECK (Refactored) ---
+    // We run the check first. If it returns true (trap triggered), 
+    // the callback will handle the rest of the landing logic after the animation.
+    const trapTriggered = checkAndTriggerTrap(p, tile, () => {
+        // This runs after trap animation finishes (or immediately if no trap)
+        continueLandingLogic(p, tile);
+    });
 
-            addLog(`${p.name} triggered a Dungeon Trap! (-${stealAmt}G)`, "log-fail");
-            
-            animateTrapSpring(tile, () => {
-                tile.userData.trapOwner = null;
-                updateTrapVisuals(tile); 
-                updateHUD();
-                
-                if (isMultiplayer) {
-                    syncPlayerState();
-                    if (trapper) db.ref(`games/${gameId}/players/${trapper.id}/gold`).set(trapper.gold);
-                    db.ref(`games/${gameId}/board/${p.pos}/trapOwner`).remove();
-                }
-            });
-            VFX.trigger('implode', p.mesh.position, null, 0xff0000);
-        }
+    // If trap triggered, stop here and wait for callback. 
+    // If false (no trap), continue immediately.
+    if (!trapTriggered) {
+        continueLandingLogic(p, tile);
     }
+}
 
+function continueLandingLogic(p, tile) {
     // --- 2. MEDIC PASSIVE CHECK ---
     if (p.passiveSkillId === 'medic' && !p.isAi) {
         const patient = players.find(x => x.id !== p.id && !x.isDead && x.pos === p.pos);
@@ -9322,14 +9364,9 @@ function resolveLanding(p) {
     
     // --- 3. SINGLE PLAYER LOGIC ---
     if (!isMultiplayer) {
-        
-        // FIX: If AI, skip UI checks and go straight to event processor
-        if (p.isAi) {
-            triggerTileEvent(p);
-            return;
-        }
+        if (p.isAi) { triggerTileEvent(p); return; }
 
-        // --- A. DYNAMIC MERCHANT (Human Only) ---
+        // Dynamic Merchant
         const merchantEvent = activeEvents.find(e => e.data.type === 'merchant' && e.playerRef && e.playerRef.pos === p.pos);
         if (merchantEvent) {
             let stock = [];
@@ -9344,7 +9381,7 @@ function resolveLanding(p) {
             return;
         }
 
-        // --- B. OLD CROOKS INN (Human Only) ---
+        // Inn / Start
         const i = tiles[p.pos].userData.info;
         if (i.type === 'start') {
             const stock = DECK_TREASURE.filter(it => !it.name.includes('Gold')); 
@@ -9597,15 +9634,12 @@ function continueFromArrival() {
         return; 
     }
     
-    // --- TREASURY ---
     if(i.type === 'park') { 
         if(treasuryGold > 0){ 
             const pot = treasuryGold;
             p.gold += pot; 
-            
             globalLog(`JACKPOT! ${p.name} collected ${pot}G from Treasury!`, "log-gold"); 
             AUDIO.playSound('sfx_win');
-            
             treasuryGold = 0; 
             if(isMultiplayer && gameId) {
                 db.ref(`games/${gameId}/treasury`).set(0);
@@ -9613,20 +9647,17 @@ function continueFromArrival() {
             }
             updateHUD(); 
         } 
-        else { 
-            globalLog(`${p.name} visited empty Treasury.`);
-        } 
+        else globalLog(`${p.name} visited empty Treasury.`);
         endStep(); return; 
     }
 
-    // --- TAX ---
     if(i.type === 'tax') { 
         processTax(p, 50); 
         endStep(); 
         return; 
     } 
     
-    // --- GO TO DUNGEON ---
+    // --- GO TO DUNGEON (UPDATED FOR TRAPS) ---
     if(i.type === 'goto') { 
         if (p.passiveSkillId === 'smoke_bomb' || p.activeSkillId === 'smoke_bomb') { 
             globalLog("Smoke Bomb: Evaded Capture!", "log-epic"); 
@@ -9643,15 +9674,22 @@ function continueFromArrival() {
         p.isSkipping = true; 
         
         if (isMultiplayer) {
+            // Update DB state
             db.ref(`games/${gameId}/players/${p.id}`).update({ isSkipping: true, pos: 10 });
             db.ref(`games/${gameId}/teleportLog`).push({ pid: p.id, targetPos: 10, timestamp: firebase.database.ServerValue.TIMESTAMP });
+            
+            // Note: The Multiplayer Listener will handle the actual trap check
             return;
         }
         
+        // Single Player Logic
         p.pos = 10; 
         gameState = 'MOVING';
         animateTeleport(p, tiles[10], () => { 
-            endStep(); 
+            // --- FIX: Check trap upon arrival at Jail ---
+            checkAndTriggerTrap(p, tiles[10], () => {
+                endStep(); 
+            });
         });
         return; 
     } 
@@ -12920,10 +12958,10 @@ function setupMultiplayerListeners() {
                                         // End Event
                                         db.ref(`games/${gameId}/activeEvents/${key}`).remove();
                                         
-                                        // NEW: Check if Dungeon needs to be removed
+                                        // CHECK: If Dungeon Event ended, remove specific dungeon
                                         const evDef = MAP_EVENTS[ev.idx];
                                         if (evDef && ["Void Edge", "Vampire Manor", "Demon Gate", "Wyvern Peak"].includes(evDef.name)) {
-                                            db.ref(`games/${gameId}/dungeonActive`).remove();
+                                            db.ref(`games/${gameId}/dungeonActive/${evDef.name}`).remove();
                                         }
                                     } 
                                     else {
@@ -12942,9 +12980,9 @@ function setupMultiplayerListeners() {
                                         timestamp: firebase.database.ServerValue.TIMESTAMP 
                                     });
 
-                                    // NEW: Trigger Dungeon Creation
+                                    // Trigger Dungeon Creation (Multiple allowed via unique keys)
                                     if (["Void Edge", "Vampire Manor", "Demon Gate", "Wyvern Peak"].includes(newEvDef.name)) {
-                                        db.ref(`games/${gameId}/dungeonActive`).set({ type: newEvDef.name });
+                                        db.ref(`games/${gameId}/dungeonActive/${newEvDef.name}`).set({ type: newEvDef.name });
                                     }
                                 }
                             });
@@ -12963,7 +13001,7 @@ function setupMultiplayerListeners() {
     //  SECTION B: CLIENT LOGIC (Visuals & Data Sync)
     // ==========================================
 
-    // 1. Move History
+    // 1. Move History (Standard Board)
     db.ref(`games/${gameId}/moveHistory`).orderByChild('timestamp').startAt(connectionTime).on('child_added', snap => {
         const move = snap.val();
         if(!move) return;
@@ -13023,19 +13061,33 @@ function setupMultiplayerListeners() {
                 const executeNextStep = () => {
                     document.getElementById('arrival-modal').classList.remove('active'); 
                     
-                    // NEW: Dungeon Entrance Check
-                    if (activeDungeon && activeDungeon.type === info.name && !p.inDungeon) {
+                    // Dungeon Entrance Check (Multi-Dungeon)
+                    if (activeDungeons && activeDungeons[info.name] && !p.inDungeon) {
                         offerDungeonEntry(p, info.name);
                         return;
                     }
 
                     if(ev.mode === 'goto') {
-                         if (p.passiveSkillId === 'smoke_bomb') { addLog("Skeleton Key Used!", "log-epic"); endStep(); } 
+                         if (p.passiveSkillId === 'smoke_bomb') { 
+                             addLog("Skeleton Key Used!", "log-epic"); 
+                             endStep(); 
+                         } 
                          else { 
                              p.isSkipping = true; 
                              db.ref(`games/${gameId}/players/${p.id}`).update({ isSkipping: true, pos: 10 }); 
                              addLog(`${p.name} sent to Dungeon!`, "log-fail");
-                             db.ref(`games/${gameId}/teleportLog`).push({ pid: p.id, targetPos: 10, timestamp: firebase.database.ServerValue.TIMESTAMP });
+                             
+                             // Teleport visual
+                             db.ref(`games/${gameId}/teleportLog`).push({ 
+                                 pid: p.id, targetPos: 10, timestamp: firebase.database.ServerValue.TIMESTAMP 
+                             });
+                             
+                             // --- FIX: Check Trap AFTER sending to Jail ---
+                             setTimeout(() => {
+                                 checkAndTriggerTrap(p, tiles[10], () => {
+                                     endStep();
+                                 });
+                             }, 1500); // Wait for teleport animation
                          }
                     }
                     else if(ev.mode === 'jail') { if(p.passiveSkillId === 'skeleton_key') offerSkeletonKeyTrap(p); else { addLog("Just visiting."); endStep(); } }
@@ -13121,6 +13173,7 @@ function setupMultiplayerListeners() {
             
             // Dungeon Flags
             if(pData.inDungeon !== undefined) p.inDungeon = pData.inDungeon;
+            if(pData.dungeonType !== undefined) p.dungeonType = pData.dungeonType; // Ensure this is synced
             if(pData.dungeonProgress !== undefined) p.dungeonProgress = pData.dungeonProgress;
             if(pData.bossAttempts !== undefined) p.bossAttempts = pData.bossAttempts;
 
@@ -13185,11 +13238,12 @@ function setupMultiplayerListeners() {
             let targetObj = null;
             
             if (isDungeonMove) {
-                if (activeDungeon && activeDungeon.tiles) {
+                // Look up specific dungeon using player's synced state
+                if (p.dungeonType && activeDungeons[p.dungeonType]) {
                     const stepIndex = data.dungeonStep || 0;
-                    targetObj = activeDungeon.tiles[stepIndex];
+                    targetObj = activeDungeons[p.dungeonType].tiles[stepIndex];
                 } else {
-                    // Fallback if dungeon not rendered locally yet
+                    // Fallback or race condition where state hasn't arrived
                     return;
                 }
             } else {
@@ -13229,19 +13283,30 @@ function setupMultiplayerListeners() {
         }
     });
 
-    // 8. Dungeon Active Listener (Triggers Cinematic)
-    db.ref(`games/${gameId}/dungeonActive`).on('value', snap => {
+    // 8. Dungeon Active Listener (Handles Multiple Dungeons)
+    db.ref(`games/${gameId}/dungeonActive`).on('child_added', snap => {
         const val = snap.val();
-        if (val) {
-            if (!activeDungeon || activeDungeon.type !== val.type) {
+        // val.type contains name like "Void Edge"
+        if (val && val.type) {
+            if (!activeDungeons[val.type]) {
                 spawnDungeonVisuals(val.type);
             }
-        } else {
-            if (dungeonGroup) {
-                scene.remove(dungeonGroup);
-                dungeonGroup = null;
-                activeDungeon = null;
+        }
+    });
+
+    db.ref(`games/${gameId}/dungeonActive`).on('child_removed', snap => {
+        // Find which dungeon was removed
+        // Snap key is the one we pushed, or the key we set?
+        // If we set using .set({type:name}), key is the name usually if structured that way.
+        // Based on logic: db.ref(.../dungeonActive/NAME).set(...)
+        
+        const key = snap.key; // "Void Edge", etc.
+        if (activeDungeons[key]) {
+            if (activeDungeons[key].group) {
+                // If main dungeonGroup contains this subgroup, remove it
+                dungeonGroup.remove(activeDungeons[key].group);
             }
+            delete activeDungeons[key];
         }
     });
 
