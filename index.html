@@ -8604,16 +8604,28 @@ function startHostTimerLoop() {
     
     afkCheckInterval = setInterval(() => {
         if (!isMultiplayer || myPlayerId !== 0 || !gameId) return;
+        
+        // --- FIX: PAUSE TIMER DURING ACTIONS ---
+        // If pieces are moving, or a cinematic is playing, DO NOT count time.
+        // We also check if the game is in 'SETUP' or other non-playable states.
+        if (gameState === 'MOVING' || (typeof isCinematic !== 'undefined' && isCinematic)) {
+            // Update the timestamp so it doesn't look like they are AFK
+            db.ref(`games/${gameId}/turnTimer`).set(firebase.database.ServerValue.TIMESTAMP);
+            return; 
+        }
+
+        // Only enforce during active decision phases
         if (gameState !== 'ROLL' && gameState !== 'END') return; 
         
-        // Check current event to see if it is a shop
+        // Check current event to see if it is a shop (giving more time)
         let isShopping = false;
         if (currentRoomData && currentRoomData.currentEvent && currentRoomData.currentEvent.mode === 'shop') {
             isShopping = true;
         }
 
-        // Determine Enforcement Limit (45s for shop, 15s normally, +2s buffer for latency)
-        const enforcementLimit = isShopping ? (TURN_TIME_LIMIT * 3) + 2 : TURN_TIME_LIMIT + 2;
+        // Determine Enforcement Limit (45s for shop, 25s normally to account for lag/reading)
+        // INCREASED from 15s to 25s to be safe
+        const enforcementLimit = isShopping ? 60 : 25;
 
         db.ref(`games/${gameId}/turnTimer`).once('value', snap => {
             const lastAction = snap.val() || Date.now();
@@ -8621,6 +8633,7 @@ function startHostTimerLoop() {
             
             if (elapsed > enforcementLimit) {
                 const curP = players[turnIndex];
+                // Ensure we don't kick AI or Dead players
                 if (curP && !curP.isAi && !curP.isDead) {
                     console.log(`Player ${curP.name} timed out (Limit: ${enforcementLimit}s).`);
                     handleAfkTimeout(curP.id);
@@ -11429,7 +11442,10 @@ function setupMultiplayerListeners() {
 
             if (req.type === 'ROLL') {
                 const p = players.find(pl => pl.id === req.pid);
-                if (p) {
+                if (p && !p.isDead) { // Check Alive
+                    // Update Timer immediately on action
+                    db.ref(`games/${gameId}/turnTimer`).set(firebase.database.ServerValue.TIMESTAMP);
+
                     let d1 = 0, d2 = 0, total = 0;
                     if (p.isPolymorphed) { d1 = 1; d2 = 0; total = 1; } 
                     else {
@@ -11453,7 +11469,13 @@ function setupMultiplayerListeners() {
             }
 
             if (req.type === 'TILE_EVENT') {
+                // Update Timer on interaction
+                db.ref(`games/${gameId}/turnTimer`).set(firebase.database.ServerValue.TIMESTAMP);
+
                 const p = players.find(pl => pl.id === req.pid);
+                // Safety: check p exists
+                if (!p) { db.ref(`games/${gameId}/request/${reqKey}`).remove(); return; }
+
                 const tile = tiles[req.tileIndex];
                 const info = tile.userData.info;
                 let eventData = { pid: req.pid, tileIndex: req.tileIndex, timestamp: firebase.database.ServerValue.TIMESTAMP, mode: 'normal' };
@@ -11506,15 +11528,18 @@ function setupMultiplayerListeners() {
             if (req.type === 'END_TURN') {
                 const prevP = players[turnIndex];
                 let nextIndex = turnIndex;
-                if (prevP && prevP.isPolymorphed) { db.ref(`games/${gameId}/players/${prevP.id}`).update({ isPolymorphed: false }); }
-                if (prevP && prevP.extraTurn) { db.ref(`games/${gameId}/players/${prevP.id}/extraTurn`).set(false); } 
-                else {
-                    nextIndex = (turnIndex + 1) % players.length;
-                    let safety = 0;
-                    while(players[nextIndex].isDead && safety < 4) { nextIndex = (nextIndex + 1) % players.length; safety++; }
+                
+                if (prevP) {
+                    if (prevP.isPolymorphed) { db.ref(`games/${gameId}/players/${prevP.id}`).update({ isPolymorphed: false }); }
+                    if (prevP.extraTurn) { db.ref(`games/${gameId}/players/${prevP.id}/extraTurn`).set(false); } 
+                    else {
+                        nextIndex = (turnIndex + 1) % players.length;
+                        let safety = 0;
+                        while(players[nextIndex].isDead && safety < 4) { nextIndex = (nextIndex + 1) % players.length; safety++; }
+                    }
                 }
 
-                if (nextIndex === 0 && !prevP.extraTurn) {
+                if (nextIndex === 0 && (!prevP || !prevP.extraTurn)) {
                     db.ref(`games/${gameId}/roundCount`).transaction(count => { return (count || 0) + 1; }, (error, committed, snapshot) => {
                         if (committed) {
                             const newCount = snapshot.val();
@@ -11640,22 +11665,20 @@ function setupMultiplayerListeners() {
                 const imgEl = document.getElementById('arrival-image');
                 const flavorEl = document.getElementById('arrival-flavor');
                 const btn = m.querySelector('button.primary');
-                const closeBtn = m.querySelector('.close-x'); // This might be null
+                const closeBtn = m.querySelector('.close-x'); 
                 
                 if(info.cardImg) { imgEl.src = info.cardImg; imgEl.style.display = 'block'; } 
                 else { imgEl.style.display = 'none'; }
                 flavorEl.innerText = info.flavor || "You arrive at " + info.name + ".";
                 
                 btn.onclick = executeNextStep;
-                
-                // --- FIX: CHECK IF CLOSE BTN EXISTS ---
-                if(closeBtn) {
-                    closeBtn.onclick = executeNextStep;
-                }
-                // -------------------------------------
+                if(closeBtn) closeBtn.onclick = executeNextStep; // --- FIX: SAFE CHECK ---
 
                 m.classList.add('active');
+                
+                // Update Local Timer to avoid timeout while reading
                 lastInteractionTime = Date.now();
+                
                 AUDIO.playSound('sfx_gold');
             }
         }
@@ -11665,7 +11688,9 @@ function setupMultiplayerListeners() {
         const idx = snap.val();
         if(idx !== null && idx !== turnIndex) {
             turnIndex = idx;
+            // Update Local Timer on Turn Start
             lastInteractionTime = Date.now(); 
+            
             const curP = players[turnIndex];
             gameState = 'ROLL'; 
             updateHUD();
@@ -13690,7 +13715,7 @@ function resolveAiEvent(p, card, t, mode, items) {
         return; 
     }
 
-    // 7. OWN PROPERTY
+    // 7. OWN PROPERTY (Upgrade/Guard)
     if (mode === 'own_property') {
         const info = t.userData.info;
         if (t.userData.buildingLevel === 1 && p.gold >= info.cost * 2) {
@@ -13740,7 +13765,28 @@ function resolveAiEvent(p, card, t, mode, items) {
         return;
     }
 
-    // 9. CARDS / EVENTS
+    // --- 9. EMPTY LAND (Potential Capture) ---
+    // If the space is 'wild' (not owned, not special) and has a cost
+    const info = t.userData.info;
+    if ((mode === 'wild' || mode === 'wild_skirmish') && info.cost > 0 && t.userData.owner == null) {
+        // AI Logic: Buy if we have 1.5x the cost in gold
+        if (p.gold >= info.cost * 1.5) {
+            capture(t, p, 1, () => checkForBonusLoot(p));
+            // Return here so we don't process the encounter card below
+            return;
+        } 
+        // If too poor, fall through to process the card (Encounter)
+        else {
+            globalLog(`${p.name} passes (saving gold).`, "log-entry");
+            // Do NOT return here, let it fall through to process the 'card' (Encounter)
+            // unless you want them to skip the encounter entirely?
+            // SP Logic: "else { endStep() }" -> They skip encounter.
+            endStep();
+            return;
+        }
+    }
+
+    // 10. CARDS / EVENTS (If not captured above)
     if (card && card.choices) {
         let best = card.choices[0];
         
@@ -13771,6 +13817,7 @@ function resolveAiEvent(p, card, t, mode, items) {
         return;
     }
 
+    // Fallback
     endStep();
 }
 
