@@ -6145,11 +6145,8 @@ shadow_step: {
         name: "Shadow Step", 
         desc: "Permanent +1 DEX and +1 Movement to rolls.", 
         type:'passive', 
-        // FIX: Explicitly add to both DEX and movementBonus
-        effect:(s)=>{
-            s.dex += 1; 
-            s.movementBonus = (s.movementBonus || 0) + 1;
-        }, 
+        // We only add DEX here. RecalcStats will handle the Movement part.
+        effect:(s)=>{ s.dex += 1; }, 
         img: "https://static.wixstatic.com/media/b16479_923e7271de194ba69a6d2243650e2c41~mv2.jpg" 
     },
     greedy: { 
@@ -6381,7 +6378,7 @@ function generateTreasureDeck() {
         const activeDungeonKeys = Object.keys(activeDungeons);
         if (activeDungeonKeys.length === 0) {
             addLog("The Map to Riches glows, but no Dungeons are active!", "log-fail");
-            p.gold += 100; // Consolation prize
+            p.gold += 100; 
             return true;
         }
         let closestTile = null;
@@ -6408,11 +6405,11 @@ function generateTreasureDeck() {
         return false;
     };
 
-    // 1. Basic Loot
-    for(let i=0; i<15; i++) deck.push({ id: `g${i}`, name: "Pouch of Gold", type: 'scroll', rarity: 'common', cost: 0, desc: "Gain 50 Gold instantly.", img: getImg("Pouch of Gold"), fn: (p) => { let gain = 50 + (p.stats.goldFind || 0); p.gold += gain; addLog(`+${gain} Gold`, "log-gold"); return true; } });
+    // 1. Consumables
+    for(let i=0; i<15; i++) deck.push({ id: `g${i}`, name: "Pouch of Gold", type: 'scroll', rarity: 'common', cost: 50, desc: "Gain 50 Gold instantly.", img: getImg("Pouch of Gold"), fn: (p) => { let gain = 50 + (p.stats.goldFind || 0); p.gold += gain; addLog(`+${gain} Gold`, "log-gold"); return true; } });
     deck.push({ name: "Map to Riches", type: 'scroll', rarity: 'epic', cost: 400, desc: "Teleport to the closest active Dungeon.", img: getImg("Map to Riches"), fn: mapToRichesFn });
 
-    // 2. Equipment Generation Logic
+    // 2. Equipment Config
     const slotConfigs = [
         { name: "Sword", slot: "main", type: "primary" },
         { name: "Armor", slot: "body", type: "primary" },
@@ -6430,35 +6427,46 @@ function generateTreasureDeck() {
     
     slotConfigs.forEach(config => {
         rarities.forEach(rarity => {
+            // Create 2 of each rarity per slot
             for(let k=0; k<2; k++) {
                 let item = {
-                    id: `item_${config.slot}_${rarity}_${k}`,
-                    name: `${rarity.toUpperCase()} ${config.name}`,
+                    id: `item_${config.slot}_${rarity}_${generateUID()}`,
+                    name: `${rarity.charAt(0).toUpperCase() + rarity.slice(1)} ${config.name}`,
                     slot: config.slot,
                     type: 'equip',
                     rarity: rarity,
-                    cost: (rarities.indexOf(rarity) + 1) * 200,
+                    cost: (rarities.indexOf(rarity) + 1) * 250,
                     img: getImg(config.name)
                 };
 
-                // Add Primary Stats (Only for Main, Body, Off)
+                // STAT LOGIC
                 if (config.type === "primary") {
+                    // Main, Body, Off get STR/DEX/INT
                     const stat = (config.slot === 'main') ? 'str' : (config.slot === 'body' ? 'str' : 'str');
                     item.bonus = { [stat]: rarities.indexOf(rarity) + 1 };
+                } else {
+                    // Secondary Stats
+                    const power = SECONDARY_STAT_VALUES[rarity];
+                    
+                    if (config.slot === 'feet') item.moveBonus = Math.ceil(power / 2); // 1, 2, 3, 4
+                    
+                    // Everyone else gets GF and RES (including Head now)
+                    if (['head', 'feet', 'hands', 'ring_l', 'ring_r', 'amulet', 'back'].includes(config.slot)) {
+                        item.goldFind = power;
+                        item.resistance = power;
+                    }
                 }
 
-                // Add Secondary Stats
-                if (config.slot === 'feet') item.moveBonus = (rarities.indexOf(rarity) + 1);
-                if (['feet', 'hands', 'ring_l', 'ring_r', 'amulet', 'back'].includes(config.slot)) {
-                    item.goldFind = SECONDARY_STAT_VALUES[rarity];
-                    item.resistance = SECONDARY_STAT_VALUES[rarity];
-                }
-
-                // Add Abilities (Rare or Higher)
+                // ABILITY LOGIC (Rare or Higher)
                 if (rarities.indexOf(rarity) >= 1) {
                     const aKey = abilities[Math.floor(Math.random() * abilities.length)];
                     const ab = ABILITY_LIBRARY[aKey];
-                    item.ability = { name: ab.name, type: ab.type || 'active', desc: ab.desc, fn: ab.fn };
+                    // Only active abilities can be assigned to the bar
+                    if (!ab.type || ab.type === 'active') {
+                        item.ability = { name: ab.name, type: 'active', desc: ab.desc, fn: ab.fn };
+                    } else {
+                        item.ability = { name: ab.name, type: 'passive', desc: ab.desc };
+                    }
                 }
                 deck.push(item);
             }
@@ -8702,12 +8710,12 @@ function spawnPlayer(id, n, r, c, actId, pasId, ai, col, startPos = 0) {
 function recalcStats(p) {
     if (!p || p.isBoss || p.isEventEntity || !p.race) return;
 
-    // 1. Base Stats + Permanent Bonuses
+    // 1. Reset to Base Race Stats + Permanent Bonuses (Elixirs/Medic)
     p.stats.str = p.race.stats.str + (p.permBonuses?.str || 0);
     p.stats.dex = p.race.stats.dex + (p.permBonuses?.dex || 0);
     p.stats.int = p.race.stats.int + (p.permBonuses?.int || 0);
     
-    // 2. Reset Secondary Stats
+    // 2. IMPORTANT: Reset Secondaries to 0 so we don't stack old bonuses
     p.stats.movementBonus = 0;
     p.stats.goldFind = 0;
     p.stats.resistance = 0;
@@ -8717,34 +8725,36 @@ function recalcStats(p) {
         const item = p.equipment[slot];
         if (!item) return;
 
-        // Primary Stats (Only Body, Main Hand, Off Hand)
+        // Primary Stats (Main Hand, Body, Off Hand only)
         if (['body', 'main', 'off'].includes(slot) && item.bonus) {
             Object.keys(item.bonus).forEach(k => {
                 if (p.stats[k] !== undefined) p.stats[k] += item.bonus[k];
             });
         }
 
-        // Secondary Stat: Movement (Feet Only)
-        if (slot === 'feet' && item.moveBonus) p.stats.movementBonus += item.moveBonus;
+        // Movement Bonus (Boots/Feet only)
+        if (slot === 'feet' && item.moveBonus) {
+            p.stats.movementBonus += item.moveBonus;
+        }
 
-        // Secondary Stats: Gold Find & Resistance
-        if (['hands', 'feet', 'ring_l', 'ring_r', 'amulet', 'back'].includes(slot)) {
+        // Secondary Stats (Head, Hands, Feet, Rings, Amulet, Back)
+        if (['head', 'feet', 'hands', 'ring_l', 'ring_r', 'amulet', 'back'].includes(slot)) {
             if (item.goldFind) p.stats.goldFind += item.goldFind;
             if (item.resistance) p.stats.resistance += item.resistance;
         }
     });
 
-    // 4. Passives (REVISED: Added Shadow Step Movement)
+    // 4. Process Passive Ability Effects (DEX bonus)
     const pas = ABILITY_LIBRARY[p.passiveSkillId]; 
     if (pas && pas.effect) pas.effect(p.stats);
     
-    // Explicitly add Shadow Step Movement Bonus to the UI variable
+    // 5. Apply Shadow Step Movement (+1 ONLY)
     if (p.passiveSkillId === 'shadow_step') {
         p.stats.movementBonus += 1;
     }
 
-    // 5. Polymorph Override
-    if (p.isPolymorphed) { p.stats.str = 1; p.stats.dex = 1; p.stats.int = 1; }
+    // 6. Polymorph Override (Sheep have 1 in everything)
+    if (p.isPolymorphed) { p.stats.str = 1; p.stats.dex = 1; p.stats.int = 1; p.stats.movementBonus = 0; }
 }
 
 function processTax(victim, amount) {
@@ -8804,18 +8814,13 @@ function processTax(victim, amount) {
 function manageAiInventory(p) {
     if (!p || !p.inventory) return;
 
-    // 1. Clean Inventory Logic (Inline to ensure it runs)
-    // Remove any null/undefined entries to prevent crashes
+    // 1. Clean Inventory
     p.inventory = p.inventory.filter(item => item !== null && item !== undefined);
 
-    // 2. Determine stat priority
-    const mainStat = p.archetype || 'str'; 
+    const secondarySlots = ['head', 'hands', 'feet', 'ring_l', 'ring_r', 'amulet', 'back'];
 
-    // 3. Iterate backwards safely
     for (let i = p.inventory.length - 1; i >= 0; i--) {
         const item = p.inventory[i];
-        
-        // Double check existence + type check
         if (item && item.type === 'equip') {
             const current = p.equipment[item.slot]; 
             let shouldEquip = false;
@@ -8823,22 +8828,14 @@ function manageAiInventory(p) {
             if (!current) {
                 shouldEquip = true;
             } else {
-                // Compare stats
-                const currentVal = (current.bonus && current.bonus[mainStat]) ? current.bonus[mainStat] : 0;
-                const newVal = (item.bonus && item.bonus[mainStat]) ? item.bonus[mainStat] : 0;
-                
-                // For Bosses, check total stats
-                const currentTotal = current.bonus ? Object.values(current.bonus).reduce((a,b)=>a+b,0) : 0;
-                const newTotal = item.bonus ? Object.values(item.bonus).reduce((a,b)=>a+b,0) : 0;
-
-                if (newVal > currentVal || (newVal === currentVal && newTotal > currentTotal)) {
+                // Simple Rarity Comparison for AI
+                const rarityMap = { 'common': 1, 'rare': 2, 'epic': 3, 'legendary': 4 };
+                if (rarityMap[item.rarity] > rarityMap[current.rarity]) {
                     shouldEquip = true;
                 }
             }
             
             if (shouldEquip) { 
-                addLog(`${p.name} equips ${item.name}.`, "log-rare"); 
-                // Pass p.id to use the safe lookup in equipItem
                 equipItem(p.id, i); 
             }
         }
@@ -9044,95 +9041,65 @@ function useSkillAi(p, slotIdx) {
 // --- REGION 5: LOGIC (Turns, Move, Combat) ---
 function rollMove() { 
     if(gameState !== 'ROLL') return; 
-    
-    // 1. Define 'p' (The Active Player)
     const p = players[turnIndex]; 
     if(!p) return; 
 
-    // --- 2. DUNGEON INTERCEPT (NEW) ---
-    // If player is in a dungeon, we hijack the roll logic
     if (p.inDungeon) {
-        if (p.isAi) {
-            // AI Logic for Dungeon (Auto advance after delay)
-            setTimeout(() => advanceDungeon(p), 1000);
-        } else if (p.id === myPlayerId) {
-            // Human Logic (Advance immediately)
-            advanceDungeon(p);
-        }
-        return; // Skip normal rolling
+        if (p.isAi) setTimeout(() => advanceDungeon(p), 1000);
+        else if (p.id === myPlayerId) advanceDungeon(p);
+        return; 
     }
-    // ----------------------------------
 
-    // --- FAIL-SAFE: Fix Dungeon Position ---
-    const tileInfo = tiles[p.pos].userData.info;
-    if (tileInfo.type === 'goto') {
-        console.log(`[FIX] Player ${p.name} incorrectly at GoToDungeon. Teleporting to Jail.`);
-        p.pos = 10;
-        if (tiles[10]) p.mesh.position.copy(tiles[10].position);
-        // Sync correction
-        if (isMultiplayer && (p.id === myPlayerId || (p.isAi && myPlayerId === 0))) {
-             db.ref(`games/${gameId}/players/${p.id}/pos`).set(10);
-        }
-    }
-    
     if(p.isDead) { endTurn(); return; }
 
-    // Disable button
     const btn = document.getElementById('btn-action');
     if(btn) btn.disabled = true;
 
-    // --- RESET AFK STRIKES (Activity Detected) ---
     if (!p.isAi) {
-        p.afkStrikes = 0; // Reset local
-        lastInteractionTime = Date.now(); // Reset timer base
-        
+        p.afkStrikes = 0;
+        lastInteractionTime = Date.now();
         if (isMultiplayer && db && gameId) {
-            // Sync to DB
             db.ref(`games/${gameId}/players/${p.id}`).update({ afkStrikes: 0 });
             db.ref(`games/${gameId}/turnTimer`).set(firebase.database.ServerValue.TIMESTAMP);
         }
     }
 
-    // --- SINGLE PLAYER ---
+    // --- SINGLE PLAYER ROLL ---
     if (!isMultiplayer) {
         let d1 = Math.floor(Math.random() * 6) + 1;
         let d2 = Math.floor(Math.random() * 6) + 1;
         let total = d1 + d2;
-        if (p.passiveSkillId === 'shadow_step') total += 1;
-        if (activeEvent && activeEvent.data.id === 'weather_blizzard') total = Math.max(1, total - 1);
         
-        addLog(`${p.name} rolled ${d1+d2}.`);
+        // BUG FIX: Removed manual p.passiveSkillId === 'shadow_step' check here.
+        // It is now handled by the Stat Engine in finishRollLogic.
+        
+        addLog(`${p.name} rolled ${total}.`);
         if (p.id === 0) AUDIO.playSound('sfx_roll');
         finishRollLogic(p, total);
         return;
     }
 
-    // --- MULTIPLAYER ---
+    // --- MULTIPLAYER REQUEST ---
     const isMyTurn = (p.id === myPlayerId);
     let isAiTurn = (p.isAi && myPlayerId === 0);
     if (currentRoomData && currentRoomData.slots[p.id].type === 'human') isAiTurn = false;
 
     if (isMyTurn || isAiTurn) {
         if (db && gameId) {
-            db.ref(`games/${gameId}/request`).push({
-                type: 'ROLL',
-                pid: p.id
-            });
+            db.ref(`games/${gameId}/request`).push({ type: 'ROLL', pid: p.id });
         }
     }
 }
 function finishRollLogic(p, r) {
-    // 1. Shadow Step Passive (+1)
-    if (p.passiveSkillId === 'shadow_step') { 
-        r += 1; 
-        addLog("Shadow Step: +1 Move"); 
-    }
+    // 1. Ensure stats are calculated correctly
+    recalcStats(p);
 
-    // 2. NEW: Equipment Movement Bonus (From Boots)
+    // 2. APPLY MOVEMENT BONUS
+    // This looks at p.stats.movementBonus, which includes Shadow Step + Boots
     const moveBonus = p.stats.movementBonus || 0;
     if (moveBonus > 0) {
         r += moveBonus;
-        addLog(`${p.name}'s equipment grants +${moveBonus} Movement!`, "log-success");
+        addLog(`Movement Bonus: +${moveBonus} Total!`, "log-success");
     }
 
     // 3. Blizzard Penalty (-1)
@@ -9142,10 +9109,9 @@ function finishRollLogic(p, r) {
         addLog("Blizzard slows you down! (-1)", "log-fail");
     }
     
-    // 4. Golden Rain Bonus (Gold per step)
+    // 4. Golden Rain Bonus
     const isGoldRain = activeEvents.some(e => e.data && e.data.id === 'weather_goldrain');
     if (isGoldRain) {
-        // Apply Gold Find stat to the rain bonus
         const goldFind = p.stats.goldFind || 0;
         const bonus = (r * 10) + goldFind; 
         p.gold += bonus;
@@ -9156,7 +9122,6 @@ function finishRollLogic(p, r) {
 
     addLog(`${p.name} moves ${r} spaces.`);
 
-    // Start Movement
     gameState = 'MOVING'; 
     animateMove(p, r); 
 }
@@ -13030,22 +12995,40 @@ function showTooltip(data, isSkillId = false) {
         html = `<div class="tt-header" style="display:flex; align-items:center;">${imgSrc}<div><span class="tt-name">${s.name}</span><br><span class="tt-rarity">${s.type || 'Active'}</span></div></div><div class="tt-abil" style="border:none;">${s.desc}</div>`; 
     } else { 
         const col = getRarityColor(data.rarity || 'common'); 
-        // Check if item has an ability with an image in the library
+        
+        // Find Image
         if(data.ability) {
              const libSkill = Object.values(ABILITY_LIBRARY).find(s => s.name === data.ability.name);
              if(libSkill && libSkill.img) imgSrc = `<img src="${libSkill.img}" class="tt-icon">`;
-        }
-        // Fallback: Check if item NAME matches a skill (e.g. scrolls)
-        else if (Object.values(ABILITY_LIBRARY).some(s => s.name === data.name)) {
-             const libSkill = Object.values(ABILITY_LIBRARY).find(s => s.name === data.name);
-             if(libSkill && libSkill.img) imgSrc = `<img src="${libSkill.img}" class="tt-icon">`;
+             else if (data.img) imgSrc = `<img src="${data.img}" class="tt-icon">`;
+        } else if (data.img) {
+            imgSrc = `<img src="${data.img}" class="tt-icon">`;
         }
         
         html = `<div class="tt-header" style="display:flex; align-items:center;">${imgSrc}<div><span class="tt-name" style="color:${col}">${data.name}</span><br><span class="tt-rarity">${data.rarity || 'Common'}</span></div></div>`; 
-        if (data.bonus) Object.keys(data.bonus).forEach(k => { html += `<span class="tt-stat">+${data.bonus[k]} ${k.toUpperCase()}</span>`; }); 
-        if(data.desc) html += `<span class="tt-stat" style="color:#aaa; font-style:italic; margin-bottom:5px;">${data.desc}</span>`; 
-        if(data.ability) html += `<div class="tt-abil">${data.ability.name}: ${data.ability.desc}</div>`; 
+        
+        // --- DISPLAY STATS ---
+        let statsHtml = '<div style="margin: 5px 0;">';
+        
+        // Primary Stats
+        if (data.bonus) {
+            Object.keys(data.bonus).forEach(k => { 
+                statsHtml += `<div class="tt-stat" style="color:#ef4444">+${data.bonus[k]} ${k.toUpperCase()}</div>`; 
+            });
+        }
+        
+        // Secondary Stats (The missing part!)
+        if (data.moveBonus)  statsHtml += `<div class="tt-stat" style="color:#10b981">+${data.moveBonus} MOVEMENT</div>`;
+        if (data.goldFind)   statsHtml += `<div class="tt-stat" style="color:#fbbf24">+${data.goldFind} GOLD FIND</div>`;
+        if (data.resistance) statsHtml += `<div class="tt-stat" style="color:#3b82f6">+${data.resistance} RESISTANCE</div>`;
+        
+        statsHtml += '</div>';
+        html += statsHtml;
+
+        if(data.desc) html += `<div style="color:#aaa; font-size:0.75rem; font-style:italic; margin-bottom:5px;">${data.desc}</div>`; 
+        if(data.ability) html += `<div class="tt-abil" style="color:var(--gold-glow)">${data.ability.name}: ${data.ability.desc}</div>`; 
     } 
+    
     tt.innerHTML = html; 
     tt.style.display = 'block'; 
 }
@@ -13840,50 +13823,46 @@ function hydrateItem(item) {
 function recalcStats(p) {
     if (!p || p.isBoss || p.isEventEntity || !p.race) return;
 
-    // 1. Reset to Base Race Stats
-    p.stats.str = p.race.stats.str; 
-    p.stats.dex = p.race.stats.dex; 
-    p.stats.int = p.race.stats.int;
+    // 1. Base Stats
+    p.stats.str = p.race.stats.str + (p.permBonuses?.str || 0);
+    p.stats.dex = p.race.stats.dex + (p.permBonuses?.dex || 0);
+    p.stats.int = p.race.stats.int + (p.permBonuses?.int || 0);
     
-    // 2. Add Permanent Bonuses (Medic/Elixirs)
-    if (p.permBonuses) {
-        p.stats.str += (p.permBonuses.str || 0);
-        p.stats.dex += (p.permBonuses.dex || 0);
-        p.stats.int += (p.permBonuses.int || 0);
-    }
-    
-    // 3. Add Equipment Bonuses
-    ['head', 'body', 'main', 'off'].forEach(slot => { 
-        const item = p.equipment[slot]; 
-        if(item && item.bonus) { 
-            const k = Object.keys(item.bonus)[0]; 
-            if (p.stats[k] !== undefined) p.stats[k] += item.bonus[k]; 
-        } 
+    // 2. Reset Secondaries
+    p.stats.movementBonus = 0;
+    p.stats.goldFind = 0;
+    p.stats.resistance = 0;
+
+    // 3. Equipment
+    EQUIP_ORDER.forEach(slot => {
+        const item = p.equipment[slot];
+        if (!item) return;
+
+        if (['body', 'main', 'off'].includes(slot) && item.bonus) {
+            Object.keys(item.bonus).forEach(k => {
+                if (p.stats[k] !== undefined) p.stats[k] += item.bonus[k];
+            });
+        }
+
+        if (slot === 'feet' && item.moveBonus) p.stats.movementBonus += item.moveBonus;
+
+        if (['head', 'feet', 'hands', 'ring_l', 'ring_r', 'amulet', 'back'].includes(slot)) {
+            if (item.goldFind) p.stats.goldFind += item.goldFind;
+            if (item.resistance) p.stats.resistance += item.resistance;
+        }
     });
 
-    // 4. Passive Library Effects
+    // 4. Passives
     const pas = ABILITY_LIBRARY[p.passiveSkillId]; 
-    if(pas && pas.effect) pas.effect(p.stats);
-
-    // 5. Temporary Debuffs/Buffs (Shadow Strike / Pacifist)
-    if (p.shadowStrikeDebuff) {
-        p.stats.str = Math.max(1, p.stats.str - 1);
-        p.stats.dex = Math.max(1, p.stats.dex - 1);
-        p.stats.int = Math.max(1, p.stats.int - 1);
-    }
-    if (p.pacifistBuff) {
-        p.stats.str += 1;
-        p.stats.dex += 1;
-        p.stats.int += 1;
+    if (pas && pas.effect) pas.effect(p.stats);
+    
+    // SHADOW STEP SOURCE
+    if (p.passiveSkillId === 'shadow_step') {
+        p.stats.movementBonus += 1;
     }
 
-    // --- CRITICAL FIX: POLYMORPH OVERRIDE ---
-    // This MUST be the final step to ensure stats are capped at 1
-    if (p.isPolymorphed) {
-        p.stats.str = 1; 
-        p.stats.dex = 1; 
-        p.stats.int = 1;
-    }
+    // 5. Overrides
+    if (p.isPolymorphed) { p.stats.str = 1; p.stats.dex = 1; p.stats.int = 1; }
 }
 function resolveAiEvent(p, card, t, mode, items) {
     // 1. SHOPS & START
