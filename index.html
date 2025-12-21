@@ -12586,7 +12586,6 @@ function updateHUD() {
     const elPortrait = document.getElementById('p1-portrait');
     if (elPortrait) elPortrait.style.backgroundImage = `url('${p.portrait}')`;
 
-    // Day/Night and Environment
     setT('day-night-indicator', isNight ? "☾ NIGHT" : "☀ DAY");
     const elDayNight = document.getElementById('day-night-indicator');
     if (elDayNight) { elDayNight.style.color = isNight ? "#a855f7" : "#87ceeb"; }
@@ -12598,25 +12597,14 @@ function updateHUD() {
     const btnAction = document.getElementById('btn-action');
     if (btnAction) {
         btnAction.disabled = true;
-        btnAction.classList.remove('state-end');
         if (curTurnPlayer.id === myPlayerId) {
-            if (gameState === 'ROLL') { 
-                btnAction.disabled = false; 
-                btnAction.innerText = "ROLL"; 
-            }
-            else if (gameState === 'END') { 
-                btnAction.disabled = false; 
-                btnAction.classList.add('state-end'); 
-                btnAction.innerText = "END TURN"; 
-            }
-            else if (gameState === 'MOVING') { btnAction.innerText = "..."; }
-            else { btnAction.innerText = "WAIT"; }
-        } else {
-            btnAction.innerText = isMultiplayer ? "WAIT" : "AI";
-        }
+            if (gameState === 'ROLL') { btnAction.disabled = false; btnAction.innerText = "ROLL"; }
+            else if (gameState === 'END') { btnAction.disabled = false; btnAction.innerText = "END TURN"; }
+            else { btnAction.innerText = "..."; }
+        } else { btnAction.innerText = "WAIT"; }
     }
 
-// 4. Customizable Skill Bar (6 Slots)
+    // 4. Customizable Skill Bar (6 Slots) - ASSIGNMENT LOGIC RESTORED
     for (let i = 0; i < 6; i++) {
         const el = document.getElementById(`skill-${i}`);
         const txt = document.getElementById(`txt-skill-${i}`);
@@ -12627,125 +12615,79 @@ function updateHUD() {
         el.className = 'skill-slot';
         el.style.opacity = "1";
 
+        // --- RIGHT CLICK LISTENER (Assignment) ---
+        el.oncontextmenu = (e) => {
+            e.preventDefault();
+            openSkillPicker(i);
+        };
+
+        // --- MOBILE LONG PRESS LISTENER (Assignment) ---
+        let pressTimer;
+        el.ontouchstart = (e) => {
+            pressTimer = setTimeout(() => {
+                if (navigator.vibrate) navigator.vibrate(50);
+                openSkillPicker(i);
+            }, 700);
+        };
+        el.ontouchend = () => clearTimeout(pressTimer);
+        el.ontouchmove = () => clearTimeout(pressTimer);
+
         if (skill) {
             let isDepleted = skill.isClass ? p.classSkillDepleted : (skill.ref ? skill.ref.isDepleted : false);
-
-            if (isDepleted) {
-                el.style.opacity = "0.5";
-                txt.innerText = "RECHARGE";
-            } else {
-                el.classList.add('filled');
-                if (skill.isClass) el.style.borderColor = "var(--gold-main)";
-                txt.innerText = skill.name;
-            }
-
-            // This line ensures the Skill Art (Dash, Fireball, etc) shows on the bar
-            if (skill.img) {
-                el.style.backgroundImage = `url('${skill.img}')`;
-                el.style.backgroundSize = "cover";
-            }
+            el.style.opacity = isDepleted ? "0.5" : "1";
+            txt.innerText = isDepleted ? "RECHARGE" : skill.name;
+            if (skill.img) el.style.backgroundImage = `url('${skill.img}')`;
             
-            // Interaction logic...
+            // Skill usage and tooltip
+            el.onclick = () => useSkill(i);
             el.onmouseenter = () => showTooltip(skill.isClass ? skill.id : skill.ref, skill.isClass);
             el.onmouseleave = hideTooltip;
-            el.onclick = () => useSkill(i);
         } else {
             txt.innerText = (i === 0) ? "CLASS" : "EMPTY";
+            el.onclick = () => openSkillPicker(i); // Clicking empty slot opens picker
         }
     }
 
-    // 5. 10-Slot Percentage Paper Doll (Syncing Sidebar and Modal)
+    // 5. 10-Slot Percentage Paper Doll
     EQUIP_ORDER.forEach((slotName) => {
-        const elements = [
-            document.getElementById('slot-' + slotName),    // Sidebar
-            document.getElementById('cd-slot-' + slotName)  // Hero Modal
-        ];
-
+        const elements = [document.getElementById('slot-' + slotName), document.getElementById('cd-slot-' + slotName)];
         elements.forEach(el => {
             if (!el) return;
             const item = p.equipment[slotName];
-            // Apply new standard classes
-            el.className = 'doll-placement doll-slot'; 
             el.style.backgroundImage = 'none';
-
             if (item) {
                 el.classList.add('filled', 'rarity-' + (item.rarity || 'common'));
-                if (item.img) {
-                    el.style.backgroundImage = `url('${item.img}')`;
-                    el.innerText = "";
-                } else {
-                    el.innerText = item.name.substring(0, 5);
-                }
+                el.style.backgroundImage = `url('${item.img}')`;
+                el.innerText = "";
             } else {
+                el.classList.remove('filled');
                 el.innerText = slotName.replace('_', ' ').toUpperCase();
             }
-            // Bind Tooltip and Equip Logic
             setupItemInteractions(el, slotName, 'equip');
         });
     });
 
-    // 6. Inventory Grid (12 Slots)
+    // 6. Inventory Grid
     const invDiv = document.getElementById('p1-inv');
-    const cdInvDiv = document.getElementById('cd-inv-grid-new');
-    
-    [invDiv, cdInvDiv].forEach(container => {
-        if (!container) return;
-        container.innerHTML = '';
+    if (invDiv) {
+        invDiv.innerHTML = '';
         for (let i = 0; i < 12; i++) {
             let d = document.createElement('div');
             d.className = 'inv-slot';
             const item = p.inventory[i];
             if (item) {
                 d.classList.add('rarity-' + (item.rarity || 'common'));
-                if (item.img) {
-                    d.style.backgroundImage = `url('${item.img}')`;
-                } else {
-                    d.innerText = item.name;
-                }
+                d.style.backgroundImage = `url('${item.img}')`;
                 setupItemInteractions(d, i, 'inv');
             }
-            container.appendChild(d);
+            invDiv.appendChild(d);
         }
-    });
-
-    // 7. Leaderboard List
-    const lb = document.getElementById('leader-list');
-    if (lb) {
-        lb.innerHTML = '';
-        players.forEach(pl => {
-            let d = document.createElement('div');
-            let extraClass = pl.isDead ? ' dead' : (pl.isBoss ? ' boss' : '');
-            d.className = 'leader-row' + extraClass;
-            
-            const camps = tiles.filter(t => t.userData.owner === pl.id && t.userData.buildingLevel === 1).length;
-            const taverns = tiles.filter(t => t.userData.owner === pl.id && t.userData.buildingLevel === 2).length;
-
-            d.innerHTML = `
-                <span style="color:${pl.color}; font-weight:${pl.id === myPlayerId ? '900' : 'normal'}; cursor:pointer;" onclick="openCharDetail(${pl.id})">
-                    ${pl.isBoss ? '👹 ' : ''}${pl.name}
-                </span>
-                <div style="display:flex; gap:8px; align-items:center;">
-                    <span style="font-size:0.8rem; opacity:0.7;">⛺${camps} 🍺${taverns}</span>
-                    <span style="font-weight:bold;">${pl.isDead ? "DEAD" : pl.gold + "G"}</span>
-                </div>
-            `;
-            lb.appendChild(d);
-        });
     }
 
-    // 8. Player Stats Widget (Top Right)
-    const myOwned = tiles.filter(t => t.userData.owner === myPlayerId);
-    setT('ms-gold', p.gold);
-    setT('ms-camps', myOwned.filter(t => t.userData.buildingLevel === 1).length);
-    setT('ms-taverns', myOwned.filter(t => t.userData.buildingLevel === 2).length);
-    
-    // Update Secondary Stats (If labels exist in HTML)
-    const resEl = document.getElementById('p1-res');
-    const movEl = document.getElementById('p1-move');
-    const gfEl = document.getElementById('p1-gf');
-    if (resEl) resEl.innerText = p.stats.resistance || 0;
-    if (movEl) movEl.innerText = "+" + (p.stats.movementBonus || 0);
-    if (gfEl)  gfEl.innerText = "+" + (p.stats.goldFind || 0);
+    // 7. Secondary Stats Widget
+    setT('p1-move', "+" + (p.stats.movementBonus || 0));
+    setT('p1-gf', "+" + (p.stats.goldFind || 0));
+    setT('p1-res', (p.stats.resistance || 0));
 }
 
 function makeDraggable(elmnt) {
