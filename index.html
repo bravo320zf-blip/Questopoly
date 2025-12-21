@@ -12654,6 +12654,18 @@ function updateHUD() {
             } else { btnAction.innerText = isMultiplayer ? "WAIT" : "AI"; }
         }
     }
+	
+	const elPortrait = document.getElementById('p1-portrait');
+    if (elPortrait) {
+        if (p.portrait && p.portrait !== "") {
+            elPortrait.style.backgroundImage = `url('${p.portrait}')`;
+            elPortrait.style.backgroundColor = "transparent"; // Hide the black bg
+        } else {
+            // Fallback: Show Player Color if no image is found
+            elPortrait.style.backgroundImage = "none";
+            elPortrait.style.backgroundColor = p.color || "var(--gold-dim)";
+        }
+    }
 
     // --- SECTION 2: PROTECTED GRID UPDATES ---
     // Optimization: Skip clearing/redrawing heavy UI while walking
