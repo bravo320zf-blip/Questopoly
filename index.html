@@ -1668,6 +1668,35 @@ Because you do not have a backend server listening for automatic receipts (Webho
     display: block !important; /* AdSense prefers block over flex for calculation */
     margin: 0 auto;
 }
+
+/* Ensure Leaderboard rows are visible and spaced out */
+.leader-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    background: rgba(0, 0, 0, 0.2);
+}
+
+.leader-row.dead {
+    opacity: 0.5;
+    filter: grayscale(1);
+}
+
+/* Fix Sidebar Scrolling for Mobile */
+#p1-sheet {
+    display: flex;
+    flex-direction: column;
+}
+
+.sheet-scroll-area {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+    padding-right: 5px;
+}
 </style>
 </head>
 
@@ -12592,19 +12621,22 @@ function updateHUD() {
 
     // 3. Turn Tracker & Main Action Button
     const curTurnPlayer = players[turnIndex];
-    setT('turn-banner', curTurnPlayer.id === myPlayerId ? "YOUR TURN" : `${curTurnPlayer.name}'S TURN`);
-
-    const btnAction = document.getElementById('btn-action');
-    if (btnAction) {
-        btnAction.disabled = true;
-        if (curTurnPlayer.id === myPlayerId) {
-            if (gameState === 'ROLL') { btnAction.disabled = false; btnAction.innerText = "ROLL"; }
-            else if (gameState === 'END') { btnAction.disabled = false; btnAction.innerText = "END TURN"; }
-            else { btnAction.innerText = "..."; }
-        } else { btnAction.innerText = "WAIT"; }
+    if (curTurnPlayer) {
+        setT('turn-banner', curTurnPlayer.id === myPlayerId ? "YOUR TURN" : `${curTurnPlayer.name}'S TURN`);
+        const btnAction = document.getElementById('btn-action');
+        if (btnAction) {
+            btnAction.disabled = (curTurnPlayer.id !== myPlayerId);
+            if (curTurnPlayer.id === myPlayerId) {
+                if (gameState === 'ROLL') btnAction.innerText = "ROLL";
+                else if (gameState === 'END') btnAction.innerText = "END TURN";
+                else btnAction.innerText = "...";
+            } else {
+                btnAction.innerText = isMultiplayer ? "WAIT" : "AI";
+            }
+        }
     }
 
-    // 4. Customizable Skill Bar (6 Slots) - ASSIGNMENT LOGIC RESTORED
+    // 4. Customizable Skill Bar (Slots 1-6) - ASSIGNMENT LOGIC RE-ATTACHED
     for (let i = 0; i < 6; i++) {
         const el = document.getElementById(`skill-${i}`);
         const txt = document.getElementById(`txt-skill-${i}`);
@@ -12615,18 +12647,19 @@ function updateHUD() {
         el.className = 'skill-slot';
         el.style.opacity = "1";
 
-        // --- RIGHT CLICK LISTENER (Assignment) ---
+        // --- THE FIX: ATTACH ASSIGNMENT LISTENERS ---
+        // Right Click (PC)
         el.oncontextmenu = (e) => {
             e.preventDefault();
-            openSkillPicker(i);
+            if (p.id === myPlayerId) openSkillPicker(i);
         };
 
-        // --- MOBILE LONG PRESS LISTENER (Assignment) ---
+        // Long Press (Mobile)
         let pressTimer;
         el.ontouchstart = (e) => {
             pressTimer = setTimeout(() => {
                 if (navigator.vibrate) navigator.vibrate(50);
-                openSkillPicker(i);
+                if (p.id === myPlayerId) openSkillPicker(i);
             }, 700);
         };
         el.ontouchend = () => clearTimeout(pressTimer);
@@ -12638,39 +12671,44 @@ function updateHUD() {
             txt.innerText = isDepleted ? "RECHARGE" : skill.name;
             if (skill.img) el.style.backgroundImage = `url('${skill.img}')`;
             
-            // Skill usage and tooltip
             el.onclick = () => useSkill(i);
             el.onmouseenter = () => showTooltip(skill.isClass ? skill.id : skill.ref, skill.isClass);
             el.onmouseleave = hideTooltip;
         } else {
             txt.innerText = (i === 0) ? "CLASS" : "EMPTY";
-            el.onclick = () => openSkillPicker(i); // Clicking empty slot opens picker
+            el.onclick = () => { if(p.id === myPlayerId) openSkillPicker(i); }; 
         }
     }
 
-    // 5. 10-Slot Percentage Paper Doll
+    // 5. 10-Slot Paper Doll (Sidebar and Modal Sync)
     EQUIP_ORDER.forEach((slotName) => {
         const elements = [document.getElementById('slot-' + slotName), document.getElementById('cd-slot-' + slotName)];
         elements.forEach(el => {
             if (!el) return;
             const item = p.equipment[slotName];
+            el.className = 'doll-placement doll-slot'; 
             el.style.backgroundImage = 'none';
             if (item) {
                 el.classList.add('filled', 'rarity-' + (item.rarity || 'common'));
                 el.style.backgroundImage = `url('${item.img}')`;
                 el.innerText = "";
+                // Re-attach interactions (Unequip / Tooltip)
+                if (p.id === myPlayerId) setupItemInteractions(el, slotName, 'equip');
             } else {
                 el.classList.remove('filled');
                 el.innerText = slotName.replace('_', ' ').toUpperCase();
+                if (p.id === myPlayerId) setupItemInteractions(el, slotName, 'equip');
             }
-            setupItemInteractions(el, slotName, 'equip');
         });
     });
 
-    // 6. Inventory Grid
+    // 6. Inventory Grids (Sidebar AND Modal Sync)
     const invDiv = document.getElementById('p1-inv');
-    if (invDiv) {
-        invDiv.innerHTML = '';
+    const modalInvDiv = document.getElementById('cd-inv-grid-new');
+    
+    [invDiv, modalInvDiv].forEach(container => {
+        if (!container) return;
+        container.innerHTML = '';
         for (let i = 0; i < 12; i++) {
             let d = document.createElement('div');
             d.className = 'inv-slot';
@@ -12678,13 +12716,32 @@ function updateHUD() {
             if (item) {
                 d.classList.add('rarity-' + (item.rarity || 'common'));
                 d.style.backgroundImage = `url('${item.img}')`;
-                setupItemInteractions(d, i, 'inv');
+                d.innerText = "";
+                if (p.id === myPlayerId) setupItemInteractions(d, i, 'inv');
             }
-            invDiv.appendChild(d);
+            container.appendChild(d);
         }
+    });
+
+    // 7. Leaderboard & Secondary Stats
+    const lb = document.getElementById('leader-list');
+    if (lb) {
+        lb.innerHTML = '';
+        players.forEach(pl => {
+            let d = document.createElement('div');
+            d.className = 'leader-row' + (pl.isDead ? ' dead' : (pl.isBoss ? ' boss' : ''));
+            const camps = tiles.filter(t => t.userData.owner === pl.id && t.userData.buildingLevel === 1).length;
+            const taverns = tiles.filter(t => t.userData.owner === pl.id && t.userData.buildingLevel === 2).length;
+            d.innerHTML = `
+                <span style="color:${pl.color}; font-weight:${pl.id === myPlayerId ? '900' : 'normal'}; cursor:pointer;" onclick="openCharDetail(${pl.id})">${pl.name}</span>
+                <div style="display:flex; gap:8px; align-items:center;">
+                    <span style="font-size:0.8rem; opacity:0.7;">⛺${camps} 🍺${taverns}</span>
+                    <span style="font-weight:bold;">${pl.isDead ? "OUT" : pl.gold + "G"}</span>
+                </div>`;
+            lb.appendChild(d);
+        });
     }
 
-    // 7. Secondary Stats Widget
     setT('p1-move', "+" + (p.stats.movementBonus || 0));
     setT('p1-gf', "+" + (p.stats.goldFind || 0));
     setT('p1-res', (p.stats.resistance || 0));
@@ -12815,14 +12872,12 @@ function openCharDetail(id) {
     const p = players.find(pl => pl.id === id);
     if (!p) return;
 
-    // Refresh stats to ensure bonuses like Shadow Step are calculated
-    recalcStats(p);
+    recalcStats(p); 
 
     const modal = document.getElementById('char-detail-modal');
     const container = modal.querySelector('.modal-content');
+    const isMe = (p.id === myPlayerId);
     
-    // THE FIX: The line below starts with a BACKTICK (`). 
-    // Do not change it to a single quote (') or it will break again.
     container.innerHTML = `
         <div class="close-x" onclick="closeCharDetail()">×</div>
         <div class="cs-header-bg">
@@ -12834,43 +12889,28 @@ function openCharDetail(id) {
         </div>
 
         <div class="sheet-scroll-area">
-            <!-- PRIMARY STATS -->
             <div class="cs-main-stats">
-                <div class="cs-stat-orb">
-                    <span class="cs-stat-val">${p.stats.str}</span>
-                    <span class="cs-stat-label">STR</span>
-                </div>
-                <div class="cs-stat-orb">
-                    <span class="cs-stat-val">${p.stats.dex}</span>
-                    <span class="cs-stat-label">DEX</span>
-                </div>
-                <div class="cs-stat-orb">
-                    <span class="cs-stat-val">${p.stats.int}</span>
-                    <span class="cs-stat-label">INT</span>
-                </div>
+                <div class="cs-stat-orb"><span class="cs-stat-val">${p.stats.str}</span><span class="cs-stat-label">STR</span></div>
+                <div class="cs-stat-orb"><span class="cs-stat-val">${p.stats.dex}</span><span class="cs-stat-label">DEX</span></div>
+                <div class="cs-stat-orb"><span class="cs-stat-val">${p.stats.int}</span><span class="cs-stat-label">INT</span></div>
             </div>
 
-            <!-- SECONDARY STATS ROW -->
             <div class="sec-stat-row">
-                <div class="sec-stat-box" 
-                     onmouseenter="showStatTooltip('mov')" onmouseleave="hideTooltip()" onclick="showStatTooltip('mov')">
+                <div class="sec-stat-box" onmouseenter="showStatTooltip('mov')" onmouseleave="hideTooltip()" onclick="showStatTooltip('mov')">
                     <span class="sec-stat-lbl">MOV:</span> 
                     <span class="sec-stat-val">+${p.stats.movementBonus || 0}</span>
                 </div>
-                <div class="sec-stat-box" 
-                     onmouseenter="showStatTooltip('gf')" onmouseleave="hideTooltip()" onclick="showStatTooltip('gf')">
+                <div class="sec-stat-box" onmouseenter="showStatTooltip('gf')" onmouseleave="hideTooltip()" onclick="showStatTooltip('gf')">
                     <span class="sec-stat-lbl">G-FIND:</span> 
                     <span class="sec-stat-val">+${p.stats.goldFind || 0}</span>
                 </div>
-                <div class="sec-stat-box" 
-                     onmouseenter="showStatTooltip('res')" onmouseleave="hideTooltip()" onclick="showStatTooltip('res')">
+                <div class="sec-stat-box" onmouseenter="showStatTooltip('res')" onmouseleave="hideTooltip()" onclick="showStatTooltip('res')">
                     <span class="sec-stat-lbl">RESIST:</span> 
                     <span class="sec-stat-val">${p.stats.resistance || 0}</span>
                 </div>
             </div>
 
             <div style="padding: 15px;">
-                <!-- PAPER DOLL -->
                 <div class="paper-doll-container">
                     <div class="doll-placement doll-img" style="top: 5%; left: 22%; width: 56%; height: 70%;"></div>
                     <div id="cd-slot-head" class="doll-placement doll-slot" style="top: 5%; left: 5%;">HEAD</div>
@@ -12885,7 +12925,7 @@ function openCharDetail(id) {
                     <div id="cd-slot-off"   class="doll-placement doll-slot" style="bottom: 5%; right: 25%;">OFF</div>
                 </div>
 
-                ${(p.id === myPlayerId) ? `<button class="hero-sheet-skill-btn" onclick="openSkillPicker(0)">⚡ MANAGE SKILLS</button>` : ''}
+                ${isMe ? `<button class="hero-sheet-skill-btn" onclick="openSkillPicker(0)">⚡ MANAGE SKILLS</button>` : ''}
                 
                 <div style="margin-top:20px; font-size:0.9rem; color:var(--gold-main); font-family:var(--font-head); border-bottom:1px solid #333; padding-bottom:5px;">INVENTORY</div>
                 <div id="cd-inv-grid-new" class="inv-grid" style="margin-top:10px;"></div>
@@ -12893,19 +12933,27 @@ function openCharDetail(id) {
         </div>
     `;
 
-    // Populate Equipment
+    // 2. Attach Listeners to Equipment Slots
     EQUIP_ORDER.forEach(slot => {
         const item = p.equipment[slot];
         const slotEl = document.getElementById('cd-slot-' + slot);
-        if (slotEl && item) {
-            slotEl.classList.add('filled', 'rarity-' + (item.rarity || 'common'));
-            slotEl.style.backgroundImage = `url('${item.img}')`;
-            slotEl.innerText = "";
-            slotEl.onclick = () => showTooltip(item);
+        if (slotEl) {
+            if (item) {
+                slotEl.classList.add('filled', 'rarity-' + (item.rarity || 'common'));
+                slotEl.style.backgroundImage = `url('${item.img}')`;
+                slotEl.innerText = "";
+                // If it's my sheet, allow full interaction. If not, only tooltips.
+                if (isMe) {
+                    setupItemInteractions(slotEl, slot, 'equip');
+                } else {
+                    slotEl.onmouseenter = () => showTooltip(item);
+                    slotEl.onmouseleave = hideTooltip;
+                }
+            }
         }
     });
 
-    // Populate Inventory
+    // 3. Attach Listeners to Inventory
     const invGrid = document.getElementById('cd-inv-grid-new');
     if (invGrid) {
         invGrid.innerHTML = '';
@@ -12917,13 +12965,19 @@ function openCharDetail(id) {
                 d.classList.add('rarity-' + (item.rarity || 'common'));
                 d.style.backgroundImage = `url('${item.img}')`;
                 d.innerText = "";
-                d.onclick = () => showTooltip(item);
+                // Interaction check
+                if (isMe) {
+                    setupItemInteractions(d, i, 'inv');
+                } else {
+                    d.onmouseenter = () => showTooltip(item);
+                    d.onmouseleave = hideTooltip;
+                }
             }
             invGrid.appendChild(d);
         }
     }
-
     modal.classList.add('active');
+	updateHUD(); 
 }
 //if(invSection) invSection.style.display = 'block'; if(hiddenMsg) hiddenMsg.style.display = 'none'; ['head','body','main','off'].forEach(slot => { const item = p.equipment[slot]; const el = document.getElementById('cd-slot-'+slot); if(el) { el.innerHTML = item ? item.name : slot.toUpperCase(); el.className = 'equip-slot' + (item ? ' filled' : ''); if(item) { el.onmouseenter = () => showTooltip(item); el.onmouseleave = hideTooltip; } else { el.onmouseenter = null; } } }); const grid = document.getElementById('cd-inv-grid'); if(grid) { grid.innerHTML = ''; p.inventory.forEach(item => { let d = document.createElement('div'); d.className = 'inv-slot'; d.innerText = item.name; d.classList.add('rarity-' + item.rarity); d.onmouseenter = () => showTooltip(item); d.onmouseleave = hideTooltip; grid.appendChild(d); }); for(let i=p.inventory.length; i<12; i++) { let d = document.createElement('div'); d.className = 'inv-slot'; grid.appendChild(d); } } } else { if(invSection) invSection.style.display = 'none'; if(hiddenMsg) hiddenMsg.style.display = 'block'; } const modal = document.getElementById('char-detail-modal'); if(modal) modal.classList.add('active'); }
 function closeCharDetail() { document.getElementById('char-detail-modal').classList.remove('active'); hideTooltip(); }
@@ -13773,25 +13827,23 @@ function recalcStats(p) {
     p.stats.resistance = 0;
 
     // 3. Process Equipment
-    EQUIP_ORDER.forEach(slot => {
-        const item = p.equipment[slot];
-        if (!item) return;
-
-        // Primary Stats
-        if (['body', 'main', 'off'].includes(slot) && item.bonus) {
-            Object.keys(item.bonus).forEach(k => {
-                if (p.stats[k] !== undefined) p.stats[k] += item.bonus[k];
-            });
-        }
-
-        // Secondary: Movement
-        if (slot === 'feet' && item.moveBonus) p.stats.movementBonus += item.moveBonus;
-
-        // Secondary: GF & Res
-        if (['head', 'feet', 'hands', 'ring_l', 'ring_r', 'amulet', 'back'].includes(slot)) {
-            if (item.goldFind) p.stats.goldFind += item.goldFind;
-            if (item.resistance) p.stats.resistance += item.resistance;
-        }
+EQUIP_ORDER.forEach((slotName) => {
+        const elements = [document.getElementById('slot-' + slotName), document.getElementById('cd-slot-' + slotName)];
+        elements.forEach(el => {
+            if (!el) return;
+            const item = p.equipment[slotName];
+            el.style.backgroundImage = 'none';
+            if (item) {
+                el.classList.add('filled');
+                el.style.backgroundImage = `url('${item.img}')`;
+                el.innerText = "";
+            } else {
+                el.classList.remove('filled');
+                el.innerText = slotName.replace('_', ' ').toUpperCase();
+            }
+            // Re-apply interactions to ensure they stay fresh
+            if (p.id === myPlayerId) setupItemInteractions(el, slotName, 'equip');
+        });
     });
 
     // 4. Passives
