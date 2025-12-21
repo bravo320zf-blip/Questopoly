@@ -5563,9 +5563,14 @@ const VFX = {
 
 const ABILITY_LIBRARY = {
     // ================= FIGHTER SKILLS =================
-    power_strike: { 
+power_strike: { 
         name: "Power Strike", desc: "Gain +5 STR for this turn only.", 
-        fn: (p) => { VFX.trigger('burst_up', p.mesh.position, null, 0xff0000); p.stats.str+=5; addLog("Power Strike: STR boosted!", "log-success"); updateHUD(); return true; }, 
+        fn: (p) => { 
+            VFX.trigger('burst_up', p.mesh.position, null, 0xff0000); 
+            p.tempBonuses.str += 5; // Use temp folder
+            addLog("Power Strike: STR boosted!", "log-success"); 
+            return true; 
+        }, 
         img: "https://static.wixstatic.com/media/b16479_3599509de5064815a86ecbae3f9979da~mv2.jpeg" 
     },
     intimidate: { 
@@ -5610,7 +5615,14 @@ second_wind: {
     },
     rally: { 
         name: "Rally", desc: "Gain +2 to all Stats for this turn.", 
-        fn: (p) => { VFX.trigger('pillar', p.mesh.position, null, 0xffd700); p.stats.str+=2; p.stats.dex+=2; p.stats.int+=2; addLog("Rally: All stats boosted!", "log-success"); updateHUD(); return true; }, 
+        fn: (p) => { 
+            VFX.trigger('pillar', p.mesh.position, null, 0xffd700); 
+            p.tempBonuses.str += 2; 
+            p.tempBonuses.dex += 2; 
+            p.tempBonuses.int += 2; 
+            addLog("Rally: All stats boosted!", "log-success"); 
+            return true; 
+        }, 
         img: "https://static.wixstatic.com/media/b16479_362057d2967143caacaea96b6def582f~mv2.jpg" 
     },
     siege_breaker: { 
@@ -5622,7 +5634,7 @@ second_wind: {
     // ================= WIZARD SKILLS =================
 fireball: { 
         name: "Fireball", 
-        desc: "Pay 100G: Burn enemy property. Guards die first. Splash 100G Dmg.", 
+        desc: "Pay 100G: Burn property. Guards die first. Splash 100G Dmg.", 
         fn: (p) => { 
             if(p.gold < 100) return false; 
             
@@ -5633,86 +5645,60 @@ fireball: {
                 p.gold -= 100; 
                 const t = ts[Math.floor(Math.random()*ts.length)]; 
                 
-                // Visuals
+                // 1. Visual Projectile
                 VFX.trigger('fireball', p.mesh.position, t.position);
                 
-                // DELAYED LOGIC (Wait for impact)
+                // 2. Logic Delay (Wait for impact)
                 setTimeout(() => {
-                    let guardDied = false;
-                    let msg = "";
                     let guards = t.userData.guardCount || 0;
 
-                    // --- 1. GUARD CHECK (Extra Life) ---
+                    // --- CALC NEW STATE ---
                     if (guards > 0) {
                         t.userData.guardCount--;
-                        guardDied = true;
-                        msg = `Fireball hit ${t.userData.info.name}! A Guard sacrificed themselves to save the tavern!`;
-                    } 
-                    // --- 2. NO GUARDS -> DAMAGE BUILDING ---
-                    else {
+                        globalLog(`Fireball hit ${t.userData.info.name}! A Guard was killed.`, "log-warning");
+                    } else {
                         if(t.userData.buildingLevel > 1) {
                             t.userData.buildingLevel = 1; 
-                            msg = `Fireball downgraded ${t.userData.info.name}!`;
+                            globalLog(`Fireball scorched ${t.userData.info.name}! Downgraded to Camp.`, "log-epic");
                         } else {
-                            // FULL DESTRUCTION
                             t.userData.owner = null; 
                             t.userData.buildingLevel = 0;
                             t.userData.guardCount = 0;
-                            t.userData.defendingStat = null;
-                            
-                            // Local Visual Removal (Instant feedback for SP)
-                            if(t.userData.prop) {
-                                new TWEEN.Tween(t.userData.prop.scale).to({y: 0}, 500).start();
-                                setTimeout(() => { t.remove(t.userData.prop); t.userData.prop = null; }, 500);
-                            }
-                            // Clear guards locally
-                            if (typeof activeGuards !== 'undefined') {
-                                activeGuards = activeGuards.filter(g => {
-                                    if(g.tileId === t.userData.id) {
-                                        if(g.mesh) scene.remove(g.mesh);
-                                        return false;
-                                    }
-                                    return true;
-                                });
-                            }
-                            
-                            msg = `Fireball destroyed ${t.userData.info.name}!`;
+                            globalLog(`Fireball incinerated ${t.userData.info.name}!`, "log-epic");
                         }
                     }
-                    addLog(msg, guardDied ? "log-warning" : "log-epic"); 
 
-                    // --- 3. SPLASH DAMAGE (Always happens) ---
+                    // --- APPLY CHANGES ---
+                    if (isMultiplayer) {
+                        // In Multiplayer, we just update the DB. 
+                        // The 'board' listener will see this and call applyCaptureVisuals for everyone automatically.
+                        db.ref(`games/${gameId}/board/${t.userData.id}`).update({
+                            owner: t.userData.owner,
+                            level: t.userData.buildingLevel,
+                            guardCount: t.userData.guardCount || 0
+                        });
+                        syncPlayerState(); // Sync the 100G loss
+                    } else {
+                        // In Single Player, we must trigger the visual update manually.
+                        // We find the owner object (if any remains) to give to the visual builder
+                        const ownerObj = players.find(pl => pl.id === t.userData.owner);
+                        applyCaptureVisuals(t, ownerObj, t.userData.buildingLevel);
+                        updateHUD();
+                    }
+
+                    // --- SPLASH DAMAGE ---
                     const victims = players.filter(v => v.pos === t.userData.id && !v.isDead && v.id !== p.id && !v.isEventEntity);
                     victims.forEach(v => {
                         v.gold = Math.max(0, v.gold - 100);
                         addLog(`${v.name} caught in the blast! Lost 100G.`, "log-fail");
-                        if (typeof isMultiplayer !== 'undefined' && isMultiplayer && myPlayerId === 0) {
-                            db.ref(`games/${gameId}/players/${v.id}/gold`).set(v.gold);
-                        }
+                        if (isMultiplayer && myPlayerId === 0) db.ref(`games/${gameId}/players/${v.id}/gold`).set(v.gold);
                     });
-
-                    // --- 4. SYNC BOARD ---
-                    // Sync regardless of destruction or downgrade
-                    if (typeof isMultiplayer !== 'undefined' && isMultiplayer && (p.id === myPlayerId || myPlayerId === 0)) {
-                        db.ref(`games/${gameId}/board/${t.userData.id}`).set({
-                            owner: t.userData.owner, // Null if destroyed
-                            level: t.userData.buildingLevel,
-                            guardCount: t.userData.guardCount || 0
-                        });
-                        syncPlayerState();
-                    }
-                    
-                    // --- 5. VISUAL UPDATE (Downgrade/Guard Loss only) ---
-                    // If owner still exists, refresh visuals (e.g., show fewer guards or smaller tent)
-                    // If destroyed, logic above handled removal.
-                    if (t.userData.owner !== null) {
-                        applyCaptureVisuals(t, players.find(pl=>pl.id===t.userData.owner), t.userData.buildingLevel);
-                    }
 
                 }, 1200);
 
                 return true;
             } 
+            addLog("No enemy properties to target!", "log-fail");
             return false;
         }, 
         img: "https://static.wixstatic.com/media/b16479_29ff412f99834658ac8d32d32e16849a~mv2.jpg" 
@@ -5734,9 +5720,18 @@ fireball: {
         name: "Blink", desc: "Move 1-6 spaces immediately.", 
         fn: (p) => { 
             VFX.trigger('implode', p.mesh.position, null, 0x00ffff);
-            const d=Math.floor(Math.random()*6)+1; 
+            const d = Math.floor(Math.random()*6)+1; 
             addLog(`Blinked ${d} spaces!`, "log-rare"); 
-            animateMove(p,d); return true; 
+            
+            if (isMultiplayer && gameId) {
+                db.ref(`games/${gameId}/moveHistory`).push({
+                    pid: p.id, d1: d, d2: 0, finalSteps: d, startPos: p.pos,
+                    timestamp: firebase.database.ServerValue.TIMESTAMP
+                });
+            } else {
+                animateMove(p, d); 
+            }
+            return true; 
         }, 
         img: "https://static.wixstatic.com/media/b16479_ead02548bf264a2eb097464789b65b11~mv2.jpg" 
     },
@@ -6087,7 +6082,16 @@ shadow_strike: {
         }, 
         img: "https://static.wixstatic.com/media/b16479_de48e0494048408dbd67d6c2008aee28~mv2.jpg" 
     },
-    bless: { name: "Bless", desc: "Gain +5 INT for this turn.", fn: (p) => { VFX.trigger('pillar', p.mesh.position, null, 0xffffff); p.stats.int+=5; addLog("Blessed!", "log-success"); updateHUD(); return true; }, img: "https://static.wixstatic.com/media/b16479_75752aecbee444ada136a1d9c923b8f8~mv2.jpg" },
+    bless: { 
+        name: "Bless", desc: "Gain +5 INT for this turn.", 
+        fn: (p) => { 
+            VFX.trigger('pillar', p.mesh.position, null, 0xffffff); 
+            p.tempBonuses.int += 5; // Use temp folder
+            addLog("Blessed!", "log-success"); 
+            return true; 
+        }, 
+        img: "https://static.wixstatic.com/media/b16479_75752aecbee444ada136a1d9c923b8f8~mv2.jpg" 
+    },
     divine_intervention: { name: "Intervention", desc: "Roll 1d6. On 6, Gain 500G.", fn: (p) => { VFX.trigger('pillar', p.mesh.position, null, 0xffffff); if(Math.floor(Math.random()*6)+1===6){ VFX.trigger('pillar', p.mesh.position, null, 0xffd700); p.gold+=500; addLog("Divine Gift: +500G!", "log-epic"); updateHUD(); return true;} addLog("Prayers unanswered.", "log-fail"); return true; }, img: "https://static.wixstatic.com/media/b16479_17b9cb42fac041e6ab622b3a45d6b3f0~mv2.jpg" },
     
 	sanctuary: { 
@@ -6413,7 +6417,14 @@ const ITEM_IMAGE_POOLS = {
 };
 function generateTreasureDeck() {
     const deck = [];
-    const abilities = Object.keys(ABILITY_LIBRARY);
+    // Filter out Scholar and any other "Start-Only" passives
+const abilities = Object.keys(ABILITY_LIBRARY).filter(k => 
+    k !== 'scholar' && 
+    k !== 'greedy' && 
+    k !== 'vanguard' && 
+    k !== 'leyline' && 
+    k !== 'devotion'
+);
     
     const getImg = (name) => {
         const pool = ITEM_IMAGE_POOLS[name];
@@ -8670,151 +8681,79 @@ function createDecks() {
 
 // --- REGION 4: PLAYER & AI (WAS MISSING) ---
 function spawnPlayer(id, n, r, c, actId, pasId, ai, col, startPos = 0) {
-    // Fail-safe for Multiplayer slot types
-    if (isMultiplayer && currentRoomData && currentRoomData.slots) {
-        const slotDef = currentRoomData.slots[id];
-        if (slotDef && slotDef.type === 'human') ai = false;
-    }
-
-    // Initialize Stats including new Secondary Stats
-    const stats = { 
-        str: r.stats.str, 
-        dex: r.stats.dex, 
-        int: r.stats.int, 
-        gold: 1000,
-        movementBonus: 0, 
-        goldFind: 0, 
-        resistance: 0 
-    };
-    
+    const stats = { str: r.stats.str, dex: r.stats.dex, int: r.stats.int, gold: 1000, movementBonus: 0, goldFind: 0, resistance: 0 };
     const passiveDef = ABILITY_LIBRARY[pasId];
     if (passiveDef && passiveDef.effect) passiveDef.effect(stats);
     
-    let archetype = 'str';
-    if(c.id === 'wizard' || c.id === 'cleric' || r.stats.int > r.stats.str) archetype = 'int';
-    else if(c.id === 'rogue' || r.stats.dex > r.stats.str) archetype = 'dex';
-    
     const g = createPlayerMesh(r, c, col);
-    if (tiles[startPos]) g.position.copy(tiles[startPos].position);
-    else g.position.copy(tiles[0].position);
-
-    if (id > 0) { 
-        g.position.x += (Math.random() - 0.5) * 0.5; 
-        g.position.z += (Math.random() - 0.5) * 0.5; 
-    }
+    g.position.copy(tiles[startPos] ? tiles[startPos].position : tiles[0].position);
     scene.add(g);
     
-    const portraitUrl = CHAR_PORTRAITS[`${r.id}_${c.id}`] || "";
-    
-    // Create the Player Object
     const newPlayer = {
-        id: id, name: n, race: r, class: c, portrait: portraitUrl,
+        id: id, name: n, race: r, class: c, portrait: CHAR_PORTRAITS[`${r.id}_${c.id}`] || "",
         activeSkillId: actId, passiveSkillId: pasId,
         stats: stats, gold: stats.gold, 
         permBonuses: { str: 0, dex: 0, int: 0 },
-        pos: startPos, 
-        mesh: g, color: col, 
-        isAi: ai, 
-        archetype: archetype,
-        // NEW: 10-Slot Equipment System
-        equipment: { 
-            head: null, body: null, hands: null, feet: null, 
-            ring_l: null, ring_r: null, amulet: null, back: null, 
-            main: null, off: null 
-        },
-        // NEW: Customizable Skill Bar (6 Slots)
+        tempBonuses: { str: 0, dex: 0, int: 0 },
+        pos: startPos, mesh: g, color: col, isAi: ai, 
+        equipment: { head: null, body: null, hands: null, feet: null, ring_l: null, ring_r: null, amulet: null, back: null, main: null, off: null },
         assignedSkills: [null, null, null, null, null, null],
-        inventory: [], 
-        quickSlots: [null, null], 
-        isSkipping: false, abilityUsed: false,
-        shadowStrikeDebuff: false,
-        pacifistBuff: false,
-        resurrectionUsed: false,
-        extraTurn: false,
-        afkStrikes: 0,
+        inventory: [], quickSlots: [null, null], 
+        isSkipping: false, 
+        classSkillDepleted: false,   // Slot 1
+        classSkill2Depleted: false,  // Slot 2 (Scholar)
         metrics: { spacesMoved: 0, successfulSieges: 0, guardsHired: 0 },
         history: [{ turn: 0, gold: 1000, props: 0 }] 
     };
 
-    // Automatically assign Class Skill to Slot 1 (Index 0)
-    newPlayer.assignedSkills[0] = {
-        id: actId,
-        name: ABILITY_LIBRARY[actId].name,
-        desc: ABILITY_LIBRARY[actId].desc,
-        img: ABILITY_LIBRARY[actId].img,
-        source: "Class Ability",
-        isClass: true
-    };
-
-    // Special Start Conditions
-    if (pasId === 'vanguard') {
-        const vImg = (ITEM_IMAGE_POOLS["Vanguard Blade"] && ITEM_IMAGE_POOLS["Vanguard Blade"].length > 0) ? ITEM_IMAGE_POOLS["Vanguard Blade"][0] : "";
-        const sword = { id: `vg_${id}`, name: `Vanguard Blade`, type: 'equip', slot: 'main', bonus: {str:2}, rarity: 'rare', cost: 300, img: vImg };
-        newPlayer.inventory.push(sword);
-    }
-    if (pasId === 'greedy') {
-        newPlayer.gold += 200;
-        newPlayer.inventory.push(createItemInstance(DECK_TREASURE[Math.floor(Math.random() * DECK_TREASURE.length)]));
-    }
-    if (pasId === 'leyline') {
-        const well = tiles.find(t => t.userData.info.name === 'Mana Well');
-        if (well) { newPlayer.pos = well.userData.id; newPlayer.mesh.position.copy(well.position); }
-    }
-    if (pasId === 'devotion') {
-        const shrine = tiles.find(t => t.userData.info.name === 'Shrine');
-        if (shrine) { newPlayer.pos = shrine.userData.id; newPlayer.mesh.position.copy(shrine.position); }
-    }
+    // Auto-assign Slot 1
+    newPlayer.assignedSkills[0] = { id: actId, name: ABILITY_LIBRARY[actId].name, desc: ABILITY_LIBRARY[actId].desc, img: ABILITY_LIBRARY[actId].img, source: "Class Ability", isClass: true };
 
     players.push(newPlayer);
 }
 function recalcStats(p) {
     if (!p || p.isBoss || p.isEventEntity || !p.race) return;
 
-    // 1. Reset to Base Race Stats + Permanent Bonuses (Elixirs/Medic)
-    p.stats.str = p.race.stats.str + (p.permBonuses?.str || 0);
-    p.stats.dex = p.race.stats.dex + (p.permBonuses?.dex || 0);
-    p.stats.int = p.race.stats.int + (p.permBonuses?.int || 0);
+    // 1. Base Race Stats + Permanent (Medic/Elixir) Bonuses + TEMPORARY (Skill) Bonuses
+    p.stats.str = p.race.stats.str + (p.permBonuses?.str || 0) + (p.tempBonuses?.str || 0);
+    p.stats.dex = p.race.stats.dex + (p.permBonuses?.dex || 0) + (p.tempBonuses?.dex || 0);
+    p.stats.int = p.race.stats.int + (p.permBonuses?.int || 0) + (p.tempBonuses?.int || 0);
     
-    // 2. IMPORTANT: Reset Secondaries to 0 so we don't stack old bonuses
+    // 2. Reset Secondary Stats before recalculating from gear
     p.stats.movementBonus = 0;
     p.stats.goldFind = 0;
     p.stats.resistance = 0;
 
-    // 3. Process Equipment Slots
+    // 3. Process all 10 Equipment Slots
     EQUIP_ORDER.forEach(slot => {
         const item = p.equipment[slot];
         if (!item) return;
 
-        // Primary Stats (Main Hand, Body, Off Hand only)
+        // Primary Stat items (Sword, Armor, etc)
         if (['body', 'main', 'off'].includes(slot) && item.bonus) {
             Object.keys(item.bonus).forEach(k => {
                 if (p.stats[k] !== undefined) p.stats[k] += item.bonus[k];
             });
         }
 
-        // Movement Bonus (Boots/Feet only)
-        if (slot === 'feet' && item.moveBonus) {
-            p.stats.movementBonus += item.moveBonus;
-        }
-
-        // Secondary Stats (Head, Hands, Feet, Rings, Amulet, Back)
+        // Secondary Stats (Boots, Rings, Cloaks)
+        if (slot === 'feet' && item.moveBonus) p.stats.movementBonus += item.moveBonus;
         if (['head', 'feet', 'hands', 'ring_l', 'ring_r', 'amulet', 'back'].includes(slot)) {
             if (item.goldFind) p.stats.goldFind += item.goldFind;
             if (item.resistance) p.stats.resistance += item.resistance;
         }
     });
 
-    // 4. Process Passive Ability Effects (DEX bonus)
-    const pas = ABILITY_LIBRARY[p.passiveSkillId]; 
-    if (pas && pas.effect) pas.effect(p.stats);
-    
-    // 5. Apply Shadow Step Movement (+1 ONLY)
-    if (p.passiveSkillId === 'shadow_step') {
-        p.stats.movementBonus += 1;
-    }
+    // 4. Passives
+    if (p.passiveSkillId === 'shadow_step') p.stats.movementBonus += 1;
+    const pasDef = ABILITY_LIBRARY[p.passiveSkillId]; 
+    if(pasDef && pasDef.effect) pasDef.effect(p.stats);
 
-    // 6. Polymorph Override (Sheep have 1 in everything)
-    if (p.isPolymorphed) { p.stats.str = 1; p.stats.dex = 1; p.stats.int = 1; p.stats.movementBonus = 0; }
+    // 5. Polymorph Debuff
+    if (p.isPolymorphed) { 
+        p.stats.str = 1; p.stats.dex = 1; p.stats.int = 1; 
+        p.stats.movementBonus = 0; 
+    }
 }
 
 function processTax(victim, amount) {
@@ -9187,35 +9126,33 @@ function finishRollLogic(p, r) {
 }
 
 function animateMove(p, s) {
-    // 1. Check if movement is finished
+    // 1. Movement Finished Base Case
     if (s <= 0) {
-        // Rotate hero back to face forward
         new TWEEN.Tween(p.mesh.rotation)
             .to({ y: 0 }, 300)
             .onComplete(() => {
-                // Movement is finished. Reset state and trigger the landing logic.
                 resolveLanding(p);
             })
             .start();
         return;
     }
 
-    // 2. Camera Tracking
+    // 2. Camera Setup
     if (!isZoomed || cameraTarget !== p.mesh) {
         cameraTarget = p.mesh;
         isZoomed = true;
     }
 
-    // 3. Update Position & Metrics
+    // 3. Logic Step
     p.pos = (p.pos + 1) % 40;
     p.metrics.spacesMoved = (p.metrics.spacesMoved || 0) + 1;
 
     const isMe = (p.id === myPlayerId);
     const isMyAi = (p.isAi && myPlayerId === 0);
 
-    // 4. Skill Recharge Logic (Sprint/Pickpocket recharges every 10 steps)
+    // 4. Recharge Class Spells (Sprint/Pickpocket recharges every 10 steps)
     if ((p.activeSkillId === 'pickpocket' || p.activeSkillId === 'sprint_act') && p.classSkillDepleted) {
-        if (p.metrics.spacesMoved > 0 && p.metrics.spacesMoved % 10 === 0) {
+        if (p.metrics.spacesMoved % 10 === 0) {
             p.classSkillDepleted = false;
             if (isMe) {
                 addLog(`${ABILITY_LIBRARY[p.activeSkillId].name} Recharged!`, "log-gold");
@@ -9224,24 +9161,37 @@ function animateMove(p, s) {
         }
     }
 
-    // 5. Passives (Devotion / Leyline / Cutpurse)
-    // Devotion Passive
-    if (p.passiveSkillId === 'devotion' && tiles[p.pos].userData.info.name === "Shrine") {
+    // 5. Tile 0 Logic: Inn / Start (Gold & Reset All Skills)
+    if (p.pos === 0) {
         if (isMe || isMyAi) {
             p.gold += 200;
-            addLog("Devotion: +200G at Shrine!", "log-epic");
+            addLog("Passed Inn (+200G)", "log-success");
+
+            // Reset Class Skills (Independent flags)
+            p.classSkillDepleted = false;
+            p.classSkill2Depleted = false; // <--- FIX: Scholar reset
+            
+            p.shadowStrikeDebuff = false;
+            p.pacifistBuff = false;
+            
+            // Recharge all Equipment Abilities
+            EQUIP_ORDER.forEach(slot => {
+                if (p.equipment[slot] && p.equipment[slot].isDepleted) {
+                    p.equipment[slot].isDepleted = false;
+                }
+            });
+
+            // Recharge Quick Item Slots (like Scholar's Grimoire)
+            p.quickSlots.forEach(item => {
+                if (item && item.isPermanent) item.isDepleted = false;
+            });
+
+            updateHUD();
             if (isMultiplayer) syncPlayerState();
         }
     }
-    // Leyline Walker Passive
-    if (p.passiveSkillId === 'leyline' && tiles[p.pos].userData.info.type === 'util') {
-        if (isMe || isMyAi) {
-            p.gold += 200;
-            addLog("Leyline Walker: +200G at Mana Well!", "log-epic");
-            if (isMultiplayer) syncPlayerState();
-        }
-    }
-    // Cutpurse Passive (Steal 5G passing by)
+
+    // 6. Passing Effects (Cutpurse)
     if (p.passiveSkillId === 'cutpurse' && s > 1) {
         const victims = players.filter(v => v.id !== p.id && !v.isDead && v.pos === p.pos);
         let stolenPassing = 0;
@@ -9255,46 +9205,16 @@ function animateMove(p, s) {
         });
         if (stolenPassing > 0) {
             p.gold += stolenPassing;
-            if (isMe) addLog(`Cutpurse: Swiped ${stolenPassing}G passing by.`, "log-rare");
+            if (isMe) addLog(`Cutpurse: Swiped ${stolenPassing}G.`, "log-rare");
             if (isMultiplayer && (isMe || isMyAi)) syncPlayerState();
         }
     }
 
-    // 6. Inn / Start Logic (Tile 0)
-    if (p.pos === 0) {
-        if (isMe || isMyAi) {
-            p.gold += 200;
-            addLog("Passed Inn (+200G)", "log-success");
-
-            // Global Recharge for Class skills and Equipment
-            p.classSkillDepleted = false;
-            p.shadowStrikeDebuff = false;
-            p.pacifistBuff = false;
-            
-            // Recharge all Equipment
-            EQUIP_ORDER.forEach(slot => {
-                if (p.equipment[slot] && p.equipment[slot].isDepleted) {
-                    p.equipment[slot].isDepleted = false;
-                }
-            });
-            // Recharge Quick Slots
-            p.quickSlots.forEach(item => {
-                if (item && item.isPermanent) item.isDepleted = false;
-            });
-
-            // REFRESH HUD: Since gold and recharges happened, we update here.
-            // Items won't vanish because p.pos === 0 happens only once per loop.
-            updateHUD();
-            if (isMultiplayer) syncPlayerState();
-        }
-    }
-
-    // 7. Visual Step Animation
+    // 7. 3D Animation (Rotation -> Move -> Hop)
     const t = tiles[p.pos].position.clone();
-    // Random offset so player pieces don't overlap perfectly
     if (p.id > 0) { 
-        t.x += (Math.random() - 0.5) * 0.5; 
-        t.z += (Math.random() - 0.5) * 0.5; 
+        t.x += (Math.random() - 0.5) * 0.6; 
+        t.z += (Math.random() - 0.5) * 0.6; 
     }
 
     const dx = t.x - p.mesh.position.x;
@@ -9304,28 +9224,23 @@ function animateMove(p, s) {
     while (diff > Math.PI) diff -= Math.PI * 2;
     while (diff < -Math.PI) diff += Math.PI * 2;
 
-    // A. Rotate to face target tile
     new TWEEN.Tween(p.mesh.rotation).to({ y: p.mesh.rotation.y + diff }, 150).onComplete(() => {
-        // B. Tween Position (XZ)
+        // Linear Move
         new TWEEN.Tween(p.mesh.position).to({ x: t.x, z: t.z }, 300).start();
         
-        // C. Move Camera with Player
+        // Camera Follow
         if (isZoomed) {
             const offset = { x: 0, y: 22, z: 18 };
-            new TWEEN.Tween(camera.position).to({ 
-                x: t.x + offset.x, 
-                y: offset.y, 
-                z: t.z + offset.z 
-            }, 300).start();
+            new TWEEN.Tween(camera.position).to({ x: t.x + offset.x, y: offset.y, z: t.z + offset.z }, 300).start();
         }
 
-        // D. Hop Animation (Y)
+        // Visual Hop
         new TWEEN.Tween(p.mesh.position)
-            .to({ y: 1.2 }, 150)
+            .to({ y: 1.3 }, 150)
             .yoyo(true)
             .repeat(1)
             .onComplete(() => {
-                // E. Recursive call for next step
+                // Next Step Recursive Call
                 animateMove(p, s - 1);
             })
             .start();
@@ -9356,7 +9271,9 @@ function endTurn(){
 
     const prevP = players[turnIndex]; 
     if (prevP && !prevP.isEventEntity && !prevP.isBoss) {
+	prevP.tempBonuses = { str: 0, dex: 0, int: 0 };
         if (prevP.isPolymorphed) cureSheep(prevP);
+		recalcStats(prevP); 
         
         // 1. Reset Stats Locally
         recalcStats(prevP); 
@@ -10999,9 +10916,7 @@ function rollCombat(p, stat, tn, req, t, mode, penalty, rewardVal, failCost, isS
 
     let results = [];
     for(let i=0; i<poolSize; i++) {
-        const active = ABILITY_LIBRARY[p.activeSkillId];
-        let r = (active && active.onRoll) ? active.onRoll(p) : (Math.floor(Math.random()*6)+1);
-        results.push(r);
+        results.push(Math.floor(Math.random()*6)+1);
     }
 
     const finalizeCombat = (finalResults) => {
@@ -11019,123 +10934,66 @@ function rollCombat(p, stat, tn, req, t, mode, penalty, rewardVal, failCost, isS
             }
         });
 
+        // Small delay to see the dice result before logic triggers
         setTimeout(() => {
-            let autoClose = true;
             const isLocalControl = (p.id === myPlayerId) || (p.isAi && myPlayerId === 0);
 
             if(wins >= req) { 
                 // --- SUCCESS ---
                 globalLog(`${p.name} Succeeded! (${wins} wins)`, "log-success"); 
                 if (isLocalControl) AUDIO.playSound('sfx_win');
+
+                // CRITICAL FIX: Close the modal NOW so we can see the board animation
+                document.getElementById('card-modal').classList.remove('active');
                 
-                if (mode === 'capture' || mode === 'upgrade' || isSiege) { 
-                    const passive = ABILITY_LIBRARY[p.passiveSkillId]; 
-                    if (passive && passive.onCombatVictory) passive.onCombatVictory(p); 
-                }
+                // Keep button grayed out by setting state to MOVING/PROCESSING
+                gameState = 'MOVING'; 
+                updateHUD();
+
                 const lootCallback = () => checkForBonusLoot(p);
 
                 if (mode === 'teleport') {
+                    // (Teleport logic handled in your previous version)
                     const newPos = Math.floor(Math.random() * 40);
-                    if (isMultiplayer && db && gameId) {
-                        db.ref(`games/${gameId}/teleportLog`).push({
-                            pid: p.id, targetPos: newPos, timestamp: firebase.database.ServerValue.TIMESTAMP
-                        });
+                    if (isMultiplayer) {
+                        db.ref(`games/${gameId}/teleportLog`).push({ pid: p.id, targetPos: newPos, timestamp: firebase.database.ServerValue.TIMESTAMP });
                     } else {
-                        globalLog("The portal opens... Teleporting!", "log-epic");
-                        gameState = 'MOVING';
                         p.pos = newPos;
                         animateTeleport(p, tiles[newPos], () => { resolveLanding(p); });
                     }
                 }
                 else if(isSiege) { 
                     let guards = t.userData.guardCount || 0; 
-                    
                     if (guards > 0) { 
                         t.userData.guardCount--; 
-                        globalLog(`Guard Defeated! (${t.userData.guardCount} remaining)`, "log-success"); 
-                        
-                        if (typeof isMultiplayer !== 'undefined' && isMultiplayer) {
-                            db.ref(`games/${gameId}/board/${t.userData.id}/guardCount`).set(t.userData.guardCount);
-                        }
-                        
-                        const owner = players.find(pl => pl.id === t.userData.owner);
-                        if (owner) applyCaptureVisuals(t, owner, t.userData.buildingLevel);
-                        
-                        if(isLocalControl) autoClose = false; 
-                    } 
-                    else { 
+                        globalLog(`Guard Defeated!`, "log-success"); 
+                        if (isMultiplayer) db.ref(`games/${gameId}/board/${t.userData.id}/guardCount`).set(t.userData.guardCount);
+                        applyCaptureVisuals(t, players.find(pl => pl.id === t.userData.owner), t.userData.buildingLevel);
+                        endStep(); // Return to standard turn flow
+                    } else { 
                         capture(t, p, 1, lootCallback); 
-                        if(isLocalControl) autoClose = false; 
                     } 
-                    p.metrics.successfulSieges++;
                 } 
-                else if(mode === 'capture') { 
-                    capture(t, p, 1, lootCallback); 
-                    if(rewardVal > 0) { p.gold += rewardVal; } 
-                    if(isLocalControl) autoClose = false; 
-                }
-                else if(mode === 'upgrade') { 
-                    capture(t, p, 2, lootCallback); 
-                    if(isLocalControl) autoClose = false; 
+                else if(mode === 'capture' || mode === 'upgrade') { 
+                    const targetLvl = (mode === 'upgrade') ? 2 : 1;
+                    capture(t, p, targetLvl, lootCallback); 
                 }
 
             } else { 
                 // --- FAILURE ---
-                if (p.passiveSkillId === 'pacifist') {
-                     globalLog(`${p.name} retreats peacefully. (+30G)`, "log-success");
-                     p.gold += 30;
-                } else {
-                    globalLog(`${p.name} Failed the roll.`, "log-fail"); 
-                    if (isLocalControl) AUDIO.playSound('sfx_fail');
-                    
-                    if(isSiege) { 
-                        const owner = players.find(pl => pl.id === t.userData.owner);
-                        if (owner) {
-                            globalLog(`Paid double rent to ${owner.name}.`, "log-fail");
-                            pay(p, failCost, owner); 
-                        } else {
-                            pay(p, failCost);
-                        }
-                    } 
-                    else { 
-                        pay(p, failCost); 
-                    } 
-                }
+                globalLog(`${p.name} Failed the roll.`, "log-fail"); 
+                if (isLocalControl) AUDIO.playSound('sfx_fail');
+                
+                if(isSiege) pay(p, failCost, players.find(pl => pl.id === t.userData.owner)); 
+                else pay(p, failCost); 
+
+                // Close and end turn on failure
+                closeEnc(); 
             }
-            
-            updateHUD(); 
-            if(isMultiplayer) syncPlayerState(); 
-            
-            if(autoClose) {
-                setTimeout(() => {
-                    if(!p.isAi) { closeEnc(); } 
-                    else { 
-                        document.getElementById('card-modal').classList.remove('active'); 
-                        if (!isMultiplayer || myPlayerId === 0) endStep();
-                    }
-                }, 1000);
-            }
-        }, 600);
+        }, 1000);
     };
 
-    const hasOnes = results.includes(1);
-    const isLocalControl = (p.id === myPlayerId); 
-    if (isLocalControl && hasOnes && !p.isPolymorphed) {
-        let skillSource = null; let skillType = '';
-        if (ABILITY_LIBRARY[p.activeSkillId].name === "Gambler's Luck" && !p.classSkillDepleted) { skillSource = ABILITY_LIBRARY[p.activeSkillId]; skillType = 'class'; } 
-        else { ['head','body','main','off'].forEach(slot => { const it = p.equipment[slot]; if (it && it.ability && it.ability.name === "Gambler's Luck" && !it.isDepleted) { skillSource = it; skillType = 'equip'; } }); }
-
-        if (skillSource) {
-            d.innerHTML = '<div style="width:100%; text-align:center; margin-bottom:10px; font-size:0.9rem; color:#aaa;">Rolled: ' + results.join(', ') + '</div>';
-            showModal("Combat Roll: " + results.join(', '), "Use Gambler's Luck to reroll 1s?", [
-                { txt: "Keep Roll", act: () => { document.getElementById('card-modal').classList.add('active'); finalizeCombat(results); }},
-                { txt: "Reroll 1s", act: () => { document.getElementById('card-modal').classList.add('active'); if(skillType === 'class') p.classSkillDepleted = true; else if(skillType === 'equip') skillSource.isDepleted = true; updateHUD(); results = results.map(r => (r === 1 ? Math.floor(Math.random()*6)+1 : r)); globalLog("Gambler's Luck: Rerolled 1s!", "log-gold"); finalizeCombat(results); }}
-            ]);
-            return;
-        }
-    }
-    
-    if (isLocalControl) AUDIO.playSound('sfx_roll');
+    if (p.id === myPlayerId) AUDIO.playSound('sfx_roll');
     finalizeCombat(results);
 }
 
@@ -11482,23 +11340,14 @@ function createGuardMesh() {
 }
 
 function capture(t, p, lvl, callback) {
-    // Force integer type safety
     lvl = parseInt(lvl);
-
-    // --- INTIMIDATE RECHARGE CHECK ---
-    if (t.userData.owner !== null && String(t.userData.owner) !== String(p.id)) {
-        if (p.activeSkillId === 'intimidate' && p.classSkillDepleted) {
-            p.classSkillDepleted = false;
-            addLog("Enemy crushed! Intimidate Recharged.", "log-accent");
-            updateHUD();
-            if (isMultiplayer && p.id === myPlayerId) syncPlayerState(); 
-        }
-    }
+    
+    // Disable interaction while capturing
+    gameState = 'MOVING';
+    updateHUD();
 
     // --- MULTIPLAYER LOGIC ---
     if(isMultiplayer && db && gameId) {
-        
-        // A. If I am a Human Player capturing (My Turn)
         if (p.id === myPlayerId) {
             const commitCapture = (stat) => {
                 db.ref(`games/${gameId}/board/${t.userData.id}`).set({
@@ -11511,150 +11360,152 @@ function capture(t, p, lvl, callback) {
             };
 
             if (lvl === 1) {
-                // New Capture: Choose Defense
-                chooseDefense(t, () => {
-                    commitCapture(t.userData.defendingStat);
-                });
+                // Wait for building animation (4s) then show choice
+                setTimeout(() => {
+                    chooseDefense(t, () => {
+                        commitCapture(t.userData.defendingStat);
+                    });
+                }, 4000);
             } else {
-                // Upgrade: Keep Defense
                 commitCapture(t.userData.defendingStat || 'str');
             }
             return;
         }
-
-        // B. If I am Host managing an AI capture
+        // AI Host authority handled here...
         if (myPlayerId === 0 && p.isAi) {
-            const s = p.stats; 
             let defStat = 'str';
-            if (s.dex >= s.str && s.dex >= s.int) defStat = 'dex'; 
-            else if (s.int >= s.str && s.int >= s.dex) defStat = 'int';
-
+            if (p.stats.dex > p.stats.str) defStat = 'dex';
+            if (p.stats.int > p.stats.dex) defStat = 'int';
             db.ref(`games/${gameId}/board/${t.userData.id}`).set({
-                owner: p.id,
-                level: lvl,
-                guardCount: t.userData.guardCount || 0,
-                defendingStat: defStat
+                owner: p.id, level: lvl, guardCount: 0, defendingStat: defStat
             });
-            
             if (callback) setTimeout(callback, 1000);
             return;
         }
-
-        return; 
     }
 
     // --- SINGLE PLAYER LOGIC ---
     t.userData.owner = p.id; 
     t.userData.buildingLevel = lvl; 
-    applyCaptureVisuals(t, p, lvl);
+    applyCaptureVisuals(t, p, lvl); // This function handles the 4s animation
     
-    // If Human Player (0) and New Capture, show choice
-    if (p.id === 0) {
-        if (lvl === 1) setTimeout(() => chooseDefense(t, callback), 4000); 
-        else if (callback) setTimeout(callback, 4000); 
-        else setTimeout(endStep, 4000); 
+    if (p.id === 0) { // Local Human
+        if (lvl === 1) {
+            // Wait for building to finish growing, then ask for Stat
+            setTimeout(() => chooseDefense(t, callback), 4000); 
+        } else {
+            // Upgraded Tavern, just finish after animation
+            setTimeout(() => { if(callback) callback(); else endStep(); }, 4000);
+        }
     } else {
         // AI Logic
         const s = p.stats; 
-        if (s.str >= s.dex && s.str >= s.int) t.userData.defendingStat = 'str'; 
-        else if (s.dex >= s.str && s.dex >= s.int) t.userData.defendingStat = 'dex'; 
-        else t.userData.defendingStat = 'int';
-        
-        if (callback) setTimeout(callback, 2000);
-        else setTimeout(endStep, 2000);
+        t.userData.defendingStat = (s.str >= s.dex && s.str >= s.int) ? 'str' : (s.dex >= s.int ? 'dex' : 'int');
+        setTimeout(() => { if (callback) callback(); else endStep(); }, 2000);
     }
 }
 
 // NEW FUNCTION: Handles the 3D graphics (Called by Capture OR DB Listener)
 function applyCaptureVisuals(t, p, lvl) {
-    // Force integer type safety
     lvl = parseInt(lvl);
 
-    // 1. Remove Old Building
+    // 1. CLEANUP: Wipe old buildings and guards immediately
     if (t.userData.prop) {
         t.remove(t.userData.prop);
         t.userData.prop = null;
     }
     
-    // Cleanup active guards for this tile
     if (typeof activeGuards !== 'undefined') {
-        for (let i = activeGuards.length - 1; i >= 0; i--) {
-            if (activeGuards[i].tileId === t.userData.id) {
-                if (activeGuards[i].mesh) {
-                    scene.remove(activeGuards[i].mesh); 
-                    if (activeGuards[i].mesh.parent) activeGuards[i].mesh.parent.remove(activeGuards[i].mesh);
+        activeGuards = activeGuards.filter(g => {
+            if (g.tileId === t.userData.id) {
+                if (g.mesh) {
+                    if (g.mesh.parent) g.mesh.parent.remove(g.mesh);
+                    scene.remove(g.mesh);
                 }
-                activeGuards.splice(i, 1);
+                return false;
             }
-        }
+            return true;
+        });
     }
 
-    // Prevent closing specific windows during sync
-    const modal = document.getElementById('card-modal');
-    const header = document.getElementById('enc-header');
-    if (modal && modal.classList.contains('active')) {
-        const isLoot = header.classList.contains('loot');
-        const isShop = header.classList.contains('market');
-        if (!isLoot && !isShop) {
-            modal.classList.remove('active');
-        }
-    }
+    // 2. STOP if destroyed (no owner)
+    if (!p || t.userData.owner === null) return;
 
-    // 2. Create New Visual Group
+    // 3. CREATE THE BUILDING
     const g = new THREE.Group();
     const buildingMat = new THREE.MeshStandardMaterial({ color: p.color });
+    const woodMat = new THREE.MeshStandardMaterial({ color: 0x5c4033 });
 
     if (lvl === 1) { 
-        // CAMPSITE (Cone Tent)
-        const m = new THREE.Mesh(new THREE.ConeGeometry(1, 1.5, 4), buildingMat); 
-        m.position.set(0, 0.5, 0); 
-        g.add(m); 
+        // CAMPSITE (Tent)
+        const tent = new THREE.Mesh(new THREE.ConeGeometry(1, 1.5, 4), buildingMat); 
+        tent.position.set(0, 0.75, 0); 
+        tent.rotation.y = Math.PI / 4;
+        tent.castShadow = true;
+        g.add(tent); 
     } else { 
-        // TAVERN (Box + Roof)
-        const b = new THREE.Mesh(new THREE.BoxGeometry(1.5, 1, 1.5), new THREE.MeshStandardMaterial({ color: 0x5c4033 })); 
-        b.position.set(0, 0.5, 0); 
-        const r = new THREE.Mesh(new THREE.ConeGeometry(1.5, 1, 4), buildingMat); 
-        r.position.set(0, 1.5, 0); r.rotation.y = Math.PI / 4; 
-        g.add(b); g.add(r); 
+        // TAVERN
+        const base = new THREE.Mesh(new THREE.BoxGeometry(1.6, 1.2, 1.6), woodMat); 
+        base.position.set(0, 0.6, 0); 
+        const roof = new THREE.Mesh(new THREE.ConeGeometry(1.8, 1.2, 4), buildingMat); 
+        roof.position.set(0, 1.8, 0); 
+        roof.rotation.y = Math.PI / 4; 
+        g.add(base); g.add(roof); 
     }
 
-    // 3. Spawn New Guards
+    // 4. SPAWN GUARDS (If any)
     const guardCount = t.userData.guardCount || 0;
-    if (guardCount > 0 && typeof createGuardMesh === 'function') {
+    if (guardCount > 0) {
         for(let i=0; i<guardCount; i++) {
             const guardMesh = createGuardMesh();
-            const angle = Math.random() * Math.PI * 2;
-            const radius = 1.1 + (Math.random() * 0.5); 
+            const angle = (i / guardCount) * Math.PI * 2;
+            const radius = 1.3; 
             guardMesh.position.set(Math.cos(angle)*radius, 0, Math.sin(angle)*radius);
             g.add(guardMesh);
-            
-            activeGuards.push({
-                mesh: guardMesh,
-                target: { x: guardMesh.position.x, z: guardMesh.position.z }, 
-                tileId: t.userData.id
-            });
+            activeGuards.push({ mesh: guardMesh, target: {x: guardMesh.position.x, z: guardMesh.position.z}, tileId: t.userData.id });
         }
     }
-    
-    // 4. Animate Building Pop-up
-    g.position.y = -5; 
+
+    // 5. ANIMATE BUILDING CONSTRUCTION (Slow Growth)
+    g.scale.set(0.01, 0.01, 0.01); // Start tiny
+    g.position.y = -2;             // Start underground
     t.add(g); 
     t.userData.prop = g;
-    
-    new TWEEN.Tween(g.position).to({y: 0}, 4000).easing(TWEEN.Easing.Elastic.Out).start();
-    
-    // 5. Player Victory Animation
-    if (p && p.mesh && gameState !== 'MOVING') {
-        new TWEEN.Tween(p.mesh.position).to({ y: 1.5 }, 300).yoyo(true).repeat(1).easing(TWEEN.Easing.Quadratic.Out).start();
-        new TWEEN.Tween(p.mesh.rotation).to({ y: p.mesh.rotation.y + (Math.PI * 2) }, 600).easing(TWEEN.Easing.Cubic.Out).start();
-        if(p.id === myPlayerId && typeof AUDIO !== 'undefined') AUDIO.playSound('sfx_win');
+
+    // Tween scale up
+    new TWEEN.Tween(g.scale)
+        .to({ x: 1, y: 1, z: 1 }, 3000)
+        .easing(TWEEN.Easing.Elastic.Out)
+        .start();
+
+    // Tween position up
+    new TWEEN.Tween(g.position)
+        .to({ y: 0 }, 3000)
+        .easing(TWEEN.Easing.Quadratic.Out)
+        .start();
+
+    // 6. HERO CELEBRATION DANCE
+    if (p && p.mesh && gameState !== 'ROLL') { // Only dance if we aren't just passing by
+        // A. JUMPING: 4 excited hops
+        new TWEEN.Tween(p.mesh.position)
+            .to({ y: 1.8 }, 400)
+            .yoyo(true)
+            .repeat(7) // 4 full up-and-down cycles
+            .easing(TWEEN.Easing.Quadratic.Out)
+            .start();
+
+        // B. SPINNING: Spin 4 times fast
+        new TWEEN.Tween(p.mesh.rotation)
+            .to({ y: p.mesh.rotation.y + (Math.PI * 8) }, 3200)
+            .easing(TWEEN.Easing.Quartic.InOut)
+            .onComplete(() => {
+                p.mesh.rotation.y = 0; // Face forward again
+            })
+            .start();
+
+        // C. SOUND: Victory fanfare
+        if(p.id === myPlayerId) AUDIO.playSound('sfx_win');
     }
-    
-    // Log based on Level
-    if(p.id === turnIndex || gameState === 'MOVING') {
-        addLog(lvl === 1 ? `${p.name} captured land!` : `${p.name} upgraded!`, "log-success");
-    }
-    updateHUD();
 }
 function chooseDefense(t, callback) { 
     // This function runs while camera is still zoomed in
@@ -12629,7 +12480,6 @@ function updateHUD() {
     if (!p) return;
 
     // 2. Main Stat Widgets & Sidebar Header
-    // We update these every time because gold/stats change even while walking
     setT('p1-name', p.name);
     setT('p1-gold', p.gold);
     setT('p1-str', p.stats.str);
@@ -12637,16 +12487,14 @@ function updateHUD() {
     setT('p1-int', p.stats.int);
     setT('p1-class', (p.race ? p.race.name : "") + " " + (p.class ? p.class.name : ""));
     
-    // --- TREASURY WIDGET FIX ---
+    // Treasury & Player Stats Widget
     setT('treasury-val', treasuryGold);
-
-    // --- PLAYER STATS WIDGET FIX ---
-    // We use == instead of === to handle String/Number mix from Firebase
     const myOwned = tiles.filter(t => t.userData.owner == myPlayerId);
     setT('ms-gold', p.gold);
     setT('ms-camps', myOwned.filter(t => t.userData.buildingLevel == 1).length);
     setT('ms-taverns', myOwned.filter(t => t.userData.buildingLevel == 2).length);
 
+    // Portrait
     const elPortrait = document.getElementById('p1-portrait');
     if (elPortrait) {
         const imgToShow = p.avatar || p.portrait; 
@@ -12658,6 +12506,7 @@ function updateHUD() {
         }
     }
 
+    // Turn Info
     setT('day-night-indicator', isNight ? "☾ NIGHT" : "☀ DAY");
     const elDayNight = document.getElementById('day-night-indicator');
     if (elDayNight) { elDayNight.style.color = isNight ? "#a855f7" : "#87ceeb"; }
@@ -12669,38 +12518,56 @@ function updateHUD() {
         if (btnAction) {
             btnAction.disabled = (curTurnPlayer.id !== myPlayerId);
             if (curTurnPlayer.id === myPlayerId) {
-                if (gameState === 'ROLL') btnAction.innerText = "ROLL";
-                else if (gameState === 'END') btnAction.innerText = "END TURN";
-            } else { btnAction.innerText = isMultiplayer ? "WAIT" : "AI"; }
+                if (gameState === 'ROLL') {
+                    btnAction.innerText = "ROLL";
+                    btnAction.classList.remove('state-end');
+                } else if (gameState === 'END') {
+                    btnAction.innerText = "END TURN";
+                    btnAction.classList.add('state-end');
+                }
+            } else { 
+                btnAction.innerText = isMultiplayer ? "WAITING" : "AI TURN"; 
+                btnAction.classList.remove('state-end');
+            }
         }
     }
 
-    // --- SECTION 2: PROTECTED GRID UPDATES ---
-    // Skip redrawing icons while walking to prevent the "Vanishing Items" bug
+    // --- GRID UPDATES (Blocked while moving to prevent icon vanishing) ---
     if (gameState === 'MOVING') return;
 
-    // 1. Skill Bar
+    // 1. Skill Bar (Slots 1-6)
     for (let i = 0; i < 6; i++) {
         const el = document.getElementById(`skill-${i}`);
         const txt = document.getElementById(`txt-skill-${i}`);
         if (!el || !txt) continue;
+        
         const skill = p.assignedSkills[i];
         el.style.backgroundImage = 'none';
+        
         if (skill) {
-            let isDepleted = skill.isClass ? p.classSkillDepleted : (skill.ref?.isDepleted || false);
-            el.style.opacity = isDepleted ? "0.5" : "1";
+            // SCHOLAR LOGIC: Check depletion flag based on slot type
+            let isDepleted = false;
+            if (skill.isClass) {
+                isDepleted = skill.isSecondClass ? p.classSkill2Depleted : p.classSkillDepleted;
+            } else {
+                isDepleted = skill.ref?.isDepleted || false;
+            }
+
+            el.style.opacity = isDepleted ? "0.4" : "1";
             txt.innerText = isDepleted ? "RECHARGE" : skill.name;
             if (skill.img) el.style.backgroundImage = `url('${skill.img}')`;
+            
             el.onclick = () => useSkill(i);
             el.oncontextmenu = (e) => { e.preventDefault(); openSkillPicker(i); };
         } else {
             txt.innerText = (i === 0) ? "CLASS" : "EMPTY";
+            el.style.opacity = "0.2";
             el.oncontextmenu = (e) => { e.preventDefault(); openSkillPicker(i); };
             el.onclick = () => { if(p.id === myPlayerId) openSkillPicker(i); };
         }
     }
 
-    // 2. Paper Doll (Sidebar and Modal Sync)
+    // 2. Paper Doll (Sidebar & Character Modal)
     EQUIP_ORDER.forEach((slotName) => {
         const elements = [document.getElementById('slot-' + slotName), document.getElementById('cd-slot-' + slotName)];
         elements.forEach(el => {
@@ -12712,7 +12579,7 @@ function updateHUD() {
                 el.style.backgroundImage = `url('${item.img}')`;
                 el.innerText = "";
             } else {
-                el.classList.remove('filled');
+                el.classList.remove('filled', 'rarity-common', 'rarity-rare', 'rarity-epic', 'rarity-legendary');
                 el.innerText = slotName.replace('_', ' ').toUpperCase();
             }
             if (p.id === myPlayerId) setupItemInteractions(el, slotName, 'equip');
@@ -12738,7 +12605,7 @@ function updateHUD() {
         }
     });
 
-    // 4. Leaderboard & Secondary Stats
+    // 4. Leaderboard
     const lb = document.getElementById('leader-list');
     if (lb) {
         lb.innerHTML = '';
@@ -12747,11 +12614,17 @@ function updateHUD() {
             d.className = 'leader-row' + (pl.isDead ? ' dead' : (pl.isBoss ? ' boss' : ''));
             const camps = tiles.filter(t => t.userData.owner == pl.id && t.userData.buildingLevel == 1).length;
             const taverns = tiles.filter(t => t.userData.owner == pl.id && t.userData.buildingLevel == 2).length;
-            d.innerHTML = `<span style="color:${pl.color}; cursor:pointer;" onclick="openCharDetail(${pl.id})">${pl.name}</span><div style="display:flex; gap:8px; align-items:center;"><span style="font-size:0.8rem; opacity:0.7;">⛺${camps} 🍺${taverns}</span><span style="font-weight:bold;">${pl.isDead ? "OUT" : pl.gold + "G"}</span></div>`;
+            d.innerHTML = `
+                <span style="color:${pl.color}; cursor:pointer;" onclick="openCharDetail(${pl.id})">${pl.name}</span>
+                <div style="display:flex; gap:8px; align-items:center;">
+                    <span style="font-size:0.8rem; opacity:0.7;">⛺${camps} 🍺${taverns}</span>
+                    <span style="font-weight:bold;">${pl.isDead ? "OUT" : pl.gold + "G"}</span>
+                </div>`;
             lb.appendChild(d);
         });
     }
 
+    // 5. Secondary Stats Labels
     setT('p1-move', "+" + (p.stats.movementBonus || 0));
     setT('p1-gf', "+" + (p.stats.goldFind || 0));
     setT('p1-res', (p.stats.resistance || 0));
@@ -13284,27 +13157,66 @@ function useEquipped(slot) {
 
 function useSkill(slotIndex) { 
     if (players.length === 0) return;
+    
+    // 1. Find the local player
     const p = players.find(pl => pl.id === myPlayerId);
-    if (!p || turnIndex !== myPlayerId) return; 
+    
+    // 2. Safety Check: Only allow if it is actually your turn
+    if (!p || turnIndex !== myPlayerId) {
+        addLog("It is not your turn!", "log-fail");
+        return; 
+    }
     
     const skill = p.assignedSkills[slotIndex];
     if (!skill) return;
 
-    // Check depletion
-    if (skill.isClass && p.classSkillDepleted) return;
-    if (!skill.isClass && skill.ref && skill.ref.isDepleted) return;
+    // 3. DEPLETION CHECK
+    // Determine if the skill in this slot is already used up
+    if (skill.isClass) {
+        // Main Class Skill (Slot 1)
+        if (!skill.isSecondClass && p.classSkillDepleted) {
+            addLog(`${skill.name} is depleted. Pass Start to recharge.`, "log-fail");
+            return;
+        }
+        // Scholar's Second Skill (Slot 2)
+        if (skill.isSecondClass && p.classSkill2Depleted) {
+            addLog(`${skill.name} is depleted. Pass Start to recharge.`, "log-fail");
+            return;
+        }
+    } else {
+        // Equipment Item Skills
+        if (skill.ref && skill.ref.isDepleted) {
+            addLog("Item ability depleted. Pass Start to recharge.", "log-fail");
+            return;
+        }
+    }
 
-    // Execute logic
+    // 4. EXECUTE LOGIC
+    // Get the function from the Library (for class skills) or the Item reference
     const skillFn = skill.isClass ? ABILITY_LIBRARY[skill.id].fn : skill.ref.ability.fn;
+    
     if (skillFn) {
-        const success = skillFn(p);
+        const success = skillFn(p); // Run the skill logic (returns true if successful)
+        
         if (success === true) {
-            if (skill.isClass) p.classSkillDepleted = true;
-            else if (skill.ref) skill.ref.isDepleted = true;
+            // 5. SET DEPLETION FLAGS ON SUCCESS
+            if (skill.isSecondClass) {
+                p.classSkill2Depleted = true; // Scholar's second slot
+            } else if (skill.isClass) {
+                p.classSkillDepleted = true;  // Primary class slot
+            } else if (skill.ref) {
+                skill.ref.isDepleted = true;  // Specific item wielder
+            }
             
-            recalcStats(p); // FORCE RECALC AFTER ANY SKILL
+            // 6. UPDATE STATE & UI
+            // Important: Recalculate stats immediately to show Power Strike/Bless buffs
+            recalcStats(p); 
             updateHUD();
-            if (isMultiplayer) syncPlayerState();
+            
+            // Sync the used skill state to other players in Multiplayer
+            if (isMultiplayer) {
+                syncPlayerState();
+            }
         }
     }
 }
@@ -13516,121 +13428,44 @@ function startGame() {
     document.getElementById('create-screen').style.display='none';
     const name = document.getElementById('char-name-input').value || "Hero";
 
-    // --- MULTIPLAYER STARTUP ---
     if (isMultiplayer && gameId && db) {
-        
         db.ref(`games/${gameId}`).once('value', snap => {
             const g = snap.val();
             if(!g) return;
-
-            if(players.length === 0) {
-                gameState = 'ROLL';
-                players = []; 
-
-                for(let i=0; i<4; i++) {
-                    const slot = g.slots[i];
-                    
-                    // Defaults
-                    let pName = "Empty", pColor = '#333', isBot = false, isDead = true;
-                    let pRace = RACES[0], pClass = CLASSES[0], pAct = CLASSES[0].actives[0], pPas = CLASSES[0].passives[0];
-
-                    if(slot && (slot.type === 'human' || slot.type === 'ai')) {
-                        isDead = false;
-                        pName = slot.name;
-                        pColor = slot.color;
-                        isBot = (slot.type === 'ai');
-
-                        // LOAD SAVED DATA
-                        if (slot.charData) {
-                            pRace = RACES.find(r => r.id === slot.charData.race.id) || slot.charData.race;
-                            pClass = CLASSES.find(c => c.id === slot.charData.class.id) || slot.charData.class;
-                            pAct = slot.charData.active;
-                            pPas = slot.charData.passive;
-                        }
-                    } 
-
-                    // SPAWN
-                    spawnPlayer(i, pName, pRace, pClass, pAct, pPas, isBot, pColor, 0);
-                    
-                    const justSpawned = players[i];
-                    justSpawned.isDead = isDead;
-                    if (!isDead && g.players && g.players[i] && g.players[i].gold !== undefined) {
-                        justSpawned.gold = g.players[i].gold;
+            players = []; 
+            for(let i=0; i<4; i++) {
+                const slot = g.slots[i];
+                if(slot && (slot.type === 'human' || slot.type === 'ai')) {
+                    spawnPlayer(i, slot.name, slot.charData.race, slot.charData.class, slot.charData.active, slot.charData.passive, slot.type === 'ai', slot.color, 0);
+                    const p = players[i];
+                    // Multi-player Scholar Sync
+                    if (slot.charData.active2 && slot.charData.passive === 'scholar') {
+                        const s2 = ABILITY_LIBRARY[slot.charData.active2];
+                        p.assignedSkills[1] = { id: slot.charData.active2, name: s2.name, desc: s2.desc, img: s2.img, source: "Scholar Mastery", isClass: true, isSecondClass: true };
                     }
-
-                    // --- FIX: LOAD SCHOLAR 2nd SKILL (MP) ---
-                    if (slot.charData && slot.charData.active2 && slot.charData.passive === 'scholar') {
-                        const skill2 = ABILITY_LIBRARY[slot.charData.active2];
-                        if (skill2) {
-                            const grimoire = {
-                                id: 'scholar_tome',
-                                name: skill2.name,
-                                type: 'equip', 
-                                slot: 'scholar_slot',
-                                rarity: 'legendary',
-                                img: skill2.img,
-                                fn: skill2.fn, // Ensure function maps correctly
-                                ability: { name: skill2.name, type: 'active', desc: skill2.desc, fn: skill2.fn },
-                                isDepleted: false,
-                                isPermanent: true // <--- NEW FLAG
-                            };
-                            justSpawned.quickSlots[0] = grimoire;
-                        }
-                    }
-                    // ----------------------------------------
                 }
-                
-                updateHUD();
-                addLog("The Adventure Begins!");
             }
-
+            updateHUD();
             setupMultiplayerListeners();
         });
-
     } else {
-        // --- SINGLE PLAYER START ---
+        // Single Player
         spawnPlayer(0, name, selRace, selClass, selActiveId, selPassiveId, false, selColor);
-        
-        // --- SCHOLAR SECOND SKILL LOGIC (SP) ---
+        const p = players[0];
         if (selPassiveId === 'scholar' && selActiveId2) {
-            const p = players[0];
-            const skill = ABILITY_LIBRARY[selActiveId2];
-            
-            if (skill) {
-                const grimoire = {
-                    id: 'scholar_tome',
-                    name: skill.name,
-                    type: 'equip', 
-                    slot: 'scholar_slot', // Dummy slot
-                    rarity: 'legendary',
-                    img: skill.img,
-                    fn: skill.fn, 
-                    ability: { name: skill.name, type: 'active', desc: skill.desc, fn: skill.fn },
-                    isDepleted: false,
-                    isPermanent: true // <--- NEW FLAG
-                };
-                
-                // Assign to Slot 6 (Quick Slot 1)
-                p.quickSlots[0] = grimoire;
-                addLog(`Scholar Mastery: ${skill.name} prepared.`, "log-success");
-            }
+            const s2 = ABILITY_LIBRARY[selActiveId2];
+            p.assignedSkills[1] = { id: selActiveId2, name: s2.name, desc: s2.desc, img: s2.img, source: "Scholar Mastery", isClass: true, isSecondClass: true };
         }
-        // ----------------------------------
-
-        // SPAWN AI OPPONENTS
+        // AI Spawning logic here...
         let aiColors = PLAYER_COLORS.filter(c => c !== selColor); 
         let availableNames = [...NPC_NAMES];
         for(let i=1; i<4; i++) { 
             const r = RACES[Math.floor(Math.random()*RACES.length)]; 
             const c = CLASSES[Math.floor(Math.random()*CLASSES.length)]; 
-            const aiName = availableNames.splice(Math.floor(Math.random() * availableNames.length), 1)[0]; 
-            const aiCol = aiColors.splice(Math.floor(Math.random()*aiColors.length), 1)[0]; 
-            spawnPlayer(i, aiName, r, c, c.actives[0], c.passives[0], true, aiCol); 
+            spawnPlayer(i, availableNames.splice(Math.floor(Math.random()*availableNames.length), 1)[0], r, c, c.actives[0], c.passives[0], true, aiColors.splice(0,1)[0]); 
         }
-        
         gameState='ROLL'; 
         updateHUD(); 
-        addLog("Welcome to Questopoly!");
         AUDIO.playMusic(false); 
     }
 }
@@ -13748,12 +13583,12 @@ function hydrateItem(item) {
 function recalcStats(p) {
     if (!p || p.isBoss || p.isEventEntity || !p.race) return;
 
-    // 1. Start with Base Race Stats + Permanent Elixir/Medic Bonuses
-    p.stats.str = p.race.stats.str + (p.permBonuses?.str || 0);
-    p.stats.dex = p.race.stats.dex + (p.permBonuses?.dex || 0);
-    p.stats.int = p.race.stats.int + (p.permBonuses?.int || 0);
+    // 1. Base Race Stats + Permanent (Medic/Elixir) Bonuses + TEMPORARY (Skill) Bonuses
+    p.stats.str = p.race.stats.str + (p.permBonuses?.str || 0) + (p.tempBonuses?.str || 0);
+    p.stats.dex = p.race.stats.dex + (p.permBonuses?.dex || 0) + (p.tempBonuses?.dex || 0);
+    p.stats.int = p.race.stats.int + (p.permBonuses?.int || 0) + (p.tempBonuses?.int || 0);
     
-    // 2. Reset Secondary Stats
+    // 2. Reset Secondary Stats before recalculating from gear
     p.stats.movementBonus = 0;
     p.stats.goldFind = 0;
     p.stats.resistance = 0;
@@ -13763,17 +13598,15 @@ function recalcStats(p) {
         const item = p.equipment[slot];
         if (!item) return;
 
-        // Primary Stats (Main Hand, Body, Off Hand)
+        // Primary Stat items (Sword, Armor, etc)
         if (['body', 'main', 'off'].includes(slot) && item.bonus) {
             Object.keys(item.bonus).forEach(k => {
                 if (p.stats[k] !== undefined) p.stats[k] += item.bonus[k];
             });
         }
 
-        // Secondary: Movement (Feet)
+        // Secondary Stats (Boots, Rings, Cloaks)
         if (slot === 'feet' && item.moveBonus) p.stats.movementBonus += item.moveBonus;
-
-        // Secondary: Gold Find & Resistance (Most slots)
         if (['head', 'feet', 'hands', 'ring_l', 'ring_r', 'amulet', 'back'].includes(slot)) {
             if (item.goldFind) p.stats.goldFind += item.goldFind;
             if (item.resistance) p.stats.resistance += item.resistance;
@@ -13782,11 +13615,10 @@ function recalcStats(p) {
 
     // 4. Passives
     if (p.passiveSkillId === 'shadow_step') p.stats.movementBonus += 1;
-    
     const pasDef = ABILITY_LIBRARY[p.passiveSkillId]; 
     if(pasDef && pasDef.effect) pasDef.effect(p.stats);
 
-    // 5. Final Overrides
+    // 5. Polymorph Debuff
     if (p.isPolymorphed) { 
         p.stats.str = 1; p.stats.dex = 1; p.stats.int = 1; 
         p.stats.movementBonus = 0; 
