@@ -273,10 +273,34 @@ Because you do not have a backend server listening for automatic receipts (Webho
     .util-btn:hover { background: var(--gold-main); color: #000; transform: scale(1.1); }
 
     /* --- 6. SIDEBARS (Desktop) --- */
+/* --- UPDATED SIDEBAR SIZE --- */
     #p1-sheet { 
-        position: absolute; top: 10%; left: 20px; width: 280px; height: 60%; 
-        z-index: 20; transition: transform 0.3s ease; 
+        position: absolute; 
+        top: 5%;        /* Start higher up */
+        left: 20px; 
+        width: 320px;   /* Increased width from 280 to 320 for the new slots */
+        height: 85%;    /* Increased height from 60 to 85% */
+        z-index: 20; 
+        transition: transform 0.3s ease; 
+        display: flex;
+        flex-direction: column; /* Allows header and footer to stay pinned */
+		max-height: 90vh;
     }
+
+    /* --- NEW SCROLL AREA --- */
+    .sheet-scroll-area {
+        flex: 1;            /* Takes up all room between header and close button */
+        overflow-y: auto;   /* Enables the scrollbar */
+        overflow-x: hidden;
+		-webkit-overflow-scrolling: touch;
+        padding-right: 20px;
+    }
+
+    /* Custom Gold Scrollbar */
+    .sheet-scroll-area::-webkit-scrollbar { width: 6px; }
+    .sheet-scroll-area::-webkit-scrollbar-track { background: rgba(0, 0, 0, 0.2); }
+    .sheet-scroll-area::-webkit-scrollbar-thumb { background: var(--gold-dim); border-radius: 10px; }
+    .sheet-scroll-area::-webkit-scrollbar-thumb:hover { background: var(--gold-main); }
     #leaderboard { 
         position: absolute; top: 10%; right: 20px; width: 240px; height: auto; max-height: 58%; 
         z-index: 20; transition: transform 0.3s ease; 
@@ -859,57 +883,170 @@ Because you do not have a backend server listening for automatic receipts (Webho
 /* --- PAPER DOLL & BODY DIAGRAM --- */
 .paper-doll-container {
     position: relative;
-    width: 280px; /* Fixed width for the body diagram */
-    height: 360px; /* Fixed height */
-    margin: 0 auto 10px auto;
-    background-image: url('https://static.wixstatic.com/media/b16479_fee22d2bd55c4370948ba43e38ae62fb~mv2.jpg');
+    width: 95%;	/* Fills sidebars/modals */
+	height: 30%;
+	margin: 10px auto;
+    background: rgba(0,0,0,0.3);
+    border: 1px solid var(--gold-dim);
+    border-radius: 12px;
+    /* This creates a fixed aspect ratio box (Width 100% : Height 135%) */
+    padding-top: 135%; 
+    overflow: hidden;
+}
+
+.doll-placement {
+    position: absolute;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+}
+
+.doll-img {
+    z-index: 1;
+    background-image: url('https://static.wixstatic.com/media/b16479_326d2527ae5b42eaa6f76ce9aa9a1f91~mv2.png');
     background-size: contain;
     background-repeat: no-repeat;
     background-position: center;
-    /* Invert colors to make black SVG look like a light silhouette on dark bg */
-   /* filter: invert(0.3) opacity(0.5); */
-    border: 1px solid rgba(255,255,255,0.1);
-    border-radius: 8px;
+}
+
+.doll-column {
+    position: absolute;
+    top: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px; /* Consistent spacing between slots */
+    z-index: 10;
+}
+.doll-left { left: 8px; }
+.doll-right { right: 8px; }
+
+.doll-bottom-row {
+    position: absolute;
+    bottom: 15px; /* Positions them at the very bottom */
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 20px;
+    z-index: 10;
 }
 
 /* Base style for slots on the body */
 .doll-slot {
-    position: absolute;
-    width: 70px;  /* Match inventory size */
-    height: 70px; /* Match inventory size */
-    background-color: rgba(0, 0, 0, 0.9);
+    z-index: 10;
+    width: 20%;             /* Width relative to container */
+    height: 15%;            /* Height relative to container */
+    background: rgba(15, 23, 42, 0.9);
     border: 1px solid #444;
-    border-radius: 4px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    border-radius: 6px;
     font-size: 0.6rem;
-    color: #aaa;
+    font-weight: 900;
+    color: #555;
     cursor: pointer;
-    box-shadow: 0 0 5px #000;
-    transition: 0.2s;
-    
-    /* Ensure images cover the slot */
     background-size: cover;
     background-position: center;
-    background-repeat: no-repeat;
-    
-    /* Remove the filter from parent so slots look normal */
-    filter: invert(0) opacity(1) !important; 
-    z-index: 10;
+    text-shadow: 0 0 3px #000;
 }
 
 .doll-slot.filled {
-    border-color: var(--gold-dim);
-    color: transparent; /* Hide text when image is present */
-    text-shadow: none;
+    border-color: var(--gold-main);
+    color: transparent;
 }
 
-/* --- SLOT POSITIONS (Adjusted for the silhouette) --- */
-#slot-head, #cd-slot-head { top: 2%; left: 50%; transform: translateX(-50%); }
-#slot-body, #cd-slot-body { top: 30%; left: 50%; transform: translateX(-50%); }
-#slot-main, #cd-slot-main { top: 45%; left: 3%; } /* Left Hand (Viewer's Left) */
-#slot-off,  #cd-slot-off  { top: 45%; right: 3%; } /* Right Hand */
+.doll-slot:hover {
+    border-color: #94a3b8;
+    background-color: #1e293b;
+}
+
+/* Secondary Stat Row Styling */
+.sec-stat-row {
+    display: flex;
+    justify-content: space-evenly;
+    background: rgba(0, 0, 0, 0.4);
+    padding: 5px 10px;
+    border-top: 1px solid rgba(255, 255, 255, 0.05);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.sec-stat-box {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 0.75rem; /* Smaller than main stats */
+    color: #94a3b8;
+}
+
+.sec-stat-val {
+    font-weight: bold;
+    color: #cbd5e1;
+}
+
+.sec-stat-lbl {
+    font-size: 0.65rem;
+    color: var(--gold-main);
+    opacity: 0.8;
+}
+
+/* Custom Scroll Area for the Player Sheet */
+    .sheet-scroll-area {
+        flex: 1;            /* Takes up all room between header and close button */
+        overflow-y: auto;   /* Enables the scrollbar */
+        overflow-x: hidden;
+        padding-right: 5px;
+    }
+
+/* Make the scrollbar look professional and Gold */
+    .sheet-scroll-area::-webkit-scrollbar { width: 6px; }
+    .sheet-scroll-area::-webkit-scrollbar-track { background: rgba(0, 0, 0, 0.2); }
+    .sheet-scroll-area::-webkit-scrollbar-thumb { background: var(--gold-dim); border-radius: 10px; }
+    .sheet-scroll-area::-webkit-scrollbar-thumb:hover { background: var(--gold-main); }
+
+.hero-sheet-skill-btn {
+    width: 100%;
+    margin-top: 10px;
+    background: linear-gradient(to right, #78350f, #f59e0b);
+    color: white;
+    font-family: var(--font-head);
+    border: 1px solid var(--gold-main);
+    padding: 10px;
+    border-radius: 6px;
+    cursor: pointer;
+}
+
+/* Skill Picker Modal */
+#skill-picker-modal .modal-content {
+    width: 450px;
+    max-height: 80vh;
+}
+
+.skill-pick-item {
+    display: flex;
+    align-items: center;
+    padding: 12px;
+    margin-bottom: 8px;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid #333;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: 0.2s;
+}
+
+.skill-pick-item:hover { background: rgba(255,255,255,0.15); border-color: var(--gold-main); }
+.skill-pick-item.is-class { border-left: 4px solid var(--gold-main); background: rgba(245, 158, 11, 0.1); }
+
+.skill-pick-icon {
+    width: 50px;
+    height: 50px;
+    border-radius: 6px;
+    margin-right: 15px;
+    background-size: cover;
+    border: 1px solid #555;
+}
+
+.skill-pick-info { flex-grow: 1; text-align: left; }
+.skill-pick-source { font-size: 0.65rem; color: var(--gold-main); text-transform: uppercase; font-weight: bold; }
+.skill-pick-name { font-weight: bold; font-size: 1rem; color: #fff; }
+.skill-pick-desc { font-size: 0.75rem; color: #aaa; font-style: italic; }
 
 /* Update Inventory Slots to match size exactly */
 .inv-slot {
@@ -1018,6 +1155,36 @@ Because you do not have a backend server listening for automatic receipts (Webho
     opacity: 0.5;
     pointer-events: none;
     filter: grayscale(1);
+}
+
+/* Skill Picker Tab Styling */
+.skill-tabs {
+    display: flex;
+    background: rgba(0,0,0,0.3);
+    border-bottom: 1px solid #444;
+}
+
+.skill-tab {
+    flex: 1;
+    padding: 15px;
+    text-align: center;
+    cursor: pointer;
+    font-family: var(--font-head);
+    font-size: 0.9rem;
+    color: #666;
+    transition: 0.3s;
+    border-bottom: 3px solid transparent;
+}
+
+.skill-tab.active {
+    color: var(--gold-main);
+    border-bottom-color: var(--gold-main);
+    background: rgba(245, 158, 11, 0.1);
+}
+
+.skill-tab:hover:not(.active) {
+    color: #aaa;
+    background: rgba(255,255,255,0.05);
 }
 
 .profile-layout { display: flex; gap: 20px; text-align: left; }
@@ -1677,35 +1844,65 @@ Because you do not have a backend server listening for automatic receipts (Webho
 <div id="ui-layer">
 
     <!-- LEFT SIDEBAR: PLAYER SHEET -->
-    <div id="p1-sheet" class="glass-panel gold-border">
-        <div class="char-header">
-            <div style="display:flex; align-items:center;">
-                <div id="p1-portrait" class="char-portrait" onclick="openCharDetail(0)"></div>
-                <div>
-                    <div id="p1-name" style="font-weight:bold; cursor:pointer;" onclick="openCharDetail(0)">Hero</div>
-                    <div id="p1-class" style="font-size:0.8rem; color:#aaa;">Class</div>
-                </div>
+<div id="p1-sheet" class="glass-panel gold-border">
+    <!-- FIXED HEADER -->
+    <div class="char-header">
+        <div style="display:flex; align-items:center;">
+            <div id="p1-portrait" class="char-portrait" onclick="openCharDetail(myPlayerId)"></div>
+            <div>
+                <div id="p1-name" style="font-weight:bold; cursor:pointer;" onclick="openCharDetail(myPlayerId)">Hero</div>
+                <div id="p1-class" style="font-size:0.8rem; color:#aaa;">Class</div>
             </div>
-            <div class="gold-display"><span id="p1-gold">0</span> G</div>
         </div>
-        <div class="stat-grid">
-            <div class="stat-box"><div id="p1-str" class="stat-val">0</div><div class="stat-lbl">STR</div></div>
-            <div class="stat-box"><div id="p1-dex" class="stat-val">0</div><div class="stat-lbl">DEX</div></div>
-            <div class="stat-box"><div id="p1-int" class="stat-val">0</div><div class="stat-lbl">INT</div></div>
-        </div>
-<!-- Paper Doll -->
-<div class="paper-doll-container">
-    <div id="slot-head" class="doll-slot">HEAD</div>
-    <div id="slot-body" class="doll-slot">BODY</div>
-    <div id="slot-main" class="doll-slot">MAIN</div>
-    <div id="slot-off" class="doll-slot">OFF</div>
+        <div class="gold-display"><span id="p1-gold">0</span> G</div>
+    </div>
+
+    <!-- SCROLLABLE CONTENT START -->
+    <div class="sheet-scroll-area">
+<!-- INSIDE #p1-sheet -->
+<div class="stat-grid">
+    <div class="stat-box"><div id="p1-str" class="stat-val">0</div><div class="stat-lbl">STR</div></div>
+    <div class="stat-box"><div id="p1-dex" class="stat-val">0</div><div class="stat-lbl">DEX</div></div>
+    <div class="stat-box"><div id="p1-int" class="stat-val">0</div><div class="stat-lbl">INT</div></div>
 </div>
+
+<!-- NEW: SECONDARY STAT ROW -->
+<div class="sec-stat-row">
+    <div class="sec-stat-box">
+        <span class="sec-stat-lbl">MOV</span>
+        <span id="p1-move" class="sec-stat-val">+0</span>
+    </div>
+    <div class="sec-stat-box">
+        <span class="sec-stat-lbl">GF</span>
+        <span id="p1-gf" class="sec-stat-val">+0</span>
+    </div>
+    <div class="sec-stat-box">
+        <span class="sec-stat-lbl">RES</span>
+        <span id="p1-res" class="sec-stat-val">0</span>
+    </div>
+</div>
+
+        <div class="paper-doll-container">
+            <div class="doll-placement doll-img" style="top: 5%; left: 22%; width: 56%; height: 75%;"></div>
+            <div id="slot-head" class="doll-placement doll-slot" style="top: 5%; left: 5%;">HEAD</div>
+            <div id="slot-body" class="doll-placement doll-slot" style="top: 25%; left: 5%;">BODY</div>
+            <div id="slot-main" class="doll-placement doll-slot" style="top: 45%; left: 5%;">MAIN</div>
+            <div id="slot-feet" class="doll-placement doll-slot" style="top: 65%; left: 5%;">FEET</div>
+            <div id="slot-back"   class="doll-placement doll-slot" style="top: 5%; right: 5%;">BACK</div>
+            <div id="slot-amulet" class="doll-placement doll-slot" style="top: 25%; right: 5%;">AMULET</div>
+            <div id="slot-ring_l" class="doll-placement doll-slot" style="top: 45%; right: 5%;">RING L</div>
+            <div id="slot-ring_r" class="doll-placement doll-slot" style="top: 65%; right: 5%;">RING R</div>
+            <div id="slot-hands" class="doll-placement doll-slot" style="bottom: 5%; left: 25%;">HANDS</div>
+            <div id="slot-off"   class="doll-placement doll-slot" style="bottom: 5%; right: 25%;">OFF</div>
+        </div>
+
         <div style="padding:0 10px; font-size:0.7rem; color:#888; margin-bottom:5px;">INVENTORY</div>
         <div id="p1-inv" class="inv-grid"></div>
-        
-        <!-- CLOSE BUTTON -->
-        <button class="panel-close-btn" onclick="togglePanelVisibility('p1-sheet')">CLOSE</button>
     </div>
+    <!-- SCROLLABLE CONTENT END -->
+    
+    <button class="panel-close-btn" onclick="togglePanelVisibility('p1-sheet')">CLOSE</button>
+</div>
 
     <!-- CENTER BOARD AREA -->
     <div id="board-anchor">
@@ -1837,6 +2034,16 @@ Because you do not have a backend server listening for automatic receipts (Webho
         <div class="card-body">
             <div id="arrival-flavor" class="flavor-text" style="font-style: italic; color: #fff;">...</div>
             <button class="primary" onclick="continueFromArrival()">CONTINUE</button>
+        </div>
+    </div>
+</div>
+
+<div id="skill-picker-modal" class="modal-overlay">
+    <div class="modal-content glass-panel gold-border">
+        <div class="close-x" onclick="document.getElementById('skill-picker-modal').style.display='none'">×</div>
+        <h2 style="color:var(--gold-main); padding:20px 0 10px 20px; margin:0;">Assign Skill</h2>
+        <div id="skill-picker-list" style="padding: 20px; overflow-y: auto; flex-grow: 1;">
+            <!-- Items injected via JS -->
         </div>
     </div>
 </div>
@@ -3996,7 +4203,15 @@ const COLOR_NAMES = {
     "#8b5cf6": "Purple",
     "#FFFFFF": "White"
 };
-const EQUIP_ORDER = ['head', 'body', 'main', 'off'];
+const EQUIP_ORDER = ['head', 'body', 'hands', 'feet', 'ring_l', 'ring_r', 'amulet', 'back', 'main', 'off'];
+const SECONDARY_STAT_VALUES = {
+    common: 2,
+    rare: 4,
+    epic: 6,
+    legendary: 8
+};
+let activePickerSlot = null; // Tracks which skill slot we are currently assigning
+
 
 
 // --- DUNGEON GLOBALS ---
@@ -5768,7 +5983,7 @@ sabotage: {
             
             return false; // Return false so it doesn't auto-deplete immediately (handled in onclick)
         }, 
-        img: "https://static.wixstatic.com/media/b16479_6364e428d9504a139a2c56e1e168eb3d~mv2.jpg" 
+        img: "https://static.wixstatic.com/media/b16479_0de936527a24420a856fad92eab0835f~mv2.jpg" 
     },
     gamble_act: { name: "Gamble", desc: "Pay 50G. 50% chance to win 200G.", fn: (p) => { if(p.gold<50)return false; p.gold-=50; VFX.trigger('projectile_coin', p.mesh.position, p.mesh.position); if(Math.random()>0.5){p.gold+=200; addLog("Gamble won: +200G!", "log-gold");}else{addLog("Gamble lost.", "log-fail");} updateHUD(); return true; }, img: "https://static.wixstatic.com/media/b16479_613c6b72c1984c8d93398e7f00ae2ee0~mv2.jpeg" },
     
@@ -5931,11 +6146,15 @@ exorcism: {
     mana_shield: { name: "Mana Shield", desc: "If you would go bankrupt, lose 1 Item instead.", type:'passive', img: "https://static.wixstatic.com/media/b16479_bf689c6c7bd640c9910b56a8c1d7eeba~mv2.jpg" },
     leyline: { name: "Leyline Walker", desc: "Start at Mana Well. Gain 200G passing it.", type:'passive', img: "https://static.wixstatic.com/media/b16479_2fabcde5520b41899bf6b28a8824d4f3~mv2.jpg" },
     elemental_attune: { name: "Attunement", desc: "+1 INT for every 500G you hold.", type:'passive', effect: (s) => { const bonus = Math.floor(s.gold / 500); if(bonus > 0) s.int += bonus; }, img: "https://static.wixstatic.com/media/b16479_54c9849377094313a2bc102fe77c038b~mv2.jpg" },
-    shadow_step: { 
+shadow_step: { 
         name: "Shadow Step", 
-        desc: "Permanent +1 DEX and +1 Movement to rolls.", // UPDATED TEXT
+        desc: "Permanent +1 DEX and +1 Movement to rolls.", 
         type:'passive', 
-        effect:(s)=>{s.dex+=1;}, 
+        // FIX: Explicitly add to both DEX and movementBonus
+        effect:(s)=>{
+            s.dex += 1; 
+            s.movementBonus = (s.movementBonus || 0) + 1;
+        }, 
         img: "https://static.wixstatic.com/media/b16479_923e7271de194ba69a6d2243650e2c41~mv2.jpg" 
     },
     greedy: { 
@@ -6136,13 +6355,13 @@ const ITEM_IMAGE_POOLS = {
         "https://static.wixstatic.com/media/b16479_e8a750d554f34eb0a230eb8c62736820~mv2.png",
     ],
     "Royal Pardon": [
-        "",
+        "https://static.wixstatic.com/media/b16479_beaac8471c8c447cbae344e9891d1608~mv2.png",
     ],
     "Map to Riches": [
         "https://static.wixstatic.com/media/b16479_d5392f0b79dc45adb47a3b0fdbc18653~mv2.png",
     ],
     "Investment Deed": [
-        "",
+        "https://static.wixstatic.com/media/b16479_beaac8471c8c447cbae344e9891d1608~mv2.png",
     ],
     "Warp Stone": [
         "https://static.wixstatic.com/media/b16479_b842542d67474c0c89e82ff1255f9d8c~mv2.png",
@@ -6155,55 +6374,100 @@ const ITEM_IMAGE_POOLS = {
 };
 function generateTreasureDeck() {
     const deck = [];
-    const itemNames = [ "Sword", "Shield", "Helm", "Armor", "Wand", "Staff", "Bow", "Dagger", "Boots", "Gloves", "Ring", "Amulet", "Cloak", "Belt", "Axe", "Hammer", "Spear" ];
-    const slots = [ 'main', 'off', 'head', 'body', 'main', 'main', 'main', 'main', 'body', 'body', 'off', 'head', 'body', 'body', 'main', 'main', 'main' ];
-    const stats = [ 'str', 'str', 'str', 'str', 'int', 'int', 'dex', 'dex', 'dex', 'dex', 'int', 'int', 'dex', 'str', 'str', 'str', 'dex' ];
     const abilities = Object.keys(ABILITY_LIBRARY);
     
     const getImg = (name) => {
         const pool = ITEM_IMAGE_POOLS[name];
-        if (!pool || pool.length === 0) return null; 
-        return pool[Math.floor(Math.random() * pool.length)]; 
+        return (pool && pool.length > 0) ? pool[Math.floor(Math.random() * pool.length)] : null; 
     };
 
-    // 1. Gold & Coins
-    for(let i=0; i<15; i++) deck.push({ id: `g${i}`, name: "Pouch of Gold", type: 'scroll', rarity: 'common', cost: 0, desc: "Gain 50 Gold instantly.", img: getImg("Pouch of Gold"), fn: (p) => { let amt = 50; if (p.passiveSkillId === 'midas' || p.activeSkillId === 'midas') amt *= 2; p.gold += amt; if(p.id === myPlayerId) AUDIO.playSound('sfx_gold'); addLog(`+${amt} Gold`, "log-gold"); updateHUD(); } });
-    for(let i=0; i<8; i++) deck.push({ id: `lc${i}`, name: "Lucky Coin", type: 'scroll', rarity: 'common', cost: 50, desc: "Roll d6: Gain 200G (4-6) or Lose 50G (1-3).", img: getImg("Lucky Coin"), fn: (p) => { let r = Math.floor(Math.random()*6)+1; let amt = (r > 3) ? 200 : -50; if(amt > 0 && p.passiveSkillId === 'midas') amt *= 2; if(amt > 0) { p.gold += amt; if(p.id === myPlayerId) AUDIO.playSound('sfx_gold'); addLog(`Won ${amt}G!`, "log-gold"); } else { pay(p, 50); } updateHUD(); } });
+    // --- MAP TO RICHES LOGIC ---
+    const mapToRichesFn = (p) => {
+        const activeDungeonKeys = Object.keys(activeDungeons);
+        if (activeDungeonKeys.length === 0) {
+            addLog("The Map to Riches glows, but no Dungeons are active!", "log-fail");
+            p.gold += 100; // Consolation prize
+            return true;
+        }
+        let closestTile = null;
+        let minDistance = 999;
+        activeDungeonKeys.forEach(dName => {
+            const dTile = tiles.find(t => t.userData.info.name === dName);
+            if (dTile) {
+                const dist = Math.abs(p.pos - dTile.userData.id);
+                const circularDist = Math.min(dist, 40 - dist);
+                if (circularDist < minDistance) { minDistance = circularDist; closestTile = dTile; }
+            }
+        });
+        if (closestTile) {
+            VFX.trigger('implode', p.mesh.position, null, 0xffd700);
+            addLog(`The Map reveals a shortcut to ${closestTile.userData.info.name}!`, "log-epic");
+            if (isMultiplayer) {
+                db.ref(`games/${gameId}/teleportLog`).push({ pid: p.id, targetPos: closestTile.userData.id, timestamp: firebase.database.ServerValue.TIMESTAMP });
+            } else {
+                p.pos = closestTile.userData.id; gameState = 'MOVING';
+                animateTeleport(p, closestTile, () => resolveLanding(p));
+            }
+            return true;
+        }
+        return false;
+    };
 
-    // 2-5. Equipment (Common, Rare, Epic, Legendary)
-    for(let i=0; i<20; i++) { const idx=i%itemNames.length; deck.push({ id: `c${i}`, name: `Old ${itemNames[idx]}`, type: 'equip', slot: slots[idx], bonus: {[stats[idx]]:1}, rarity: 'common', cost: 100, img: getImg(itemNames[idx]) }); }
-    for(let i=0; i<20; i++) { const idx=i%itemNames.length; deck.push({ id: `m${i}`, name: `Magic ${itemNames[idx]}`, type: 'equip', slot: slots[idx], bonus: {[stats[idx]]:2}, rarity: 'rare', cost: 300, img: getImg(itemNames[idx]) }); }
-    for(let i=0; i<20; i++) { 
-        const idx=i%itemNames.length; const aKey=abilities[i%abilities.length]; const ab=ABILITY_LIBRARY[aKey];
-        deck.push({ id: `r${i}`, name: `${ABILITY_PREFIXES[aKey]||"Ancient"} ${itemNames[idx]}`, type: 'equip', slot: slots[idx], bonus: {[stats[idx]]:3}, rarity: 'epic', cost: 800, img: getImg(itemNames[idx]), ability: {name:ab.name, type:ab.type||'active', desc:ab.desc, fn:ab.fn} }); 
-    }
-    for(let i=0; i<10; i++) { 
-        const idx=i%itemNames.length; const aKey=abilities[(i+10)%abilities.length]; const ab=ABILITY_LIBRARY[aKey];
-        deck.push({ id: `l${i}`, name: `${ABILITY_PREFIXES[aKey]||"Legendary"} ${itemNames[idx]}`, type: 'equip', slot: slots[idx], bonus: {[stats[idx]]:4}, rarity: 'legendary', cost: 2000, img: getImg(itemNames[idx]), ability: {name:ab.name, type:ab.type||'active', desc:ab.desc, fn:ab.fn} }); 
-    }
+    // 1. Basic Loot
+    for(let i=0; i<15; i++) deck.push({ id: `g${i}`, name: "Pouch of Gold", type: 'scroll', rarity: 'common', cost: 0, desc: "Gain 50 Gold instantly.", img: getImg("Pouch of Gold"), fn: (p) => { let gain = 50 + (p.stats.goldFind || 0); p.gold += gain; addLog(`+${gain} Gold`, "log-gold"); return true; } });
+    deck.push({ name: "Map to Riches", type: 'scroll', rarity: 'epic', cost: 400, desc: "Teleport to the closest active Dungeon.", img: getImg("Map to Riches"), fn: mapToRichesFn });
 
-    // 6. Scrolls & Consumables (UPDATED ELIXIRS)
-    const misc = [
-        {name: "Town Portal", rarity: 'rare', cost: 100, desc: "Teleport to Inn.", fn: ABILITY_LIBRARY.teleport.fn},
-        {name: "Sprint Scroll", rarity: 'common', cost: 50, desc: "Move 3 spaces.", fn: ABILITY_LIBRARY.dash.fn},
-        {name: "Transmute Scroll", rarity: 'epic', cost: 300, desc: "Destroy item for 300G.", fn: ABILITY_LIBRARY.transmute.fn},
-        
-        // --- UPDATED ELIXIRS (Permanent Stats) ---
-        { name: "Elixir of Strength", rarity: 'epic', cost: 500, desc: "Permanently +1 STR.", fn: (p) => { if(!p.permBonuses) p.permBonuses={str:0,dex:0,int:0}; p.permBonuses.str++; recalcStats(p); addLog("Permanent +1 STR!", "log-success"); updateHUD(); return true; }},
-        { name: "Elixir of Speed", rarity: 'epic', cost: 500, desc: "Permanently +1 DEX.", fn: (p) => { if(!p.permBonuses) p.permBonuses={str:0,dex:0,int:0}; p.permBonuses.dex++; recalcStats(p); addLog("Permanent +1 DEX!", "log-success"); updateHUD(); return true; }},
-        { name: "Elixir of Wisdom", rarity: 'epic', cost: 500, desc: "Permanently +1 INT.", fn: (p) => { if(!p.permBonuses) p.permBonuses={str:0,dex:0,int:0}; p.permBonuses.int++; recalcStats(p); addLog("Permanent +1 INT!", "log-success"); updateHUD(); return true; }},
-
-        {name: "Builder's Hammer", rarity: 'rare', cost: 300, desc: "Upgrade Camp to Tavern.", fn: (p) => { capture(tiles[p.pos], p, 2); addLog("Tavern Built!", "log-success"); return true; }},
-        {name: "Mercenary Contract", rarity: 'rare', cost: 150, desc: "Add +1 Guard.", fn: (p) => { tiles[p.pos].userData.guardCount++; addLog("Guard hired!", "log-success"); updateHUD(); return true; }},
-        {name: "Thief's Glove", rarity: 'rare', cost: 200, desc: "Attempt steal.", fn: (p) => { addLog("Steal!", "log-gold"); return true; }},
-        {name: "Royal Pardon", rarity: 'rare', cost: 150, desc: "Remove Jail/Stun.", fn: (p) => { p.isSkipping = false; addLog("Pardoned!", "log-success"); return true; }},
-        {name: "Map to Riches", rarity: 'epic', cost: 400, desc: "Pay 50G for Treasure.", fn: (p) => { if(p.gold>=50){ p.gold-=50; setTimeout(()=>{ presentLootUI(p, createItemInstance(DECK_TREASURE[Math.floor(Math.random()*DECK_TREASURE.length)])); },500); return true; } return false; }},
-        {name: "Investment Deed", rarity: 'rare', cost: 200, desc: "Get 100G.", fn: (p) => { p.gold+=100; addLog("Dividends!", "log-gold"); return true; }},
-        {name: "Warp Stone", rarity: 'common', cost: 50, desc: "Random Teleport.", fn: (p) => { /* logic */ return true; }},
+    // 2. Equipment Generation Logic
+    const slotConfigs = [
+        { name: "Sword", slot: "main", type: "primary" },
+        { name: "Armor", slot: "body", type: "primary" },
+        { name: "Shield", slot: "off", type: "primary" },
+        { name: "Helm", slot: "head", type: "secondary" },
+        { name: "Gloves", slot: "hands", type: "secondary" },
+        { name: "Boots", slot: "feet", type: "secondary" },
+        { name: "Ring", slot: "ring_l", type: "secondary" },
+        { name: "Ring", slot: "ring_r", type: "secondary" },
+        { name: "Amulet", slot: "amulet", type: "secondary" },
+        { name: "Cloak", slot: "back", type: "secondary" }
     ];
 
-    misc.forEach((m, i) => {
-        deck.push({ id: `misc_${i}`, name: m.name, type: 'scroll', rarity: m.rarity, cost: m.cost, desc: m.desc || "Consumable", img: getImg(m.name), fn: m.fn });
+    const rarities = ['common', 'rare', 'epic', 'legendary'];
+    
+    slotConfigs.forEach(config => {
+        rarities.forEach(rarity => {
+            for(let k=0; k<2; k++) {
+                let item = {
+                    id: `item_${config.slot}_${rarity}_${k}`,
+                    name: `${rarity.toUpperCase()} ${config.name}`,
+                    slot: config.slot,
+                    type: 'equip',
+                    rarity: rarity,
+                    cost: (rarities.indexOf(rarity) + 1) * 200,
+                    img: getImg(config.name)
+                };
+
+                // Add Primary Stats (Only for Main, Body, Off)
+                if (config.type === "primary") {
+                    const stat = (config.slot === 'main') ? 'str' : (config.slot === 'body' ? 'str' : 'str');
+                    item.bonus = { [stat]: rarities.indexOf(rarity) + 1 };
+                }
+
+                // Add Secondary Stats
+                if (config.slot === 'feet') item.moveBonus = (rarities.indexOf(rarity) + 1);
+                if (['feet', 'hands', 'ring_l', 'ring_r', 'amulet', 'back'].includes(config.slot)) {
+                    item.goldFind = SECONDARY_STAT_VALUES[rarity];
+                    item.resistance = SECONDARY_STAT_VALUES[rarity];
+                }
+
+                // Add Abilities (Rare or Higher)
+                if (rarities.indexOf(rarity) >= 1) {
+                    const aKey = abilities[Math.floor(Math.random() * abilities.length)];
+                    const ab = ABILITY_LIBRARY[aKey];
+                    item.ability = { name: ab.name, type: ab.type || 'active', desc: ab.desc, fn: ab.fn };
+                }
+                deck.push(item);
+            }
+        });
     });
 
     return deck;
@@ -8343,17 +8607,23 @@ function createDecks() {
 
 // --- REGION 4: PLAYER & AI (WAS MISSING) ---
 function spawnPlayer(id, n, r, c, actId, pasId, ai, col, startPos = 0) {
-    // --- FAIL-SAFE: MP SLOT TYPE CHECK ---
+    // Fail-safe for Multiplayer slot types
     if (isMultiplayer && currentRoomData && currentRoomData.slots) {
         const slotDef = currentRoomData.slots[id];
-        if (slotDef && slotDef.type === 'human') {
-            ai = false;
-        }
+        if (slotDef && slotDef.type === 'human') ai = false;
     }
 
-    const stats = { str: r.stats.str, dex: r.stats.dex, int: r.stats.int, gold: 1000 };
+    // Initialize Stats including new Secondary Stats
+    const stats = { 
+        str: r.stats.str, 
+        dex: r.stats.dex, 
+        int: r.stats.int, 
+        gold: 1000,
+        movementBonus: 0, 
+        goldFind: 0, 
+        resistance: 0 
+    };
     
-    // Apply Passive Stat Bonuses immediately (e.g. Veteran +1 STR)
     const passiveDef = ABILITY_LIBRARY[pasId];
     if (passiveDef && passiveDef.effect) passiveDef.effect(stats);
     
@@ -8362,12 +8632,8 @@ function spawnPlayer(id, n, r, c, actId, pasId, ai, col, startPos = 0) {
     else if(c.id === 'rogue' || r.stats.dex > r.stats.str) archetype = 'dex';
     
     const g = createPlayerMesh(r, c, col);
-    
-    if (tiles[startPos]) {
-        g.position.copy(tiles[startPos].position);
-    } else {
-        g.position.copy(tiles[0].position);
-    }
+    if (tiles[startPos]) g.position.copy(tiles[startPos].position);
+    else g.position.copy(tiles[0].position);
 
     if (id > 0) { 
         g.position.x += (Math.random() - 0.5) * 0.5; 
@@ -8377,20 +8643,24 @@ function spawnPlayer(id, n, r, c, actId, pasId, ai, col, startPos = 0) {
     
     const portraitUrl = CHAR_PORTRAITS[`${r.id}_${c.id}`] || "";
     
+    // Create the Player Object
     const newPlayer = {
         id: id, name: n, race: r, class: c, portrait: portraitUrl,
         activeSkillId: actId, passiveSkillId: pasId,
         stats: stats, gold: stats.gold, 
-        
-        // --- NEW: Permanent Bonus Tracker ---
-        permBonuses: { str: 0, dex: 0, int: 0 }, 
-        // ------------------------------------
-
+        permBonuses: { str: 0, dex: 0, int: 0 },
         pos: startPos, 
         mesh: g, color: col, 
         isAi: ai, 
-        archetype: archetype, 
-        equipment: { main: null, off: null, head: null, body: null },
+        archetype: archetype,
+        // NEW: 10-Slot Equipment System
+        equipment: { 
+            head: null, body: null, hands: null, feet: null, 
+            ring_l: null, ring_r: null, amulet: null, back: null, 
+            main: null, off: null 
+        },
+        // NEW: Customizable Skill Bar (6 Slots)
+        assignedSkills: [null, null, null, null, null, null],
         inventory: [], 
         quickSlots: [null, null], 
         isSkipping: false, abilityUsed: false,
@@ -8403,37 +8673,33 @@ function spawnPlayer(id, n, r, c, actId, pasId, ai, col, startPos = 0) {
         history: [{ turn: 0, gold: 1000, props: 0 }] 
     };
 
-    // --- VANGUARD: START WITH SWORD ---
+    // Automatically assign Class Skill to Slot 1 (Index 0)
+    newPlayer.assignedSkills[0] = {
+        id: actId,
+        name: ABILITY_LIBRARY[actId].name,
+        desc: ABILITY_LIBRARY[actId].desc,
+        img: ABILITY_LIBRARY[actId].img,
+        source: "Class Ability",
+        isClass: true
+    };
+
+    // Special Start Conditions
     if (pasId === 'vanguard') {
-        const vImg = (ITEM_IMAGE_POOLS["Vanguard Blade"] && ITEM_IMAGE_POOLS["Vanguard Blade"].length > 0) 
-                     ? ITEM_IMAGE_POOLS["Vanguard Blade"][0] : "";
+        const vImg = (ITEM_IMAGE_POOLS["Vanguard Blade"] && ITEM_IMAGE_POOLS["Vanguard Blade"].length > 0) ? ITEM_IMAGE_POOLS["Vanguard Blade"][0] : "";
         const sword = { id: `vg_${id}`, name: `Vanguard Blade`, type: 'equip', slot: 'main', bonus: {str:2}, rarity: 'rare', cost: 300, img: vImg };
         newPlayer.inventory.push(sword);
     }
-    
-    // --- GREED: START WITH GOLD & ITEM ---
     if (pasId === 'greedy') {
         newPlayer.gold += 200;
-        const card = createItemInstance(DECK_TREASURE[Math.floor(Math.random() * DECK_TREASURE.length)]);
-        newPlayer.inventory.push(card);
+        newPlayer.inventory.push(createItemInstance(DECK_TREASURE[Math.floor(Math.random() * DECK_TREASURE.length)]));
     }
-
-    // --- LEYLINE WALKER ---
     if (pasId === 'leyline') {
-        const manaWell = tiles.find(t => t.userData.info.name === 'Mana Well');
-        if (manaWell) {
-            newPlayer.pos = manaWell.userData.id;
-            newPlayer.mesh.position.copy(manaWell.position);
-        }
+        const well = tiles.find(t => t.userData.info.name === 'Mana Well');
+        if (well) { newPlayer.pos = well.userData.id; newPlayer.mesh.position.copy(well.position); }
     }
-    
-    // --- DEVOTION ---
     if (pasId === 'devotion') {
         const shrine = tiles.find(t => t.userData.info.name === 'Shrine');
-        if (shrine) {
-            newPlayer.pos = shrine.userData.id;
-            newPlayer.mesh.position.copy(shrine.position);
-        }
+        if (shrine) { newPlayer.pos = shrine.userData.id; newPlayer.mesh.position.copy(shrine.position); }
     }
 
     players.push(newPlayer);
@@ -8441,50 +8707,49 @@ function spawnPlayer(id, n, r, c, actId, pasId, ai, col, startPos = 0) {
 function recalcStats(p) {
     if (!p || p.isBoss || p.isEventEntity || !p.race) return;
 
-    // 1. Reset to Base Race Stats
-    p.stats.str = p.race.stats.str; 
-    p.stats.dex = p.race.stats.dex; 
-    p.stats.int = p.race.stats.int;
+    // 1. Base Stats + Permanent Bonuses
+    p.stats.str = p.race.stats.str + (p.permBonuses?.str || 0);
+    p.stats.dex = p.race.stats.dex + (p.permBonuses?.dex || 0);
+    p.stats.int = p.race.stats.int + (p.permBonuses?.int || 0);
     
-    // 2. Add Permanent Bonuses (MEDIC / ELIXIRS)
-    // Initialize if missing
-    if (!p.permBonuses) p.permBonuses = { str: 0, dex: 0, int: 0 };
-    
-    p.stats.str += (p.permBonuses.str || 0);
-    p.stats.dex += (p.permBonuses.dex || 0);
-    p.stats.int += (p.permBonuses.int || 0);
-    
-    // 3. Add Equipment Bonuses
-    ['head', 'body', 'main', 'off'].forEach(slot => { 
-        const item = p.equipment[slot]; 
-        if(item && item.bonus) { 
-            const k = Object.keys(item.bonus)[0]; 
-            if (p.stats[k] !== undefined) p.stats[k] += item.bonus[k]; 
-        } 
+    // 2. Reset Secondary Stats
+    p.stats.movementBonus = 0;
+    p.stats.goldFind = 0;
+    p.stats.resistance = 0;
+
+    // 3. Process Equipment Slots
+    EQUIP_ORDER.forEach(slot => {
+        const item = p.equipment[slot];
+        if (!item) return;
+
+        // Primary Stats (Only Body, Main Hand, Off Hand)
+        if (['body', 'main', 'off'].includes(slot) && item.bonus) {
+            Object.keys(item.bonus).forEach(k => {
+                if (p.stats[k] !== undefined) p.stats[k] += item.bonus[k];
+            });
+        }
+
+        // Secondary Stat: Movement (Feet Only)
+        if (slot === 'feet' && item.moveBonus) p.stats.movementBonus += item.moveBonus;
+
+        // Secondary Stats: Gold Find & Resistance
+        if (['hands', 'feet', 'ring_l', 'ring_r', 'amulet', 'back'].includes(slot)) {
+            if (item.goldFind) p.stats.goldFind += item.goldFind;
+            if (item.resistance) p.stats.resistance += item.resistance;
+        }
     });
 
-    // 4. Passive Library Effects
+    // 4. Passives (REVISED: Added Shadow Step Movement)
     const pas = ABILITY_LIBRARY[p.passiveSkillId]; 
-    if(pas && pas.effect) pas.effect(p.stats);
-
-    // 5. Temporary Debuffs/Buffs
-    if (p.shadowStrikeDebuff) {
-        p.stats.str = Math.max(1, p.stats.str - 1);
-        p.stats.dex = Math.max(1, p.stats.dex - 1);
-        p.stats.int = Math.max(1, p.stats.int - 1);
-    }
-    if (p.pacifistBuff) {
-        p.stats.str += 1;
-        p.stats.dex += 1;
-        p.stats.int += 1;
+    if (pas && pas.effect) pas.effect(p.stats);
+    
+    // Explicitly add Shadow Step Movement Bonus to the UI variable
+    if (p.passiveSkillId === 'shadow_step') {
+        p.stats.movementBonus += 1;
     }
 
-    // 6. Polymorph Debuff (Must be last to override everything)
-    if (p.isPolymorphed) {
-        p.stats.str = 1; 
-        p.stats.dex = 1; 
-        p.stats.int = 1;
-    }
+    // 5. Polymorph Override
+    if (p.isPolymorphed) { p.stats.str = 1; p.stats.dex = 1; p.stats.int = 1; }
 }
 
 function processTax(victim, amount) {
@@ -8862,31 +9127,39 @@ function rollMove() {
     }
 }
 function finishRollLogic(p, r) {
-    // --- SHADOW STEP LOGIC (+1 Move) ---
-    if (p.passiveSkillId && ABILITY_LIBRARY[p.passiveSkillId] && ABILITY_LIBRARY[p.passiveSkillId].name === "Shadow Step") { 
+    // 1. Shadow Step Passive (+1)
+    if (p.passiveSkillId === 'shadow_step') { 
         r += 1; 
         addLog("Shadow Step: +1 Move"); 
     }
 
-    // --- BLIZZARD LOGIC (Slow) ---
-    // Check if any active event is a blizzard
+    // 2. NEW: Equipment Movement Bonus (From Boots)
+    const moveBonus = p.stats.movementBonus || 0;
+    if (moveBonus > 0) {
+        r += moveBonus;
+        addLog(`${p.name}'s equipment grants +${moveBonus} Movement!`, "log-success");
+    }
+
+    // 3. Blizzard Penalty (-1)
     const isBlizzard = activeEvents.some(e => e.data && e.data.id === 'weather_blizzard');
     if (isBlizzard) {
         r = Math.max(1, r - 1);
         addLog("Blizzard slows you down! (-1)", "log-fail");
     }
     
-    // --- GOLDEN RAIN LOGIC (Bonus Gold) ---
+    // 4. Golden Rain Bonus (Gold per step)
     const isGoldRain = activeEvents.some(e => e.data && e.data.id === 'weather_goldrain');
     if (isGoldRain) {
-        const bonus = r * 10; // 10G per step
+        // Apply Gold Find stat to the rain bonus
+        const goldFind = p.stats.goldFind || 0;
+        const bonus = (r * 10) + goldFind; 
         p.gold += bonus;
-        addLog(`Golden Rain: +${bonus}G`, "log-gold");
-        
-        // Sync the gold gain immediately in Multiplayer so balances update
+        addLog(`Golden Rain: +${bonus}G (Gold Find: +${goldFind})`, "log-gold");
         if (isMultiplayer) syncPlayerState();
         updateHUD();
     }
+
+    addLog(`${p.name} moves ${r} spaces.`);
 
     // Start Movement
     gameState = 'MOVING'; 
@@ -9829,6 +10102,102 @@ function triggerTileEvent(p) {
         lastInteractionTime = Date.now();
     }
     AUDIO.playSound('sfx_gold');
+}
+
+function openSkillPicker(slotIdx, currentTab = 'active') {
+    activePickerSlot = slotIdx;
+    const p = players.find(pl => pl.id === myPlayerId);
+    const modal = document.getElementById('skill-picker-modal');
+    const container = modal.querySelector('.modal-content');
+    
+    // 1. Rebuild Modal Inner Structure (with Tabs)
+    container.innerHTML = `
+        <div class="close-x" onclick="document.getElementById('skill-picker-modal').style.display='none'">×</div>
+        <h2 style="color:var(--gold-main); padding:20px 0 10px 20px; margin:0;">Hero Skills</h2>
+        
+        <div class="skill-tabs">
+            <div class="skill-tab ${currentTab === 'active' ? 'active' : ''}" onclick="openSkillPicker(${slotIdx}, 'active')">ACTIVES</div>
+            <div class="skill-tab ${currentTab === 'passive' ? 'active' : ''}" onclick="openSkillPicker(${slotIdx}, 'passive')">PASSIVES</div>
+        </div>
+
+        <div id="skill-picker-list" style="padding: 20px; overflow-y: auto; flex-grow: 1; max-height: 400px;">
+            <!-- Skills injected here -->
+        </div>
+    `;
+
+    const list = document.getElementById('skill-picker-list');
+    modal.style.display = 'flex';
+
+    // 2. Gather All Skills from Class and Equipment
+    const allSkills = [];
+
+    // Add Class Skills
+    allSkills.push({
+        ...ABILITY_LIBRARY[p.activeSkillId],
+        source: "Class Ability",
+        isClass: true,
+        type: 'active'
+    });
+    allSkills.push({
+        ...ABILITY_LIBRARY[p.passiveSkillId],
+        source: "Class Passive",
+        isClass: true,
+        type: 'passive'
+    });
+
+    // Add Equipment Skills
+    EQUIP_ORDER.forEach(slot => {
+        const item = p.equipment[slot];
+        if (item) {
+            if (item.ability) {
+                allSkills.push({
+                    ...item.ability,
+                    id: item.uid,
+                    source: item.name,
+                    img: item.img || item.ability.img,
+                    isClass: false,
+                    ref: item,
+                    type: item.ability.type || 'active'
+                });
+            }
+        }
+    });
+
+    // 3. Filter and Render based on Active Tab
+    const filtered = allSkills.filter(s => s.type === currentTab);
+
+    if (filtered.length === 0) {
+        list.innerHTML = `<div style="text-align:center; color:#666; padding:20px;">No ${currentTab} skills available.</div>`;
+    }
+
+    filtered.forEach(skill => {
+        const div = document.createElement('div');
+        div.className = `skill-pick-item ${skill.isClass ? 'is-class' : ''}`;
+        
+        div.innerHTML = `
+            <div class="skill-pick-icon" style="background-image: url('${skill.img}')"></div>
+            <div class="skill-pick-info">
+                <div class="skill-pick-source">${skill.source}</div>
+                <div class="skill-pick-name">${skill.name}</div>
+                <div class="skill-pick-desc">${skill.desc}</div>
+            </div>
+            ${currentTab === 'active' ? '<div style="font-size:0.7rem; color:var(--gold-main); font-weight:bold;">[SELECT]</div>' : ''}
+        `;
+
+        // Only allow clicking/assigning if it's an ACTIVE skill
+        if (currentTab === 'active') {
+            div.onclick = () => {
+                p.assignedSkills[slotIdx] = skill;
+                updateHUD();
+                modal.style.display = 'none';
+                if (isMultiplayer) syncPlayerState();
+            };
+        } else {
+            div.style.cursor = 'default';
+        }
+
+        list.appendChild(div);
+    });
 }
 
 // --- NEW FUNCTION: SEPARATED TILE LOGIC ---
@@ -11296,15 +11665,25 @@ function chooseDefense(t, callback) {
     ]); 
 }
 function pay(p, amount, recipient) {
-    let finalAmount = amount; 
+    // --- 1. APPLY RESISTANCE ---
+    // Resistance lowers gold loss from abilities and rent
+    let resistance = p.stats.resistance || 0;
+    let afterResistance = Math.max(0, amount - resistance);
     
+    if (resistance > 0 && amount > 0) {
+        addLog(`${p.name}'s Resistance blocked ${amount - afterResistance}G loss!`, "log-success");
+    }
+
+    // --- 2. APPLY IRON SKIN ---
+    // Flattened reduction of 20G
+    let finalAmount = afterResistance;
     if (p.passiveSkillId === 'iron_skin' && finalAmount > 0) { 
         const oldAmt = finalAmount; 
         finalAmount = Math.max(0, finalAmount - 20); 
         addLog(`Iron Skin reduced loss by ${oldAmt - finalAmount}G`, "log-rare"); 
     }
     
-    // Mana Shield: Sacrifice item to avoid paying
+    // --- 3. MANA SHIELD SACRIFICE ---
     if (p.passiveSkillId === 'mana_shield' && p.gold < finalAmount && p.inventory.length > 0) {
         p.inventory.shift(); 
         addLog("Mana Shield: Item sacrificed to negate debt!", "log-epic");
@@ -11313,15 +11692,18 @@ function pay(p, amount, recipient) {
         return; 
     }
 
+    // --- 4. EXECUTE PAYMENT ---
     p.gold -= finalAmount;
     
-    // If negative, HANDLE DEBT IMMEDIATELY
     if (p.gold < 0) { 
+        // Handle debt if player cannot afford finalAmount
         handleDebt(p, Math.abs(p.gold), recipient); 
     } 
     else { 
-        // Normal Payment
         if (recipient) {
+            // Apply recipient's Gold Find to income? 
+            // Usually, Gold Find applies to "Loot" (Lucky coins/Bags), 
+            // but we can add a small bonus here if you wish.
             recipient.gold += finalAmount; 
             if(isMultiplayer && myPlayerId === 0) {
                 db.ref(`games/${gameId}/players/${recipient.id}`).update({gold: recipient.gold});
@@ -11334,7 +11716,7 @@ function pay(p, amount, recipient) {
             }
         }
         
-        if(finalAmount > 0) addLog(`Paid ${finalAmount}G`, "log-fail"); 
+        if(finalAmount > 0) addLog(`${p.name} paid ${finalAmount}G`, "log-fail"); 
         
         if(isMultiplayer) syncPlayerState(); 
         updateHUD(); 
@@ -12234,218 +12616,192 @@ function globalLog(msg, type) {
 }
 
 function updateHUD() {
-    if(players.length === 0) return;
+    if (players.length === 0) return;
 
-    // 1. Identify Local Player
+    // 1. Identify Local Player (Your Hero)
     const p = players.find(pl => pl.id === myPlayerId) || players[0];
-    
-    // 2. Stats
-    setT('p1-name', p.name); 
-    setT('p1-gold', p.gold); 
-    setT('p1-str', p.stats.str); 
-    setT('p1-dex', p.stats.dex); 
-    setT('p1-int', p.stats.int); 
+    if (!p) return;
+
+    // 2. Main Stat Widgets & Sidebar Header
+    setT('p1-name', p.name);
+    setT('p1-gold', p.gold);
+    setT('p1-str', p.stats.str);
+    setT('p1-dex', p.stats.dex);
+    setT('p1-int', p.stats.int);
+    setT('p1-class', (p.race ? p.race.name : "") + " " + (p.class ? p.class.name : ""));
     setT('treasury-val', treasuryGold);
-    
-    const elPortrait = document.getElementById('p1-portrait'); 
-    if(elPortrait) elPortrait.style.backgroundImage = `url('${p.portrait}')`;
-    
+
+    const elPortrait = document.getElementById('p1-portrait');
+    if (elPortrait) elPortrait.style.backgroundImage = `url('${p.portrait}')`;
+
+    // Day/Night and Environment
     setT('day-night-indicator', isNight ? "☾ NIGHT" : "☀ DAY");
-    const elDayNight = document.getElementById('day-night-indicator'); 
-    if(elDayNight) { elDayNight.style.color = isNight ? "#a855f7" : "#87ceeb"; }
-    
-    // 3. Turn Banner
-    const cur = players[turnIndex]; 
-    setT('turn-banner', cur.id === myPlayerId ? "YOUR TURN" : `${cur.name}'S TURN`);
-    
+    const elDayNight = document.getElementById('day-night-indicator');
+    if (elDayNight) { elDayNight.style.color = isNight ? "#a855f7" : "#87ceeb"; }
+
+    // 3. Turn Tracker & Main Action Button
+    const curTurnPlayer = players[turnIndex];
+    setT('turn-banner', curTurnPlayer.id === myPlayerId ? "YOUR TURN" : `${curTurnPlayer.name}'S TURN`);
+
     const btnAction = document.getElementById('btn-action');
     if (btnAction) {
         btnAction.disabled = true;
         btnAction.classList.remove('state-end');
-        if (cur.id === myPlayerId) {
-            if (gameState === 'ROLL') { btnAction.disabled = false; btnAction.innerText = "ROLL"; }
-            else if (gameState === 'END') { btnAction.disabled = false; btnAction.classList.add('state-end'); btnAction.innerText = "END TURN"; }
-            else if (gameState === 'MOVING') { btnAction.innerText = "MOVING..."; }
+        if (curTurnPlayer.id === myPlayerId) {
+            if (gameState === 'ROLL') { 
+                btnAction.disabled = false; 
+                btnAction.innerText = "ROLL"; 
+            }
+            else if (gameState === 'END') { 
+                btnAction.disabled = false; 
+                btnAction.classList.add('state-end'); 
+                btnAction.innerText = "END TURN"; 
+            }
+            else if (gameState === 'MOVING') { btnAction.innerText = "..."; }
             else { btnAction.innerText = "WAIT"; }
-        } else { 
-            btnAction.innerText = isMultiplayer ? "WAIT" : "AI"; 
+        } else {
+            btnAction.innerText = isMultiplayer ? "WAIT" : "AI";
         }
     }
+
+    // 4. Customizable Skill Bar (6 Slots)
+    // Pulls from p.assignedSkills which can be changed via the Skill Picker
+    for (let i = 0; i < 6; i++) {
+        const el = document.getElementById(`skill-${i}`);
+        const txt = document.getElementById(`txt-skill-${i}`);
+        if (!el || !txt) continue;
+
+        const skill = p.assignedSkills[i];
+        el.style.backgroundImage = 'none';
+        el.className = 'skill-slot';
+        el.style.opacity = "1";
+
+        if (skill) {
+            // Check depletion (Class skills use p flag, item skills use the item reference)
+            let isDepleted = false;
+            if (skill.isClass) isDepleted = p.classSkillDepleted;
+            else if (skill.ref) isDepleted = skill.ref.isDepleted;
+
+            if (isDepleted) {
+                el.style.opacity = "0.5";
+                txt.innerText = "RECHARGE";
+            } else {
+                el.classList.add('filled');
+                if (skill.isClass) el.style.borderColor = "var(--gold-main)";
+                txt.innerText = skill.name;
+            }
+
+            if (skill.img) el.style.backgroundImage = `url('${skill.img}')`;
+            
+            // Skill Interactions
+            el.onmouseenter = () => showTooltip(skill.isClass ? skill.id : skill.ref, skill.isClass);
+            el.onmouseleave = hideTooltip;
+            
+            // Re-bind Assignment (Right Click / Long Press)
+            el.oncontextmenu = (e) => { e.preventDefault(); openSkillPicker(i); };
+            let pressTimer;
+            el.ontouchstart = () => { pressTimer = setTimeout(() => openSkillPicker(i), 700); };
+            el.ontouchend = () => clearTimeout(pressTimer);
+            el.onclick = () => useSkill(i);
+
+        } else {
+            txt.innerText = (i === 0) ? "CLASS" : "EMPTY";
+            el.oncontextmenu = (e) => { e.preventDefault(); openSkillPicker(i); };
+        }
+    }
+
+    // 5. 10-Slot Percentage Paper Doll (Syncing Sidebar and Modal)
+    EQUIP_ORDER.forEach((slotName) => {
+        const elements = [
+            document.getElementById('slot-' + slotName),    // Sidebar
+            document.getElementById('cd-slot-' + slotName)  // Hero Modal
+        ];
+
+        elements.forEach(el => {
+            if (!el) return;
+            const item = p.equipment[slotName];
+            // Apply new standard classes
+            el.className = 'doll-placement doll-slot'; 
+            el.style.backgroundImage = 'none';
+
+            if (item) {
+                el.classList.add('filled', 'rarity-' + (item.rarity || 'common'));
+                if (item.img) {
+                    el.style.backgroundImage = `url('${item.img}')`;
+                    el.innerText = "";
+                } else {
+                    el.innerText = item.name.substring(0, 5);
+                }
+            } else {
+                el.innerText = slotName.replace('_', ' ').toUpperCase();
+            }
+            // Bind Tooltip and Equip Logic
+            setupItemInteractions(el, slotName, 'equip');
+        });
+    });
+
+    // 6. Inventory Grid (12 Slots)
+    const invDiv = document.getElementById('p1-inv');
+    const cdInvDiv = document.getElementById('cd-inv-grid-new');
     
-    // 4. INVENTORY GRID
-    const invDiv = document.getElementById('p1-inv'); 
-    if(invDiv){ 
-        invDiv.innerHTML = ''; 
-        for(let i=0; i<12; i++){ 
-            let d = document.createElement('div'); 
-            d.className = 'inv-slot'; 
-            d.dataset.idx = i; 
-            d.draggable = true; 
-            
-            d.ondragstart = (e) => { 
-                if(document.getElementById('context-menu').style.display === 'flex') { e.preventDefault(); return; } 
-                dragStart(e, i); 
-            }; 
-            
+    [invDiv, cdInvDiv].forEach(container => {
+        if (!container) return;
+        container.innerHTML = '';
+        for (let i = 0; i < 12; i++) {
+            let d = document.createElement('div');
+            d.className = 'inv-slot';
             const item = p.inventory[i];
-            if(item){ 
+            if (item) {
                 d.classList.add('rarity-' + (item.rarity || 'common'));
-                if(item.img) {
+                if (item.img) {
                     d.style.backgroundImage = `url('${item.img}')`;
-                    d.innerText = ""; 
                 } else {
                     d.innerText = item.name;
-                    d.style.backgroundImage = 'none'; // Clear if no image
                 }
-            } 
-
-            setupItemInteractions(d, i, 'inv');
-            invDiv.appendChild(d); 
-        } 
-    }
-    
-    // 5. LEADERBOARD (Unchanged logic)
-    const lb = document.getElementById('leader-list'); 
-    if(lb){ 
-        lb.innerHTML = ''; 
-        players.forEach(pl => { 
-            let d = document.createElement('div'); 
-            let extraClass = '';
-            if (pl.isBoss) extraClass = (pl.bossType === 'boss') ? ' boss' : ' merchant';
-            else if (pl.isDead) extraClass = ' dead';
-            d.className = 'leader-row' + extraClass; 
-            let icon = '';
-            if (pl.isBoss) icon = (pl.bossType === 'boss') ? '<span class="boss-icon">👹</span>' : '<span class="boss-icon">🎒</span>';
-            let nameSpan = document.createElement('span'); 
-            nameSpan.className = "leader-name"; 
-            nameSpan.style.color = pl.color; 
-            if(pl.id === myPlayerId) nameSpan.style.fontWeight = "900";
-            nameSpan.innerHTML = icon + pl.name; 
-            if(!pl.isDead && !pl.isBoss) { nameSpan.addEventListener('click', function() { openCharDetail(pl.id); }); } 
-            let infoSpan = document.createElement('div');
-            infoSpan.style.display = 'flex'; infoSpan.style.alignItems = 'center'; infoSpan.style.gap = '8px';
-            if (pl.isBoss) {
-                if (pl.bossType === 'boss') infoSpan.innerHTML = `<span style="font-size:0.85rem; color:#ef4444; font-weight:bold;">HP: ${pl.hp} / ${pl.maxHp}</span>`;
-                else infoSpan.innerHTML = `<span style="font-size:0.8rem; color:#a855f7;">MERCHANT</span>`;
-            } else {
-                const camps = tiles.filter(t => t.userData.owner === pl.id && t.userData.buildingLevel === 1).length;
-                const taverns = tiles.filter(t => t.userData.owner === pl.id && t.userData.buildingLevel === 2).length;
-                infoSpan.innerHTML = `<span style="font-size:0.9rem">⛺${camps} 🍺${taverns}</span><span style="font-weight:bold">${pl.isDead ? "DEAD" : pl.gold + "G"}</span>`;
+                setupItemInteractions(d, i, 'inv');
             }
-            d.appendChild(nameSpan); d.appendChild(infoSpan); lb.appendChild(d); 
+            container.appendChild(d);
+        }
+    });
+
+    // 7. Leaderboard List
+    const lb = document.getElementById('leader-list');
+    if (lb) {
+        lb.innerHTML = '';
+        players.forEach(pl => {
+            let d = document.createElement('div');
+            let extraClass = pl.isDead ? ' dead' : (pl.isBoss ? ' boss' : '');
+            d.className = 'leader-row' + extraClass;
+            
+            const camps = tiles.filter(t => t.userData.owner === pl.id && t.userData.buildingLevel === 1).length;
+            const taverns = tiles.filter(t => t.userData.owner === pl.id && t.userData.buildingLevel === 2).length;
+
+            d.innerHTML = `
+                <span style="color:${pl.color}; font-weight:${pl.id === myPlayerId ? '900' : 'normal'}; cursor:pointer;" onclick="openCharDetail(${pl.id})">
+                    ${pl.isBoss ? '👹 ' : ''}${pl.name}
+                </span>
+                <div style="display:flex; gap:8px; align-items:center;">
+                    <span style="font-size:0.8rem; opacity:0.7;">⛺${camps} 🍺${taverns}</span>
+                    <span style="font-weight:bold;">${pl.isDead ? "DEAD" : pl.gold + "G"}</span>
+                </div>
+            `;
+            lb.appendChild(d);
         });
     }
+
+    // 8. Player Stats Widget (Top Right)
+    const myOwned = tiles.filter(t => t.userData.owner === myPlayerId);
+    setT('ms-gold', p.gold);
+    setT('ms-camps', myOwned.filter(t => t.userData.buildingLevel === 1).length);
+    setT('ms-taverns', myOwned.filter(t => t.userData.buildingLevel === 2).length);
     
-    // 6. SKILL BAR (Class Skill)
-    const s0 = document.getElementById('skill-0'); 
-    const txt0 = document.getElementById('txt-skill-0'); 
-    const actSkill = ABILITY_LIBRARY[p.activeSkillId]; 
-    if(actSkill && s0 && txt0) { 
-        if(p.classSkillDepleted) { s0.className="skill-slot"; s0.style.opacity="0.5"; txt0.innerText="Recharge"; } 
-        else { s0.className="skill-slot filled"; s0.style.opacity="1"; txt0.innerText=actSkill.name; } 
-        s0.style.backgroundImage = actSkill.img ? `url('${actSkill.img}')` : 'none';
-        s0.onmouseenter = () => showTooltip(p.activeSkillId, true); 
-        s0.onmouseleave = hideTooltip; 
-    }
-
-    // 7. EQUIPMENT SLOTS (UPDATED FOR PAPER DOLL)
-    EQUIP_ORDER.forEach((slotName, i) => { 
-        const idx = i + 1; 
-        const el = document.getElementById(`skill-${idx}`); 
-        const txt = document.getElementById(`txt-skill-${idx}`); 
-        const item = p.equipment[slotName]; 
-        const dollEl = document.getElementById('slot-'+slotName); 
-        
-        if(dollEl) { 
-            // Reset base classes
-            dollEl.className = 'doll-slot'; // CHANGED from 'equip-slot' to 'doll-slot'
-            dollEl.style.backgroundImage = 'none';
-
-            if (item) {
-                dollEl.classList.add('filled');
-                dollEl.classList.add('rarity-' + (item.rarity || 'common'));
-                
-                if(item.img) {
-                    dollEl.style.backgroundImage = `url('${item.img}')`;
-                    dollEl.innerText = ""; 
-                } else {
-                    dollEl.innerText = item.name.substring(0, 4); // Short name fallback
-                }
-            } else {
-                dollEl.innerText = slotName.toUpperCase();
-            }
-            
-            setupItemInteractions(dollEl, slotName, 'equip');
-        } 
-        
-        // Skill Bar Logic
-        if(el && txt) { 
-            el.style.backgroundImage = 'none'; 
-            if (item) {
-                // If it has a special ability image, use that, else use item image
-                if (item.ability) { 
-                    const libSkill = Object.values(ABILITY_LIBRARY).find(s => s.name === item.ability.name); 
-                    if(libSkill && libSkill.img) el.style.backgroundImage = `url('${libSkill.img}')`; 
-                    else if (item.img) el.style.backgroundImage = `url('${item.img}')`;
-                } else if(item.img) {
-                    el.style.backgroundImage = `url('${item.img}')`;
-                }
-
-                if (item.ability && item.ability.type === 'active') { 
-                    if(item.isDepleted) { el.className = "skill-slot"; el.style.opacity="0.5"; txt.innerText = "Recharge"; } 
-                    else { el.className = "skill-slot filled"; el.style.opacity="1"; txt.innerText = item.ability.name; } 
-                } else { 
-                    el.className = "skill-slot"; el.style.opacity="1"; txt.innerText = item.ability ? item.ability.name : item.name; 
-                }
-                el.onmouseenter = () => showTooltip(item); 
-                el.onmouseleave = hideTooltip; 
-            } else { 
-                el.className = "skill-slot"; el.style.opacity="1"; txt.innerText = "Empty"; 
-                el.onmouseenter = null; el.onmouseleave = null; 
-            }
-        } 
-    });
-    
-    // 8. QUICK SLOTS
-// 8. QUICK SLOTS
-    p.quickSlots.forEach((item, i) => { 
-        const idx = i + 5; 
-        const el = document.getElementById(`skill-${idx}`); 
-        const txt = document.getElementById(`txt-skill-${idx}`); 
-        if(el && txt) { 
-            el.style.backgroundImage = 'none'; 
-            
-            // --- FIX: Check for Inventory OR Permanent Status ---
-            if (item && (p.inventory.includes(item) || item.isPermanent)) { 
-                
-                // Visuals: Grey out if depleted
-                if (item.isDepleted) {
-                    el.className = "skill-slot";
-                    el.style.opacity = "0.5";
-                    txt.innerText = "Recharge";
-                } else {
-                    el.className = "skill-slot" + (item.isPermanent ? " filled" : " consumable"); 
-                    el.style.opacity = "1";
-                    txt.innerText = item.name; 
-                }
-
-                if(item.img) el.style.backgroundImage = `url('${item.img}')`;
-                el.onmouseenter = () => showTooltip(item); 
-                el.onmouseleave = hideTooltip; 
-            } else { 
-                p.quickSlots[i] = null; 
-                el.className = "skill-slot"; txt.innerText = "Drag Item"; 
-                el.onmouseenter = null; el.onmouseleave = null; 
-                el.style.opacity = "1";
-            } 
-        } 
-    });
-    
-    // 9. MY STATS WIDGET
-    const myTiles = tiles.filter(t => t.userData.owner === myPlayerId);
-    const myCamps = myTiles.filter(t => t.userData.buildingLevel === 1).length;
-    const myTaverns = myTiles.filter(t => t.userData.buildingLevel === 2).length;
-    setT('ms-gold', p.gold); setT('ms-camps', myCamps); setT('ms-taverns', myTaverns);
+    // Update Secondary Stats (If labels exist in HTML)
+    const resEl = document.getElementById('p1-res');
+    const movEl = document.getElementById('p1-move');
+    const gfEl = document.getElementById('p1-gf');
+    if (resEl) resEl.innerText = p.stats.resistance || 0;
+    if (movEl) movEl.innerText = "+" + (p.stats.movementBonus || 0);
+    if (gfEl)  gfEl.innerText = "+" + (p.stats.goldFind || 0);
 }
 
 function makeDraggable(elmnt) {
@@ -12569,188 +12925,99 @@ function showModal(t, d, o) {
     
     m.classList.add('active'); 
 }
-function openCharDetail(id) { 
-    // Find player safely
-    const p = players.find(pl => pl.id === id); 
-    if(!p) return; 
+function openCharDetail(id) {
+    const p = players.find(pl => pl.id === id);
+    if (!p) return;
 
-    // --- 1. BUILD HEADER & STATS ---
-    let name = p.name;
-    let subtitle = "";
-    let str=0, dex=0, int=0;
-    
-    if (p.isBoss) {
-        subtitle = (p.bossType === 'boss') ? "Raid Boss" : "Traveling Merchant";
-        if(p.bossType === 'boss') {
-            str = p.hp; dex = p.maxHp; int = p.stats.str;
-        }
-    } else {
-        subtitle = (p.race ? p.race.name : "Unknown") + " " + (p.class ? p.class.name : "Class");
-        str = p.stats.str;
-        dex = p.stats.dex;
-        int = p.stats.int;
-    }
-    
-    let portraitStyle = p.portrait ? `background-image: url('${p.portrait}');` : `background-color: ${p.color};`;
+    // Ensure stats are fresh before opening
+    recalcStats(p);
 
-    // --- 2. BUILD HTML STRUCTURE ---
-    const modalBody = document.querySelector('#char-detail-modal .modal-content');
+    const modal = document.getElementById('char-detail-modal');
+    const container = modal.querySelector('.modal-content');
     
-    let bodyContainer = document.querySelector('#char-detail-modal .card-body');
-    if(!bodyContainer) {
-        bodyContainer = document.createElement('div');
-        bodyContainer.className = 'card-body';
-        modalBody.appendChild(bodyContainer);
-    }
-    
-    bodyContainer.innerHTML = '';
-    bodyContainer.style.padding = '0';
-    bodyContainer.style.background = 'transparent';
-
-    // A. HEADER
-    const headerHtml = `
+    // Build the structural HTML
+    container.innerHTML = `
+        <div class="close-x" onclick="closeCharDetail()">×</div>
         <div class="cs-header-bg">
-            <div class="cs-portrait" style="${portraitStyle}"></div>
+            <div class="cs-portrait" style="background-image: url('${p.portrait}')"></div>
             <div class="cs-info">
-                <div class="cs-name">${name}</div>
-                <div class="cs-class">${subtitle}</div>
+                <div class="cs-name">${p.name}</div>
+                <div class="cs-class">${p.race.name} ${p.class.name}</div>
             </div>
-            <div class="close-x" onclick="closeCharDetail()">×</div>
         </div>
-    `;
 
-    // B. STATS ROW
-    let statsHtml = '';
-    if (!p.isBoss || p.bossType === 'boss') {
-        const lbl1 = p.isBoss ? "HP" : "STR";
-        const lbl2 = p.isBoss ? "MAX" : "DEX";
-        const lbl3 = p.isBoss ? "ATK" : "INT";
-        
-        statsHtml = `
+        <div class="sheet-scroll-area">
             <div class="cs-main-stats">
-                <div class="cs-stat-orb"><span class="cs-stat-val" style="color:#ef4444">${str}</span><span class="cs-stat-label">${lbl1}</span></div>
-                <div class="cs-stat-orb"><span class="cs-stat-val" style="color:#10b981">${dex}</span><span class="cs-stat-label">${lbl2}</span></div>
-                <div class="cs-stat-orb"><span class="cs-stat-val" style="color:#3b82f6">${int}</span><span class="cs-stat-label">${lbl3}</span></div>
+                <div class="cs-stat-orb"><span class="cs-stat-val">${p.stats.str}</span><span class="cs-stat-label">STR</span></div>
+                <div class="cs-stat-orb"><span class="cs-stat-val">${p.stats.dex}</span><span class="cs-stat-label">DEX</span></div>
+                <div class="cs-stat-orb"><span class="cs-stat-val">${p.stats.int}</span><span class="cs-stat-label">INT</span></div>
             </div>
-        `;
-    }
 
-    // C. SKILLS
-    const act = ABILITY_LIBRARY[p.activeSkillId];
-    const pas = ABILITY_LIBRARY[p.passiveSkillId];
-    
-    const buildSkillRow = (lbl, skill, color) => {
-        if(!skill) return '';
-        const img = skill.img ? `<img src="${skill.img}" class="cs-skill-icon">` : `<div class="cs-skill-icon" style="background:${color}"></div>`;
-        return `
-            <div class="cs-skill-row">
-                ${img}
-                <div class="cs-skill-text">
-                    <span class="cs-skill-name" style="color:${color}">${lbl}: ${skill.name}</span>
-                    <span class="cs-skill-desc">${skill.desc}</span>
+            <div class="sec-stat-row">
+                <div class="sec-stat-box"><span class="sec-stat-lbl">MOV:</span> <span class="sec-stat-val">+${p.stats.movementBonus || 0}</span></div>
+                <div class="sec-stat-box"><span class="sec-stat-lbl">G-FIND:</span> <span class="sec-stat-val">+${p.stats.goldFind || 0}</span></div>
+                <div class="sec-stat-box"><span class="sec-stat-lbl">RESIST:</span> <span class="sec-stat-val">${p.stats.resistance || 0}</span></div>
+            </div>
+
+            <div style="padding: 15px;">
+                <div class="paper-doll-container">
+                    <div class="doll-placement doll-img" style="top: 5%; left: 22%; width: 56%; height: 70%;"></div>
+                    
+                    <div id="cd-slot-head" class="doll-placement doll-slot" style="top: 5%; left: 5%;">HEAD</div>
+                    <div id="cd-slot-body" class="doll-placement doll-slot" style="top: 25%; left: 5%;">BODY</div>
+                    <div id="cd-slot-main" class="doll-placement doll-slot" style="top: 45%; left: 5%;">MAIN</div>
+                    <div id="cd-slot-feet" class="doll-placement doll-slot" style="top: 65%; left: 5%;">FEET</div>
+
+                    <div id="cd-slot-back"   class="doll-placement doll-slot" style="top: 5%; right: 5%;">BACK</div>
+                    <div id="cd-slot-amulet" class="doll-placement doll-slot" style="top: 25%; right: 5%;">AMULET</div>
+                    <div id="cd-slot-ring_l" class="doll-placement doll-slot" style="top: 45%; right: 5%;">RING L</div>
+                    <div id="cd-slot-ring_r" class="doll-placement doll-slot" style="top: 65%; right: 5%;">RING R</div>
+
+                    <div id="cd-slot-hands" class="doll-placement doll-slot" style="bottom: 5%; left: 25%;">HANDS</div>
+                    <div id="cd-slot-off"   class="doll-placement doll-slot" style="bottom: 5%; right: 25%;">OFF</div>
                 </div>
-            </div>
-        `;
-    };
 
-    const skillsHtml = `
-        <div class="cs-skills">
-            ${buildSkillRow('Active', act, '#fbbf24')}
-            ${buildSkillRow('Passive', pas, '#a855f7')}
+                ${(p.id === myPlayerId) ? `<button class="hero-sheet-skill-btn" onclick="openSkillPicker(0)">⚡ MANAGE SKILLS</button>` : ''}
+                
+                <div style="margin-top:20px; font-size:0.9rem; color:var(--gold-main); font-family:var(--font-head); border-bottom:1px solid #333; padding-bottom:5px;">INVENTORY</div>
+                <div id="cd-inv-grid-new" class="inv-grid" style="margin-top:10px;"></div>
+            </div>
         </div>
     `;
 
-    // D. METRICS
-    let metricsHtml = '';
-    if (!p.isBoss && !p.isEventEntity) {
-        const camps = tiles.filter(t => t.userData.owner === p.id && t.userData.buildingLevel === 1).length;
-        const taverns = tiles.filter(t => t.userData.owner === p.id && t.userData.buildingLevel === 2).length;
-        const guards = p.metrics.guardsHired || 0;
-        const sieges = p.metrics.successfulSieges || 0;
-        
-        metricsHtml = `
-            <div class="cs-metrics">
-                <div class="cs-metric-box"><span class="cs-metric-lbl">⛺ Camps</span><span class="cs-metric-val">${camps}</span></div>
-                <div class="cs-metric-box"><span class="cs-metric-lbl">🍺 Taverns</span><span class="cs-metric-val">${taverns}</span></div>
-                <div class="cs-metric-box"><span class="cs-metric-lbl">🛡️ Hired</span><span class="cs-metric-val">${guards}</span></div>
-                <div class="cs-metric-box"><span class="cs-metric-lbl">⚔️ Wins</span><span class="cs-metric-val">${sieges}</span></div>
-            </div>
-        `;
-    }
-
-    // E. INVENTORY & PAPER DOLL (Human Only - View Only for others)
-    let invHtml = '';
-    
-    // Updated Paper Doll HTML for Detail View
-    invHtml = `
-    <div style="padding: 10px; text-align:center;">
-        <div class="paper-doll-container" style="transform: scale(0.9); margin: 0 auto;">
-            <div id="cd-slot-head" class="doll-slot">HEAD</div>
-            <div id="cd-slot-body" class="doll-slot">BODY</div>
-            <div id="cd-slot-main" class="doll-slot">MAIN</div>
-            <div id="cd-slot-off" class="doll-slot">OFF</div>
-        </div>
-    </div>
-    <div style="padding: 0 20px 20px 20px;">
-        <div style="font-size:0.8rem; color:#aaa; margin-bottom:5px; text-transform:uppercase;">Inventory</div>
-        <div id="cd-inv-grid-new" class="inv-grid" style="max-height:150px;"></div>
-    </div>`;
-
-    // COMBINE
-    bodyContainer.innerHTML = headerHtml + statsHtml + skillsHtml + metricsHtml + invHtml;
-
-    // --- 3. POPULATE SLOTS & INVENTORY ---
-    // Populate Equip Slots
-    ['head','body','main','off'].forEach(slot => {
+    // Populate Equipment Slots
+    EQUIP_ORDER.forEach(slot => {
         const item = p.equipment[slot];
-        const el = document.getElementById('cd-slot-' + slot);
-        if(el) {
-            el.style.backgroundImage = 'none';
+        const slotEl = document.getElementById('cd-slot-' + slot);
+        if (slotEl) {
             if (item) {
-                el.classList.add('filled');
-                el.classList.add('rarity-' + (item.rarity || 'common'));
-                if(item.img) {
-                    el.style.backgroundImage = `url('${item.img}')`;
-                    el.innerText = "";
-                } else {
-                    el.innerText = item.name.substring(0, 4);
-                }
-                // Only allow interaction if it's ME
-                if(p.id === myPlayerId) {
-                     // Add click handlers if you want edit capability here
-                }
-            } else {
-                el.innerText = slot.toUpperCase();
+                slotEl.classList.add('filled', 'rarity-' + (item.rarity || 'common'));
+                slotEl.style.backgroundImage = item.img ? `url('${item.img}')` : 'none';
+                slotEl.innerText = "";
+                slotEl.onclick = () => showTooltip(item);
             }
         }
     });
 
-    // Populate Inventory
-    const grid = document.getElementById('cd-inv-grid-new');
-    if(grid) {
-        p.inventory.forEach(item => {
+    // Build and Populate 12-Slot Inventory Grid
+    const invGrid = document.getElementById('cd-inv-grid-new');
+    if (invGrid) {
+        invGrid.innerHTML = '';
+        for (let i = 0; i < 12; i++) {
             let d = document.createElement('div');
-            d.className = 'inv-slot rarity-' + (item.rarity || 'common');
-            if(item.img) {
-                d.style.backgroundImage = `url('${item.img}')`;
-            } else {
-                d.innerText = item.name;
+            d.className = 'inv-slot';
+            const item = p.inventory[i];
+            if (item) {
+                d.classList.add('rarity-' + (item.rarity || 'common'));
+                d.style.backgroundImage = item.img ? `url('${item.img}')` : 'none';
+                d.innerText = item.img ? "" : item.name.substring(0, 5);
+                d.onclick = () => showTooltip(item);
             }
-            d.onclick = () => showTooltip(item);
-            grid.appendChild(d);
-        });
-        // Fill empty slots
-        for(let i=p.inventory.length; i<12; i++) {
-            let d = document.createElement('div'); d.className = 'inv-slot'; grid.appendChild(d);
+            invGrid.appendChild(d);
         }
     }
 
-    const modal = document.getElementById('char-detail-modal');
-    if(modal) {
-        modal.classList.add('active');
-        const oldClose = modal.querySelector(':scope > .close-x');
-        if(oldClose) oldClose.style.display = 'none';
-    }
+    modal.classList.add('active');
 }
 //if(invSection) invSection.style.display = 'block'; if(hiddenMsg) hiddenMsg.style.display = 'none'; ['head','body','main','off'].forEach(slot => { const item = p.equipment[slot]; const el = document.getElementById('cd-slot-'+slot); if(el) { el.innerHTML = item ? item.name : slot.toUpperCase(); el.className = 'equip-slot' + (item ? ' filled' : ''); if(item) { el.onmouseenter = () => showTooltip(item); el.onmouseleave = hideTooltip; } else { el.onmouseenter = null; } } }); const grid = document.getElementById('cd-inv-grid'); if(grid) { grid.innerHTML = ''; p.inventory.forEach(item => { let d = document.createElement('div'); d.className = 'inv-slot'; d.innerText = item.name; d.classList.add('rarity-' + item.rarity); d.onmouseenter = () => showTooltip(item); d.onmouseleave = hideTooltip; grid.appendChild(d); }); for(let i=p.inventory.length; i<12; i++) { let d = document.createElement('div'); d.className = 'inv-slot'; grid.appendChild(d); } } } else { if(invSection) invSection.style.display = 'none'; if(hiddenMsg) hiddenMsg.style.display = 'block'; } const modal = document.getElementById('char-detail-modal'); if(modal) modal.classList.add('active'); }
 function closeCharDetail() { document.getElementById('char-detail-modal').classList.remove('active'); hideTooltip(); }
