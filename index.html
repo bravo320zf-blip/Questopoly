@@ -972,8 +972,15 @@ Because you do not have a backend server listening for automatic receipts (Webho
     display: flex;
     align-items: center;
     gap: 4px;
-    font-size: 0.75rem; /* Smaller than main stats */
+    font-size: 0.75rem;
     color: #94a3b8;
+    cursor: help; /* Shows a question mark on hover (PC) */
+    padding: 2px 5px;
+    border-radius: 4px;
+}
+
+.sec-stat-box:hover {
+    background: rgba(255, 255, 255, 0.1);
 }
 
 .sec-stat-val {
@@ -1876,16 +1883,21 @@ Because you do not have a backend server listening for automatic receipts (Webho
 </div>
 
 <!-- NEW: SECONDARY STAT ROW -->
+<!-- Inside #p1-sheet in the actual HTML section of your file -->
+<!-- Inside #p1-sheet -->
 <div class="sec-stat-row">
-    <div class="sec-stat-box">
+    <div class="sec-stat-box" 
+         onmouseenter="showStatTooltip('mov')" onmouseleave="hideTooltip()" onclick="showStatTooltip('mov')">
         <span class="sec-stat-lbl">MOV</span>
         <span id="p1-move" class="sec-stat-val">+0</span>
     </div>
-    <div class="sec-stat-box">
+    <div class="sec-stat-box" 
+         onmouseenter="showStatTooltip('gf')" onmouseleave="hideTooltip()" onclick="showStatTooltip('gf')">
         <span class="sec-stat-lbl">GF</span>
         <span id="p1-gf" class="sec-stat-val">+0</span>
     </div>
-    <div class="sec-stat-box">
+    <div class="sec-stat-box" 
+         onmouseenter="showStatTooltip('res')" onmouseleave="hideTooltip()" onclick="showStatTooltip('res')">
         <span class="sec-stat-lbl">RES</span>
         <span id="p1-res" class="sec-stat-val">0</span>
     </div>
@@ -6780,6 +6792,35 @@ const AUDIO = {
     }
 };
 
+function showStatTooltip(type) {
+    const tt = document.getElementById('tooltip');
+    let title = "", desc = "", color = "";
+
+    switch(type) {
+        case 'mov':
+            title = "MOVEMENT";
+            desc = "Adds extra spaces to your roll. (From Boots or Shadow Step)";
+            color = "#10b981";
+            break;
+        case 'gf':
+            title = "GOLD FIND";
+            desc = "Bonus gold from Coins, Chests, and Bags.";
+            color = "#fbbf24";
+            break;
+        case 'res':
+            title = "RESISTANCE";
+            desc = "Reduces gold lost to Rent, Theft, and enemy spells.";
+            color = "#3b82f6";
+            break;
+    }
+
+    tt.innerHTML = `
+        <div class="tt-header"><span class="tt-name" style="color:${color}">${title}</span></div>
+        <div class="tt-stat" style="color:#aaa; font-style:italic; border:none; margin-top:5px;">${desc}</div>
+    `;
+    tt.style.display = 'block';
+}
+
 function debugLog(msg) {
     // Only log if the overlay is visible
     const overlay = document.getElementById('debug-log-overlay');
@@ -6826,31 +6867,29 @@ function updateCamera() {
     camera.lookAt(0, 0, 0);
 }
 
-function presentLootUI(p, item) {
+function presentLootUI(p, item, canDonate = true) {
     const m = document.getElementById('card-modal');
     const header = document.getElementById('enc-header');
     
-    // 1. Setup Header & Title
     header.className = 'card-header loot';
     document.getElementById('enc-title').innerText = "Treasure Found!";
     
-    // 2. Generate Content
     const rarityColor = getRarityColor(item.rarity || 'common');
     const sellVal = Math.floor((item.cost || 100) / 2);
     
-    // Image
     let imgHtml = "";
     if (item.img) imgHtml = `<img src="${item.img}" style="width:120px; height:120px; border:2px solid ${rarityColor}; border-radius:8px; margin: 10px auto; display:block; background:#000;">`;
     
-    // Stats / Ability Text
     let statsHtml = "";
-    if (item.bonus) Object.keys(item.bonus).forEach(k => { statsHtml += `<div style="color:#10b981">+${item.bonus[k]} ${k.toUpperCase()}</div>`; });
-    if (item.ability) statsHtml += `<div style="color:#fbbf24; margin-top:5px;">${item.ability.name}: ${item.ability.desc}</div>`;
-    else if (item.type === 'scroll') statsHtml += `<div style="color:#fbbf24; margin-top:5px;">${item.desc}</div>`;
+    if (item.bonus) Object.keys(item.bonus).forEach(k => { statsHtml += `<div class="tt-stat" style="color:#ef4444">+${item.bonus[k]} ${k.toUpperCase()}</div>`; });
+    if (item.moveBonus) statsHtml += `<div class="tt-stat" style="color:#10b981">+${item.moveBonus} MOVEMENT</div>`;
+    if (item.goldFind) statsHtml += `<div class="tt-stat" style="color:#fbbf24">+${item.goldFind} GOLD FIND</div>`;
+    if (item.resistance) statsHtml += `<div class="tt-stat" style="color:#3b82f6">+${item.resistance} RESISTANCE</div>`;
+    
+    if (item.ability) statsHtml += `<div class="tt-abil" style="color:var(--gold-glow); margin-top:5px;">${item.ability.name}: ${item.ability.desc}</div>`;
+    else if (item.type === 'scroll') statsHtml += `<div class="tt-stat" style="color:#fbbf24; margin-top:5px;">${item.desc}</div>`;
 
-    // Dynamic Flavor
     const flavor = getFlavorText(item.name);
-
     document.getElementById('enc-desc').innerHTML = `
         ${imgHtml}
         <div style="font-size:1.4rem; font-weight:bold; color:${rarityColor}; margin-bottom:5px;">${item.name}</div>
@@ -6859,7 +6898,6 @@ function presentLootUI(p, item) {
     `;
 
     document.getElementById('dice-result').innerHTML = '';
-    document.getElementById('market-sell-area').style.display = 'none';
     const l = document.getElementById('choice-list');
     l.innerHTML = '';
 
@@ -6875,16 +6913,8 @@ function presentLootUI(p, item) {
         p.inventory.push(item);
         addLog(`${p.name} kept ${item.name}.`, "log-success");
         
-        // Alchemist Bonus
-        if (item.name === "Pouch of Gold" && p.passiveSkillId === 'alchemist_pas') {
-            addLog("Alchemist: Bonus Loot found!", "log-epic");
-            m.classList.remove('active');
-            setTimeout(() => {
-                const extra = createItemInstance(DECK_TREASURE[Math.floor(Math.random() * DECK_TREASURE.length)]);
-                presentLootUI(p, extra);
-            }, 500);
-            return;
-        }
+        // SYNC: Tell everyone I have this new item (Important for Redraws!)
+        if (isMultiplayer) syncPlayerState(); 
         
         finishLoot();
     };
@@ -6897,81 +6927,80 @@ function presentLootUI(p, item) {
     btnSell.onclick = () => {
         p.gold += sellVal;
         addLog(`${p.name} sold ${item.name} for ${sellVal}G.`, "log-gold");
+        
+        // SYNC: Update gold balance for everyone
+        if (isMultiplayer) syncPlayerState(); 
+        
         finishLoot();
     };
     l.appendChild(btnSell);
 
-    // --- BUTTON 3: DONATE ---
-    const btnDonate = document.createElement('div');
-    btnDonate.className = 'choice-btn';
-    btnDonate.style.borderColor = '#a855f7'; // Purple border
-    btnDonate.innerHTML = `<span>DONATE</span> <span style="font-size:0.8rem; color:#d8b4fe;">Gift to King & Re-Draw</span>`;
-    btnDonate.onclick = () => {
-        treasuryGold += sellVal;
-        addLog(`${p.name} donated to Treasury! (+${sellVal}G to Pot)`, "log-rare");
-        
-        // Sync Treasury immediately if Host
-        if (isMultiplayer && (myPlayerId === 0 || p.id === myPlayerId)) {
-            db.ref(`games/${gameId}/treasury`).set(treasuryGold);
-        }
-        
-        m.classList.remove('active');
-        
-        // Draw New Card immediately
-        setTimeout(() => {
-            addLog("The King sends a gift in return...", "log-epic");
-            const newItem = createItemInstance(DECK_TREASURE[Math.floor(Math.random() * DECK_TREASURE.length)]);
-            drawCardAnim('treasure', () => presentLootUI(p, newItem));
-        }, 600);
-    };
-    l.appendChild(btnDonate);
+    // --- BUTTON 3: DONATE (1-Time Limit) ---
+    if (canDonate) {
+        const btnDonate = document.createElement('div');
+        btnDonate.className = 'choice-btn';
+        btnDonate.style.borderColor = '#a855f7';
+        btnDonate.innerHTML = `<span>DONATE</span> <span style="font-size:0.8rem; color:#d8b4fe;">Gift to King & Re-Draw</span>`;
+        btnDonate.onclick = () => {
+            // Update local value
+            treasuryGold += sellVal;
+            addLog(`${p.name} donated to Treasury! (+${sellVal}G to Pot)`, "log-rare");
+            
+            // MULTIPLAYER SYNC: Non-host players must update the global Treasury in DB
+            if (isMultiplayer && gameId && db) {
+                db.ref(`games/${gameId}/treasury`).set(treasuryGold);
+                // Also sync gold in case penalties were applied
+                syncPlayerState(); 
+            }
+            
+            m.classList.remove('active');
+            
+            setTimeout(() => {
+                addLog("The King sends a final gift in return...", "log-epic");
+                const newItem = createItemInstance(DECK_TREASURE[Math.floor(Math.random() * DECK_TREASURE.length)]);
+                
+                // Draw animation and then show UI with canDonate = false
+                drawCardAnim('treasure', () => presentLootUI(p, newItem, false));
+            }, 600);
+        };
+        l.appendChild(btnDonate);
+    }
 
-    // Helper to cleanup
     const finishLoot = () => {
         updateHUD();
-        if (isMultiplayer) syncPlayerState();
         m.classList.remove('active');
         endStep();
     };
 
     m.classList.add('active');
+    lastInteractionTime = Date.now(); // Reset AFK timer
 }
 
-function handleAiLoot(p, item) {
+function handleAiLoot(p, item, canDonate = true) {
     const sellVal = Math.floor((item.cost || 100) / 2);
     let action = 'keep';
 
-    // 1. ALWAYS KEEP CONSUMABLES
     if (item.type === 'scroll' || item.name === 'Pouch of Gold') {
         action = 'keep';
     } 
-    // 2. EQUIPMENT LOGIC
     else if (item.type === 'equip') {
         const current = p.equipment[item.slot];
-        
-        // If slot is empty, keep it
         if (!current) {
             action = 'keep';
         } else {
-            // Compare Stats (Simple Rarity Check as requested)
             const rarityMap = { 'common': 1, 'rare': 2, 'epic': 3, 'legendary': 4 };
-            const newRarity = rarityMap[item.rarity || 'common'];
-            const oldRarity = rarityMap[current.rarity || 'common'];
-
-            if (newRarity > oldRarity) {
+            if (rarityMap[item.rarity] > rarityMap[current.rarity]) {
                 action = 'keep';
             } else {
-                // Determine discard action: 50/50 Sell or Donate
-                action = (Math.random() > 0.5) ? 'sell' : 'donate';
+                // Only choose Donate if the flag is true, otherwise force Sell
+                action = (canDonate && Math.random() > 0.5) ? 'donate' : 'sell';
             }
         }
     }
 
-    // --- EXECUTE ACTION ---
     if (action === 'keep') {
         p.inventory.push(item);
         addLog(`${p.name} kept ${item.name}.`, "log-success");
-        // Auto-Equip logic will handle swapping later in endTurn
         if (isMultiplayer && myPlayerId === 0) syncPlayerState();
         endStep();
     } 
@@ -6984,16 +7013,12 @@ function handleAiLoot(p, item) {
     else if (action === 'donate') {
         treasuryGold += sellVal;
         addLog(`${p.name} donated ${item.name} to the King!`, "log-rare");
+        if (isMultiplayer && myPlayerId === 0) db.ref(`games/${gameId}/treasury`).set(treasuryGold);
         
-        if (isMultiplayer && myPlayerId === 0) {
-            db.ref(`games/${gameId}/treasury`).set(treasuryGold);
-            syncPlayerState();
-        }
-        
-        // RE-DRAW (Recursion)
         setTimeout(() => {
             const newItem = createItemInstance(DECK_TREASURE[Math.floor(Math.random() * DECK_TREASURE.length)]);
-            handleAiLoot(p, newItem);
+            // Pass FALSE for canDonate
+            handleAiLoot(p, newItem, false);
         }, 1000);
     }
 }
@@ -10070,70 +10095,43 @@ function openSkillPicker(slotIdx, currentTab = 'active') {
     const modal = document.getElementById('skill-picker-modal');
     const container = modal.querySelector('.modal-content');
     
-    // 1. Rebuild Modal Inner Structure (with Tabs)
     container.innerHTML = `
         <div class="close-x" onclick="document.getElementById('skill-picker-modal').style.display='none'">×</div>
         <h2 style="color:var(--gold-main); padding:20px 0 10px 20px; margin:0;">Hero Skills</h2>
-        
         <div class="skill-tabs">
             <div class="skill-tab ${currentTab === 'active' ? 'active' : ''}" onclick="openSkillPicker(${slotIdx}, 'active')">ACTIVES</div>
             <div class="skill-tab ${currentTab === 'passive' ? 'active' : ''}" onclick="openSkillPicker(${slotIdx}, 'passive')">PASSIVES</div>
         </div>
-
-        <div id="skill-picker-list" style="padding: 20px; overflow-y: auto; flex-grow: 1; max-height: 400px;">
-            <!-- Skills injected here -->
-        </div>
+        <div id="skill-picker-list" style="padding: 20px; overflow-y: auto; flex-grow: 1; max-height: 400px;"></div>
     `;
 
     const list = document.getElementById('skill-picker-list');
     modal.style.display = 'flex';
-
-    // 2. Gather All Skills from Class and Equipment
     const allSkills = [];
 
-    // Add Class Skills
-    allSkills.push({
-        ...ABILITY_LIBRARY[p.activeSkillId],
-        source: "Class Ability",
-        isClass: true,
-        type: 'active'
-    });
-    allSkills.push({
-        ...ABILITY_LIBRARY[p.passiveSkillId],
-        source: "Class Passive",
-        isClass: true,
-        type: 'passive'
-    });
+    allSkills.push({ ...ABILITY_LIBRARY[p.activeSkillId], id: p.activeSkillId, source: "Class Ability", isClass: true, type: 'active' });
+    allSkills.push({ ...ABILITY_LIBRARY[p.passiveSkillId], id: p.passiveSkillId, source: "Class Passive", isClass: true, type: 'passive' });
 
-    // Add Equipment Skills
     EQUIP_ORDER.forEach(slot => {
         const item = p.equipment[slot];
-        if (item) {
-            if (item.ability) {
-                allSkills.push({
-                    ...item.ability,
-                    id: item.uid,
-                    source: item.name,
-                    img: item.img || item.ability.img,
-                    isClass: false,
-                    ref: item,
-                    type: item.ability.type || 'active'
-                });
-            }
+        if (item && item.ability) {
+            const libEntry = Object.values(ABILITY_LIBRARY).find(s => s.name === item.ability.name);
+            allSkills.push({
+                ...item.ability,
+                id: item.uid,
+                source: item.name,
+                img: libEntry ? libEntry.img : item.img,
+                isClass: false,
+                ref: item,
+                type: item.ability.type || 'active'
+            });
         }
     });
 
-    // 3. Filter and Render based on Active Tab
     const filtered = allSkills.filter(s => s.type === currentTab);
-
-    if (filtered.length === 0) {
-        list.innerHTML = `<div style="text-align:center; color:#666; padding:20px;">No ${currentTab} skills available.</div>`;
-    }
-
     filtered.forEach(skill => {
         const div = document.createElement('div');
         div.className = `skill-pick-item ${skill.isClass ? 'is-class' : ''}`;
-        
         div.innerHTML = `
             <div class="skill-pick-icon" style="background-image: url('${skill.img}')"></div>
             <div class="skill-pick-info">
@@ -10141,10 +10139,7 @@ function openSkillPicker(slotIdx, currentTab = 'active') {
                 <div class="skill-pick-name">${skill.name}</div>
                 <div class="skill-pick-desc">${skill.desc}</div>
             </div>
-            ${currentTab === 'active' ? '<div style="font-size:0.7rem; color:var(--gold-main); font-weight:bold;">[SELECT]</div>' : ''}
         `;
-
-        // Only allow clicking/assigning if it's an ACTIVE skill
         if (currentTab === 'active') {
             div.onclick = () => {
                 p.assignedSkills[slotIdx] = skill;
@@ -10152,10 +10147,7 @@ function openSkillPicker(slotIdx, currentTab = 'active') {
                 modal.style.display = 'none';
                 if (isMultiplayer) syncPlayerState();
             };
-        } else {
-            div.style.cursor = 'default';
         }
-
         list.appendChild(div);
     });
 }
@@ -12624,8 +12616,7 @@ function updateHUD() {
         }
     }
 
-    // 4. Customizable Skill Bar (6 Slots)
-    // Pulls from p.assignedSkills which can be changed via the Skill Picker
+// 4. Customizable Skill Bar (6 Slots)
     for (let i = 0; i < 6; i++) {
         const el = document.getElementById(`skill-${i}`);
         const txt = document.getElementById(`txt-skill-${i}`);
@@ -12637,10 +12628,7 @@ function updateHUD() {
         el.style.opacity = "1";
 
         if (skill) {
-            // Check depletion (Class skills use p flag, item skills use the item reference)
-            let isDepleted = false;
-            if (skill.isClass) isDepleted = p.classSkillDepleted;
-            else if (skill.ref) isDepleted = skill.ref.isDepleted;
+            let isDepleted = skill.isClass ? p.classSkillDepleted : (skill.ref ? skill.ref.isDepleted : false);
 
             if (isDepleted) {
                 el.style.opacity = "0.5";
@@ -12651,22 +12639,18 @@ function updateHUD() {
                 txt.innerText = skill.name;
             }
 
-            if (skill.img) el.style.backgroundImage = `url('${skill.img}')`;
+            // This line ensures the Skill Art (Dash, Fireball, etc) shows on the bar
+            if (skill.img) {
+                el.style.backgroundImage = `url('${skill.img}')`;
+                el.style.backgroundSize = "cover";
+            }
             
-            // Skill Interactions
+            // Interaction logic...
             el.onmouseenter = () => showTooltip(skill.isClass ? skill.id : skill.ref, skill.isClass);
             el.onmouseleave = hideTooltip;
-            
-            // Re-bind Assignment (Right Click / Long Press)
-            el.oncontextmenu = (e) => { e.preventDefault(); openSkillPicker(i); };
-            let pressTimer;
-            el.ontouchstart = () => { pressTimer = setTimeout(() => openSkillPicker(i), 700); };
-            el.ontouchend = () => clearTimeout(pressTimer);
             el.onclick = () => useSkill(i);
-
         } else {
             txt.innerText = (i === 0) ? "CLASS" : "EMPTY";
-            el.oncontextmenu = (e) => { e.preventDefault(); openSkillPicker(i); };
         }
     }
 
@@ -12889,13 +12873,14 @@ function openCharDetail(id) {
     const p = players.find(pl => pl.id === id);
     if (!p) return;
 
-    // Ensure stats are fresh before opening
+    // Refresh stats to ensure bonuses like Shadow Step are calculated
     recalcStats(p);
 
     const modal = document.getElementById('char-detail-modal');
     const container = modal.querySelector('.modal-content');
     
-    // Build the structural HTML
+    // THE FIX: The line below starts with a BACKTICK (`). 
+    // Do not change it to a single quote (') or it will break again.
     container.innerHTML = `
         <div class="close-x" onclick="closeCharDetail()">×</div>
         <div class="cs-header-bg">
@@ -12907,32 +12892,53 @@ function openCharDetail(id) {
         </div>
 
         <div class="sheet-scroll-area">
+            <!-- PRIMARY STATS -->
             <div class="cs-main-stats">
-                <div class="cs-stat-orb"><span class="cs-stat-val">${p.stats.str}</span><span class="cs-stat-label">STR</span></div>
-                <div class="cs-stat-orb"><span class="cs-stat-val">${p.stats.dex}</span><span class="cs-stat-label">DEX</span></div>
-                <div class="cs-stat-orb"><span class="cs-stat-val">${p.stats.int}</span><span class="cs-stat-label">INT</span></div>
+                <div class="cs-stat-orb">
+                    <span class="cs-stat-val">${p.stats.str}</span>
+                    <span class="cs-stat-label">STR</span>
+                </div>
+                <div class="cs-stat-orb">
+                    <span class="cs-stat-val">${p.stats.dex}</span>
+                    <span class="cs-stat-label">DEX</span>
+                </div>
+                <div class="cs-stat-orb">
+                    <span class="cs-stat-val">${p.stats.int}</span>
+                    <span class="cs-stat-label">INT</span>
+                </div>
             </div>
 
+            <!-- SECONDARY STATS ROW -->
             <div class="sec-stat-row">
-                <div class="sec-stat-box"><span class="sec-stat-lbl">MOV:</span> <span class="sec-stat-val">+${p.stats.movementBonus || 0}</span></div>
-                <div class="sec-stat-box"><span class="sec-stat-lbl">G-FIND:</span> <span class="sec-stat-val">+${p.stats.goldFind || 0}</span></div>
-                <div class="sec-stat-box"><span class="sec-stat-lbl">RESIST:</span> <span class="sec-stat-val">${p.stats.resistance || 0}</span></div>
+                <div class="sec-stat-box" 
+                     onmouseenter="showStatTooltip('mov')" onmouseleave="hideTooltip()" onclick="showStatTooltip('mov')">
+                    <span class="sec-stat-lbl">MOV:</span> 
+                    <span class="sec-stat-val">+${p.stats.movementBonus || 0}</span>
+                </div>
+                <div class="sec-stat-box" 
+                     onmouseenter="showStatTooltip('gf')" onmouseleave="hideTooltip()" onclick="showStatTooltip('gf')">
+                    <span class="sec-stat-lbl">G-FIND:</span> 
+                    <span class="sec-stat-val">+${p.stats.goldFind || 0}</span>
+                </div>
+                <div class="sec-stat-box" 
+                     onmouseenter="showStatTooltip('res')" onmouseleave="hideTooltip()" onclick="showStatTooltip('res')">
+                    <span class="sec-stat-lbl">RESIST:</span> 
+                    <span class="sec-stat-val">${p.stats.resistance || 0}</span>
+                </div>
             </div>
 
             <div style="padding: 15px;">
+                <!-- PAPER DOLL -->
                 <div class="paper-doll-container">
                     <div class="doll-placement doll-img" style="top: 5%; left: 22%; width: 56%; height: 70%;"></div>
-                    
                     <div id="cd-slot-head" class="doll-placement doll-slot" style="top: 5%; left: 5%;">HEAD</div>
                     <div id="cd-slot-body" class="doll-placement doll-slot" style="top: 25%; left: 5%;">BODY</div>
                     <div id="cd-slot-main" class="doll-placement doll-slot" style="top: 45%; left: 5%;">MAIN</div>
                     <div id="cd-slot-feet" class="doll-placement doll-slot" style="top: 65%; left: 5%;">FEET</div>
-
                     <div id="cd-slot-back"   class="doll-placement doll-slot" style="top: 5%; right: 5%;">BACK</div>
                     <div id="cd-slot-amulet" class="doll-placement doll-slot" style="top: 25%; right: 5%;">AMULET</div>
                     <div id="cd-slot-ring_l" class="doll-placement doll-slot" style="top: 45%; right: 5%;">RING L</div>
                     <div id="cd-slot-ring_r" class="doll-placement doll-slot" style="top: 65%; right: 5%;">RING R</div>
-
                     <div id="cd-slot-hands" class="doll-placement doll-slot" style="bottom: 5%; left: 25%;">HANDS</div>
                     <div id="cd-slot-off"   class="doll-placement doll-slot" style="bottom: 5%; right: 25%;">OFF</div>
                 </div>
@@ -12945,21 +12951,19 @@ function openCharDetail(id) {
         </div>
     `;
 
-    // Populate Equipment Slots
+    // Populate Equipment
     EQUIP_ORDER.forEach(slot => {
         const item = p.equipment[slot];
         const slotEl = document.getElementById('cd-slot-' + slot);
-        if (slotEl) {
-            if (item) {
-                slotEl.classList.add('filled', 'rarity-' + (item.rarity || 'common'));
-                slotEl.style.backgroundImage = item.img ? `url('${item.img}')` : 'none';
-                slotEl.innerText = "";
-                slotEl.onclick = () => showTooltip(item);
-            }
+        if (slotEl && item) {
+            slotEl.classList.add('filled', 'rarity-' + (item.rarity || 'common'));
+            slotEl.style.backgroundImage = `url('${item.img}')`;
+            slotEl.innerText = "";
+            slotEl.onclick = () => showTooltip(item);
         }
     });
 
-    // Build and Populate 12-Slot Inventory Grid
+    // Populate Inventory
     const invGrid = document.getElementById('cd-inv-grid-new');
     if (invGrid) {
         invGrid.innerHTML = '';
@@ -12969,8 +12973,8 @@ function openCharDetail(id) {
             const item = p.inventory[i];
             if (item) {
                 d.classList.add('rarity-' + (item.rarity || 'common'));
-                d.style.backgroundImage = item.img ? `url('${item.img}')` : 'none';
-                d.innerText = item.img ? "" : item.name.substring(0, 5);
+                d.style.backgroundImage = `url('${item.img}')`;
+                d.innerText = "";
                 d.onclick = () => showTooltip(item);
             }
             invGrid.appendChild(d);
@@ -13037,20 +13041,13 @@ function hideTooltip() { document.getElementById('tooltip').style.display = 'non
 document.addEventListener('mousemove', (e) => { 
     const tt = document.getElementById('tooltip'); 
     if (tt && tt.style.display === 'block') { 
-        const pad = 20; // Increased padding to prevent cursor overlap
-        
+        const pad = 15;
         let left = e.clientX + pad; 
         let top = e.clientY + pad; 
         
-        // Prevent going off right screen edge
-        if (left + tt.offsetWidth > window.innerWidth) {
-            left = e.clientX - tt.offsetWidth - pad; 
-        }
-        
-        // Prevent going off bottom screen edge
-        if (top + tt.offsetHeight > window.innerHeight) {
-            top = e.clientY - tt.offsetHeight - pad; 
-        }
+        // Boundaries to keep it on screen
+        if (left + tt.offsetWidth > window.innerWidth) left = e.clientX - tt.offsetWidth - pad; 
+        if (top + tt.offsetHeight > window.innerHeight) top = e.clientY - tt.offsetHeight - pad; 
         
         tt.style.left = left + 'px'; 
         tt.style.top = top + 'px'; 
@@ -13823,29 +13820,32 @@ function hydrateItem(item) {
 function recalcStats(p) {
     if (!p || p.isBoss || p.isEventEntity || !p.race) return;
 
-    // 1. Base Stats
+    // 1. Reset to Base Stats + Permanent Bonuses
     p.stats.str = p.race.stats.str + (p.permBonuses?.str || 0);
     p.stats.dex = p.race.stats.dex + (p.permBonuses?.dex || 0);
     p.stats.int = p.race.stats.int + (p.permBonuses?.int || 0);
     
-    // 2. Reset Secondaries
+    // 2. Reset Secondary Stats to 0
     p.stats.movementBonus = 0;
     p.stats.goldFind = 0;
     p.stats.resistance = 0;
 
-    // 3. Equipment
+    // 3. Process Equipment
     EQUIP_ORDER.forEach(slot => {
         const item = p.equipment[slot];
         if (!item) return;
 
+        // Primary Stats
         if (['body', 'main', 'off'].includes(slot) && item.bonus) {
             Object.keys(item.bonus).forEach(k => {
                 if (p.stats[k] !== undefined) p.stats[k] += item.bonus[k];
             });
         }
 
+        // Secondary: Movement
         if (slot === 'feet' && item.moveBonus) p.stats.movementBonus += item.moveBonus;
 
+        // Secondary: GF & Res
         if (['head', 'feet', 'hands', 'ring_l', 'ring_r', 'amulet', 'back'].includes(slot)) {
             if (item.goldFind) p.stats.goldFind += item.goldFind;
             if (item.resistance) p.stats.resistance += item.resistance;
@@ -13856,13 +13856,16 @@ function recalcStats(p) {
     const pas = ABILITY_LIBRARY[p.passiveSkillId]; 
     if (pas && pas.effect) pas.effect(p.stats);
     
-    // SHADOW STEP SOURCE
+    // Shadow Step Movement Bonus
     if (p.passiveSkillId === 'shadow_step') {
         p.stats.movementBonus += 1;
     }
 
-    // 5. Overrides
-    if (p.isPolymorphed) { p.stats.str = 1; p.stats.dex = 1; p.stats.int = 1; }
+    // 5. Polymorph Override
+    if (p.isPolymorphed) { 
+        p.stats.str = 1; p.stats.dex = 1; p.stats.int = 1; 
+        p.stats.movementBonus = 0; 
+    }
 }
 function resolveAiEvent(p, card, t, mode, items) {
     // 1. SHOPS & START
