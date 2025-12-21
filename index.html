@@ -12623,21 +12623,41 @@ function globalLog(msg, type) {
 
 function updateHUD() {
     if (players.length === 0) return;
+
+    // 1. Identify Local Player (Your Hero)
     const p = players.find(pl => pl.id === myPlayerId) || players[0];
     if (!p) return;
 
-    // --- SECTION 1: ALWAYS UPDATE TEXT ---
+    // 2. Main Stat Widgets & Sidebar Header
+    // We update these every time because gold/stats change even while walking
     setT('p1-name', p.name);
     setT('p1-gold', p.gold);
     setT('p1-str', p.stats.str);
     setT('p1-dex', p.stats.dex);
     setT('p1-int', p.stats.int);
-    setT('p1-move', "+" + (p.stats.movementBonus || 0));
-    setT('p1-gf', "+" + (p.stats.goldFind || 0));
-    setT('p1-res', (p.stats.resistance || 0));
+    setT('p1-class', (p.race ? p.race.name : "") + " " + (p.class ? p.class.name : ""));
+    
+    // --- TREASURY WIDGET FIX ---
     setT('treasury-val', treasuryGold);
 
-    // Day/Night & Banner
+    // --- PLAYER STATS WIDGET FIX ---
+    // We use == instead of === to handle String/Number mix from Firebase
+    const myOwned = tiles.filter(t => t.userData.owner == myPlayerId);
+    setT('ms-gold', p.gold);
+    setT('ms-camps', myOwned.filter(t => t.userData.buildingLevel == 1).length);
+    setT('ms-taverns', myOwned.filter(t => t.userData.buildingLevel == 2).length);
+
+    const elPortrait = document.getElementById('p1-portrait');
+    if (elPortrait) {
+        const imgToShow = p.avatar || p.portrait; 
+        if (imgToShow) {
+            elPortrait.style.backgroundImage = `url('${imgToShow}')`;
+            elPortrait.style.backgroundColor = "transparent";
+        } else {
+            elPortrait.style.backgroundColor = p.color || "var(--gold-main)";
+        }
+    }
+
     setT('day-night-indicator', isNight ? "☾ NIGHT" : "☀ DAY");
     const elDayNight = document.getElementById('day-night-indicator');
     if (elDayNight) { elDayNight.style.color = isNight ? "#a855f7" : "#87ceeb"; }
@@ -12654,69 +12674,33 @@ function updateHUD() {
             } else { btnAction.innerText = isMultiplayer ? "WAIT" : "AI"; }
         }
     }
-	
-	const elPortrait = document.getElementById('p1-portrait');
-    if (elPortrait) {
-        if (p.portrait && p.portrait !== "") {
-            elPortrait.style.backgroundImage = `url('${p.portrait}')`;
-            elPortrait.style.backgroundColor = "transparent"; // Hide the black bg
-        } else {
-            // Fallback: Show Player Color if no image is found
-            elPortrait.style.backgroundImage = "none";
-            elPortrait.style.backgroundColor = p.color || "var(--gold-dim)";
-        }
-    }
 
     // --- SECTION 2: PROTECTED GRID UPDATES ---
-    // Optimization: Skip clearing/redrawing heavy UI while walking
+    // Skip redrawing icons while walking to prevent the "Vanishing Items" bug
     if (gameState === 'MOVING') return;
 
-    // 1. Skill Bar (Restored Assignment Listeners)
+    // 1. Skill Bar
     for (let i = 0; i < 6; i++) {
         const el = document.getElementById(`skill-${i}`);
         const txt = document.getElementById(`txt-skill-${i}`);
         if (!el || !txt) continue;
-
         const skill = p.assignedSkills[i];
         el.style.backgroundImage = 'none';
-        el.className = 'skill-slot';
-        el.style.opacity = "1";
-
-        // --- THE FIX: RESTORE ASSIGNMENT LISTENERS ---
-        // Right Click (PC)
-        el.oncontextmenu = (e) => {
-            e.preventDefault();
-            if (p.id === myPlayerId) openSkillPicker(i);
-        };
-
-        // Long Press (Mobile)
-        let pressTimer;
-        el.ontouchstart = (e) => {
-            pressTimer = setTimeout(() => {
-                if (navigator.vibrate) navigator.vibrate(50);
-                if (p.id === myPlayerId) openSkillPicker(i);
-            }, 700);
-        };
-        el.ontouchend = () => clearTimeout(pressTimer);
-        el.ontouchmove = () => clearTimeout(pressTimer);
-
         if (skill) {
             let isDepleted = skill.isClass ? p.classSkillDepleted : (skill.ref?.isDepleted || false);
             el.style.opacity = isDepleted ? "0.5" : "1";
             txt.innerText = isDepleted ? "RECHARGE" : skill.name;
             if (skill.img) el.style.backgroundImage = `url('${skill.img}')`;
-            
             el.onclick = () => useSkill(i);
-            el.onmouseenter = () => showTooltip(skill.isClass ? skill.id : skill.ref, skill.isClass);
-            el.onmouseleave = hideTooltip;
+            el.oncontextmenu = (e) => { e.preventDefault(); openSkillPicker(i); };
         } else {
             txt.innerText = (i === 0) ? "CLASS" : "EMPTY";
-            // Clicking an empty slot also opens the picker
-            el.onclick = () => { if(p.id === myPlayerId) openSkillPicker(i); }; 
+            el.oncontextmenu = (e) => { e.preventDefault(); openSkillPicker(i); };
+            el.onclick = () => { if(p.id === myPlayerId) openSkillPicker(i); };
         }
     }
 
-    // 2. 10-Slot Paper Doll
+    // 2. Paper Doll (Sidebar and Modal Sync)
     EQUIP_ORDER.forEach((slotName) => {
         const elements = [document.getElementById('slot-' + slotName), document.getElementById('cd-slot-' + slotName)];
         elements.forEach(el => {
@@ -12727,12 +12711,11 @@ function updateHUD() {
                 el.classList.add('filled', 'rarity-' + (item.rarity || 'common'));
                 el.style.backgroundImage = `url('${item.img}')`;
                 el.innerText = "";
-                if (p.id === myPlayerId) setupItemInteractions(el, slotName, 'equip');
             } else {
                 el.classList.remove('filled');
                 el.innerText = slotName.replace('_', ' ').toUpperCase();
-                if (p.id === myPlayerId) setupItemInteractions(el, slotName, 'equip');
             }
+            if (p.id === myPlayerId) setupItemInteractions(el, slotName, 'equip');
         });
     });
 
@@ -12755,19 +12738,23 @@ function updateHUD() {
         }
     });
 
-    // 4. Leaderboard
+    // 4. Leaderboard & Secondary Stats
     const lb = document.getElementById('leader-list');
     if (lb) {
         lb.innerHTML = '';
         players.forEach(pl => {
             let d = document.createElement('div');
             d.className = 'leader-row' + (pl.isDead ? ' dead' : (pl.isBoss ? ' boss' : ''));
-            const camps = tiles.filter(t => t.userData.owner === pl.id && t.userData.buildingLevel === 1).length;
-            const taverns = tiles.filter(t => t.userData.owner === pl.id && t.userData.buildingLevel === 2).length;
+            const camps = tiles.filter(t => t.userData.owner == pl.id && t.userData.buildingLevel == 1).length;
+            const taverns = tiles.filter(t => t.userData.owner == pl.id && t.userData.buildingLevel == 2).length;
             d.innerHTML = `<span style="color:${pl.color}; cursor:pointer;" onclick="openCharDetail(${pl.id})">${pl.name}</span><div style="display:flex; gap:8px; align-items:center;"><span style="font-size:0.8rem; opacity:0.7;">⛺${camps} 🍺${taverns}</span><span style="font-weight:bold;">${pl.isDead ? "OUT" : pl.gold + "G"}</span></div>`;
             lb.appendChild(d);
         });
     }
+
+    setT('p1-move', "+" + (p.stats.movementBonus || 0));
+    setT('p1-gf', "+" + (p.stats.goldFind || 0));
+    setT('p1-res', (p.stats.resistance || 0));
 }
 
 function makeDraggable(elmnt) {
