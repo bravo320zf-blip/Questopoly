@@ -1652,6 +1652,15 @@ Because you do not have a backend server listening for automatic receipts (Webho
     min-width: 80px; /* Minimum width for touch targets */
     /* ... existing styles ... */
 }
+
+#google-ad-slot {
+    width: 100%;
+    max-width: 728px; /* Standard banner width */
+    min-width: 300px; /* Minimum width for mobile ads */
+    min-height: 90px;
+    display: block !important; /* AdSense prefers block over flex for calculation */
+    margin: 0 auto;
+}
 </style>
 </head>
 
@@ -2581,11 +2590,11 @@ Because you do not have a backend server listening for automatic receipts (Webho
      style="display:block"
      data-ad-client="ca-pub-8171909770069568"
      data-ad-slot="5677565528"
-     data-ad-format="auto"
+     data-ad-format="horizontal"
      data-full-width-responsive="true"></ins>
-<script>
-     (adsbygoogle = window.adsbygoogle || []).push({});
-</script>
+        <script>
+             (adsbygoogle = window.adsbygoogle || []).push({});
+        </script>
     </div>
 </div>
 
