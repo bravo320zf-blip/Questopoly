@@ -3398,3 +3398,8 @@ button {
     -webkit-overflow-scrolling: touch;
     padding-right: 5px;
 }
+
+/* --- CINEMATIC UI LOCK --- */
+.cinematic-lock {
+    pointer-events: none !important;
+}
