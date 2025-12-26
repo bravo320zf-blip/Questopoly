@@ -1,0 +1,1420 @@
+<!DOCTYPE html>
+<html lang="en">
+<!-- 
+================================================================
+   QUESTOPOLY: LEGENDS - POLISHED UI EDITION
+   UI Overhaul: Glass & Gold Theme
+   Logic: Original (Preserved)
+================================================================
+-->
+
+<!--
+How to Manage "Premium" Users (Manual Verification)
+Because you do not have a backend server listening for automatic receipts (Webhooks), the process for a user getting their ads removed will be:
+1. Player clicks "$3.00" inside the game.
+2. Player is taken to PayPal in a new tab and pays you.
+3. You (The Admin) get an email from PayPal saying "You received $3.00 from [Player Email]".
+4. You go to your Firebase Console:
+     -Go to Authentication to find the user's UID based on their email.
+     -Go to Realtime Database.
+     -Navigate to users > [THE USER'S UID].
+     -Add a new field: isPremium and set the value to true (boolean).
+5. Player clicks the "↻ Restore Purchase / Check Status" button inside the game store.
+6. The game checks Firebase, sees isPremium: true, and removes the ads instantly.
+(Note: In the future, you can automate step 4 using Firebase Cloud Functions, but doing it manually is perfectly fine for starting out!)
+-->
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Questopoly: Legends</title>
+
+    <!-- LIBRARIES -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tween.js/18.6.4/tween.umd.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+
+    <link rel="stylesheet" href="css/style.css">
+</head>
+
+<body>
+    <div id="game-viewport-wrapper">
+
+        <!-- TOP RIGHT HUD CONTAINER -->
+        <div id="top-right-hud">
+
+            <!-- 1. Bug Report Button -->
+            <div id="bug-btn" onclick="BUG_REPORT.open()">🐞</div>
+
+            <!-- 2. Store Button -->
+            <div id="store-floating-btn" onclick="STORE.open()">💎</div>
+
+            <!-- 3. Notification Bell -->
+            <div id="global-notify-btn" class="notification-icon-container" onclick="NOTIFICATIONS.openModal()">
+                <div class="notification-bell">🔔</div>
+                <div id="notify-badge-count" class="notify-count-badge" style="display:none;">0</div>
+            </div>
+
+            <!-- 4. Profile Button -->
+            <div id="start-profile-btn" class="profile-btn-floating" onclick="PROFILE.open()"></div>
+
+        </div>
+
+        <!-- LOGO SCREEN (Preserved) -->
+        <div id="logo-screen">
+            <img id="logo-img" src="https://static.wixstatic.com/media/b16479_0a56fee31ec34232abc426d0ee72b6b1~mv2.png"
+                alt="Logo">
+            <div id="logo-text">Click to Continue</div>
+        </div>
+
+        <div id="game-layer"></div>
+
+        <!-- AUTH SCREEN -->
+        <div id="auth-screen" style="display:none;">
+            <div class="auth-container">
+                <h1 style="color:var(--gold-main); margin-bottom:10px;">Login</h1>
+                <input type="email" id="auth-email" class="auth-input" placeholder="Email Address">
+                <input type="password" id="auth-pass" class="auth-input" placeholder="Password"
+                    onkeydown="if(event.key==='Enter') AUTH.login()">
+                <button class="auth-btn btn-login" onclick="AUTH.login()">Sign In</button>
+                <button class="auth-btn btn-reg" onclick="AUTH.register()">Register</button>
+                <span class="auth-link" onclick="AUTH.recover()">Forgot Password?</span>
+                <div id="auth-msg" style="color:#ef4444; margin-top:10px; font-size:0.9rem;"></div>
+            </div>
+        </div>
+
+        <!-- LOBBY SCREEN -->
+        <div id="lobby-screen" style="display:none;">
+            <div class="lobby-layout">
+                <!-- LEFT: Game List & Create -->
+                <div class="lobby-left">
+                    <div style="display:flex; align-items:center; margin-bottom: 10px;">
+                        <div id="lobby-profile-btn" class="lobby-profile-btn" onclick="PROFILE.open()"></div>
+                        <h1 style="color:var(--gold-main); text-align:left; margin:0;">MULTIPLAYER</h1>
+                    </div>
+
+                    <div class="lobby-search-row">
+                        <input type="text" id="lobby-search" class="lobby-search" placeholder="Search games..."
+                            onkeyup="LOBBY.refreshList()">
+                        <button class="auth-btn btn-reg" style="width:auto; padding:8px 15px; margin:0;"
+                            onclick="LOBBY.refreshList()">↻</button>
+                    </div>
+
+                    <div
+                        style="display:flex; align-items:center; gap:10px; margin-bottom:10px; font-size:0.8rem; color:#aaa;">
+                        <input type="checkbox" id="chk-show-progress" class="toggle-chk" onchange="LOBBY.refreshList()">
+                        <label for="chk-show-progress" style="cursor:pointer;">See "In Progress" Games</label>
+                    </div>
+
+                    <button class="auth-btn btn-login" style="width:100%; margin-bottom:10px;"
+                        onclick="createGameLogic()">Create Game</button>
+
+                    <div id="lobby-list" class="lobby-list">
+                        <div style="padding:20px; text-align:center; color:#666;">Loading games...</div>
+                    </div>
+                    <button class="auth-btn btn-reg" onclick="LOBBY.exit()">Back to Main Menu</button>
+                </div>
+
+                <!-- RIGHT: Global Chat -->
+                <div class="lobby-right">
+                    <div class="chat-header"
+                        style="padding:10px; background:#111; border-bottom:1px solid #444; font-weight:bold; color:var(--gold-main);">
+                        GLOBAL CHAT</div>
+                    <div id="global-chat-box" class="chat-box"></div>
+                    <div class="chat-input-row">
+                        <input type="text" id="global-chat-input" class="chat-input" placeholder="Type message..."
+                            onkeydown="if(event.key==='Enter') LOBBY.sendChat()">
+                        <button class="chat-send" onclick="LOBBY.sendChat()">SEND</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- NEW GAME ROOM SCREEN (The StarCraft Style Lobby) -->
+        <div id="gameroom-screen">
+            <div class="room-container">
+                <!-- LEFT: Slots -->
+                <div class="room-slots-panel">
+                    <h2 id="room-name" style="color:#fff; border-bottom:1px solid #333; padding-bottom:10px;">Game Room
+                    </h2>
+                    <div id="slot-0" class="player-slot"></div>
+                    <div id="slot-1" class="player-slot"></div>
+                    <div id="slot-2" class="player-slot"></div>
+                    <div id="slot-3" class="player-slot"></div>
+                </div>
+
+                <!-- RIGHT: Map Info & Chat -->
+                <div class="room-info-panel">
+                    <!-- HEADER SECTION: Map & Settings -->
+                    <div class="map-container-wrapper"
+                        style="padding:10px; border-bottom:1px solid #444; text-align:center;">
+
+                        <!-- Desktop View: Shows Image -->
+                        <div id="desktop-map-view">
+                            <img src="https://static.wixstatic.com/media/b16479_5caac3525f59406d8ff175695ef11cb1~mv2.jpg"
+                                style="width:80%; border:2px solid var(--gold-dim); margin-bottom:5px;">
+                            <div style="color:var(--gold-main); font-weight:bold;">Kingdom Map</div>
+                        </div>
+
+                        <!-- Mobile View: Shows Button (Hidden on Desktop via CSS) -->
+                        <button id="mobile-map-btn" class="choice-btn"
+                            style="display:none; width:100%; text-align:center; justify-content:center;"
+                            onclick="document.getElementById('map-modal').style.display='flex'">🗺 View Kingdom
+                            Map</button>
+
+                        <!-- Password Input for Host -->
+                        <div id="host-settings-area" style="padding-top:10px; display:none;">
+                            <label style="font-size:0.8rem; color:#aaa;">Game Password (Optional)</label>
+                            <input type="text" class="chat-input" placeholder="No Password"
+                                style="background:rgba(0,0,0,0.3); border:1px solid #555; width:100%;"
+                                onchange="ROOM.setPassword(this.value)">
+                        </div>
+                    </div>
+
+                    <!-- CHAT SECTION -->
+                    <div id="room-chat-box" class="chat-box"></div>
+                    <div class="chat-input-row">
+                        <input type="text" id="room-chat-input" class="chat-input" placeholder="Chat with players..."
+                            onkeydown="if(event.key==='Enter') ROOM.sendChat()">
+                        <button class="chat-send" onclick="ROOM.sendChat()">SEND</button>
+                    </div>
+                </div>
+
+                <!-- BOTTOM: Actions -->
+                <div class="room-actions">
+                    <div style="display:flex; gap:10px;">
+                        <button class="auth-btn btn-reg" style="width:auto; margin:0;" onclick="ROOM.leave()">Leave
+                            Game</button>
+                        <button class="auth-btn btn-login" style="width:auto; margin:0; background:#3b82f6; color:#fff;"
+                            onclick="ROOM.copyLink()">Copy Link</button>
+                    </div>
+                    <div style="display:flex; gap:10px;">
+                        <button id="btn-room-start" class="auth-btn btn-login"
+                            style="width:auto; margin:0; padding:10px 40px; font-size:1.2rem;" disabled
+                            onclick="ROOM.startGame()">START GAME</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+
+        <!-- PASSWORD MODAL -->
+        <div id="password-modal" class="modal-overlay">
+            <div class="modal-content" style="width:300px;">
+                <h3 style="color:var(--gold-main); margin-top:20px;">Private Game</h3>
+                <input type="password" id="join-pass" class="auth-input" placeholder="Enter Password"
+                    style="width:80%; margin:10px auto;">
+                <div style="display:flex; justify-content:center; gap:10px; margin-bottom:20px;">
+                    <button class="choice-btn" onclick="LOBBY.submitPassword()">Join</button>
+                    <button class="choice-btn" style="background:#444;"
+                        onclick="document.getElementById('password-modal').style.display='none'">Cancel</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- SPLASH SCREEN (Preserved) -->
+        <div id="splash-screen">
+            <h1 style="font-size: 8rem; color: #fff; text-shadow: 0 0 30px var(--gold-main); margin-bottom: 20px;">
+                QUESTOPOLY</h1>
+            <h2
+                style="color: #ddd; font-size: 2rem; margin-top: 0; margin-bottom: 50px; text-shadow: 2px 2px 5px #000;">
+                LEGENDS</h2>
+
+
+            <!-- UPDATED BUTTONS -->
+            <div style="display:flex; flex-direction:column; gap:15px; align-items:center;">
+                <button class="primary"
+                    style="font-size: 1.5rem; padding: 15px 40px; width: 300px; background:var(--gold-main); border:none; font-weight:900; cursor:pointer;"
+                    onclick="enterCreation(false)">SINGLE PLAYER</button>
+                <button class="primary"
+                    style="font-size: 1.5rem; padding: 15px 40px; width: 300px; background:#3b82f6; border:2px solid #fff; color:#fff; font-weight:900; cursor:pointer;"
+                    onclick="LOBBY.enter()">MULTIPLAYER</button>
+                <div id="start-profile-btn" class="profile-btn-floating" onclick="PROFILE.open()" style="display:none;">
+                </div>
+            </div>
+
+            <div style="margin-top:20px; color:#aaa; cursor:pointer; text-decoration:underline;"
+                onclick="AUTH.logout()">Log Out</div>
+
+            <!-- ADMIN BUTTON (Hidden by default, shown in Testy Mode) -->
+            <button id="btn-admin-open" class="choice-btn"
+                style="display:none; position:absolute; top:20px; left:20px; width:auto; background:#7f1d1d;"
+                onclick="ADMIN_MAILBOX.open()">ADMIN MAILBOX</button>
+        </div>
+
+        <!-- BUG REPORT MODAL -->
+        <!-- CREATE SCREEN (Preserved) -->
+        <div id="create-screen" style="display:none;">
+            <div class="input-group"><label>Name Your Hero</label><input type="text" id="char-name-input" value="Hero"
+                    maxlength="12"></div>
+            <div class="input-group"><label>Choose Color</label>
+                <div class="color-grid" id="color-grid"></div>
+            </div>
+            <h3 style="color:#888;">Select Race</h3>
+            <div class="sel-grid" id="race-grid"></div>
+            <h3 style="color:#888;">Select Class</h3>
+            <div class="sel-grid" id="class-grid"></div>
+            <div id="active-section" style="display:none; width:100%; flex-direction:column; align-items:center;">
+                <h3 style="color:#888;">Choose Active Skill</h3>
+                <div class="skill-grid" id="active-grid"></div>
+            </div>
+            <div id="passive-section" style="display:none; width:100%; flex-direction:column; align-items:center;">
+                <h3 style="color:#888;">Choose Passive Trait</h3>
+                <div class="skill-grid" id="passive-grid"></div>
+            </div>
+            <button id="btn-start-game" class="primary"
+                style="padding:15px 50px; font-size:1.5rem; background:var(--gold-main); border:none; font-weight:900; cursor:pointer; opacity:0.5;"
+                onclick="startGame()" disabled>Start Adventure</button>
+            <div style="height:50px;"></div>
+            <div id="creator-portrait-frame"><button id="btn-min-portrait" class="minimize-btn"
+                    onclick="toggleCreatorPortrait()"
+                    style="position: absolute; top: 5px; right: 5px; background: rgba(0,0,0,0.8); border: 1px solid var(--gold-main); color: var(--gold-main); z-index: 205; width: 20px; height: 30px; line-height: 28px; padding: 0;">-</button>
+            </div>
+        </div>
+
+        <!-- MAIN UI OVERLAY (REPLACED WITH NEW GLASS UI) -->
+        <div id="ui-layer">
+
+            <!-- LEFT SIDEBAR: PLAYER SHEET -->
+            <div id="p1-sheet" class="glass-panel gold-border">
+                <!-- FIXED HEADER -->
+                <div class="char-header">
+                    <div style="display:flex; align-items:center;">
+                        <div id="p1-portrait" class="char-portrait" onclick="openCharDetail(myPlayerId)"></div>
+                        <div>
+                            <div id="p1-name" style="font-weight:bold; cursor:pointer;"
+                                onclick="openCharDetail(myPlayerId)">Hero</div>
+                            <div id="p1-class" style="font-size:0.8rem; color:#aaa;">Class</div>
+                        </div>
+                    </div>
+                    <div class="gold-display"><span id="p1-gold">0</span> G</div>
+                </div>
+
+                <!-- SCROLLABLE CONTENT START -->
+                <div class="sheet-scroll-area">
+                    <!-- INSIDE #p1-sheet -->
+                    <div class="stat-grid">
+                        <div class="stat-box">
+                            <div id="p1-str" class="stat-val">0</div>
+                            <div class="stat-lbl">STR</div>
+                        </div>
+                        <div class="stat-box">
+                            <div id="p1-dex" class="stat-val">0</div>
+                            <div class="stat-lbl">DEX</div>
+                        </div>
+                        <div class="stat-box">
+                            <div id="p1-int" class="stat-val">0</div>
+                            <div class="stat-lbl">INT</div>
+                        </div>
+                    </div>
+
+                    <!-- NEW: SECONDARY STAT ROW -->
+                    <!-- Inside #p1-sheet in the actual HTML section of your file -->
+                    <!-- Inside #p1-sheet -->
+                    <div class="sec-stat-row">
+                        <div class="sec-stat-box" onmouseenter="showStatTooltip('mov')" onmouseleave="hideTooltip()"
+                            onclick="showStatTooltip('mov')">
+                            <span class="sec-stat-lbl">MOV</span>
+                            <span id="p1-move" class="sec-stat-val">+0</span>
+                        </div>
+                        <div class="sec-stat-box" onmouseenter="showStatTooltip('gf')" onmouseleave="hideTooltip()"
+                            onclick="showStatTooltip('gf')">
+                            <span class="sec-stat-lbl">GF</span>
+                            <span id="p1-gf" class="sec-stat-val">+0</span>
+                        </div>
+                        <div class="sec-stat-box" onmouseenter="showStatTooltip('res')" onmouseleave="hideTooltip()"
+                            onclick="showStatTooltip('res')">
+                            <span class="sec-stat-lbl">RES</span>
+                            <span id="p1-res" class="sec-stat-val">0</span>
+                        </div>
+                    </div>
+
+                    <div class="paper-doll-container">
+                        <div class="doll-placement doll-img" style="top: 5%; left: 22%; width: 56%; height: 75%;">
+                        </div>
+                        <div id="slot-head" class="doll-placement doll-slot" style="top: 5%; left: 5%;">HEAD
+                        </div>
+                        <div id="slot-body" class="doll-placement doll-slot" style="top: 25%; left: 5%;">BODY
+                        </div>
+                        <div id="slot-main" class="doll-placement doll-slot" style="top: 45%; left: 5%;">MAIN
+                        </div>
+                        <div id="slot-feet" class="doll-placement doll-slot" style="top: 65%; left: 5%;">FEET
+                        </div>
+                        <div id="slot-back" class="doll-placement doll-slot" style="top: 5%; right: 5%;">BACK
+                        </div>
+                        <div id="slot-amulet" class="doll-placement doll-slot" style="top: 25%; right: 5%;">
+                            AMULET</div>
+                        <div id="slot-ring_l" class="doll-placement doll-slot" style="top: 45%; right: 5%;">RING
+                            L</div>
+                        <div id="slot-ring_r" class="doll-placement doll-slot" style="top: 65%; right: 5%;">RING
+                            R</div>
+                        <div id="slot-hands" class="doll-placement doll-slot" style="bottom: 5%; left: 25%;">
+                            HANDS</div>
+                        <div id="slot-off" class="doll-placement doll-slot" style="bottom: 5%; right: 25%;">OFF
+                        </div>
+                    </div>
+
+                    <div style="padding:0 10px; font-size:0.7rem; color:#888; margin-bottom:5px;">INVENTORY
+                    </div>
+                    <div id="p1-inv" class="inv-grid"></div>
+                </div>
+                <!-- SCROLLABLE CONTENT END -->
+
+                <button class="panel-close-btn" onclick="togglePanelVisibility('p1-sheet')">CLOSE</button>
+            </div>
+
+            <!-- CENTER BOARD AREA -->
+            <div id="board-anchor">
+                <div id="inner-zone">
+
+                    <!-- Turn Tracker -->
+                    <!-- Turn Tracker -->
+                    <div id="turn-widget">
+                        <h2 id="turn-banner">SETUP</h2>
+                        <div id="day-night-indicator">☀ DAY</div>
+
+                        <!-- NEW: TIMER BAR -->
+                        <div id="timer-container">
+                            <div id="timer-bar"></div>
+                        </div>
+                    </div>
+
+                    <!-- TREASURY WIDGET (Top Left) -->
+                    <div id="treasury-widget">
+                        <div class="treasury-icon">👑</div>
+                        <div id="treasury-val" class="treasury-amount">0</div>
+                        <div class="treasury-label">Treasury</div>
+                    </div>
+
+                    <!-- NEW: PLAYER STATS WIDGET (Top Right) -->
+                    <div id="mystats-widget">
+                        <div class="stat-row">
+                            <span class="ms-icon">💰</span> <span id="ms-gold" class="treasury-amount">0</span>
+                        </div>
+                        <div class="stat-row">
+                            <span class="ms-icon">⛺</span> <span id="ms-camps" class="treasury-amount">0</span>
+                        </div>
+                        <div class="stat-row">
+                            <span class="ms-icon">🍺</span> <span id="ms-taverns" class="treasury-amount">0</span>
+                        </div>
+                    </div>
+
+                    <!-- Adventure Log -->
+                    <div id="adventure-log-widget">
+                        <div id="game-log">
+                            <div class="log-entry" style="text-align:center; color:#aaa;">- Log Start -</div>
+                        </div>
+                    </div>
+
+                    <!-- Skill Bar -->
+                    <div id="skill-bar-container">
+                        <div id="btn-action-container">
+                            <button id="btn-action" onclick="handleActionClick()">ROLL</button>
+                        </div>
+                        <div id="skill-bar">
+                            <div class="skill-slot" id="skill-0" onclick="useSkill(0)">
+                                <div class="skill-key">1</div><span id="txt-skill-0">Class</span>
+                            </div>
+                            <div class="skill-slot" id="skill-1" onclick="useSkill(1)">
+                                <div class="skill-key">2</div><span id="txt-skill-1">-</span>
+                            </div>
+                            <div class="skill-slot" id="skill-2" onclick="useSkill(2)">
+                                <div class="skill-key">3</div><span id="txt-skill-2">-</span>
+                            </div>
+                            <div class="spacer-slot"></div>
+                            <div class="skill-slot" id="skill-3" onclick="useSkill(3)">
+                                <div class="skill-key">4</div><span id="txt-skill-3">-</span>
+                            </div>
+                            <div class="skill-slot" id="skill-4" onclick="useSkill(4)">
+                                <div class="skill-key">5</div><span id="txt-skill-4">-</span>
+                            </div>
+                            <div class="skill-slot" id="skill-5" onclick="useSkill(5)" ondragover="allowDrop(event)"
+                                ondrop="handleSkillDrop(event, 0)" style="border-style:dashed; opacity:0.6;">
+                                <div class="skill-key">6</div><span id="txt-skill-5">Drag</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Utility Stack (OPEN BUTTONS) -->
+                    <div id="utility-stack">
+                        <div id="btn-help" class="util-btn" onclick="toggleHelpModal()">?</div>
+                        <div id="btn-bug" class="util-btn" onclick="BUG_REPORT.open()">
+                            🐞</div>
+                        <div id="btn-settings" class="util-btn" onclick="toggleSettingsModal()">⚙</div>
+                        <!-- REMOVED 'mobile-toggle-btn' class so they show on desktop -->
+                        <div class="util-btn" onclick="togglePanelVisibility('p1-sheet')">👤</div>
+                        <div class="util-btn" onclick="togglePanelVisibility('leaderboard')">📜</div>
+                    </div>
+
+                </div>
+            </div>
+
+            <!-- RIGHT SIDEBAR: LEADERBOARD -->
+            <div id="leaderboard" class="glass-panel">
+                <!-- ADDED class="leader-header" HERE: -->
+                <div class="leader-header"
+                    style="padding:10px; background:rgba(0,0,0,0.3); border-bottom:1px solid #444; font-weight:bold; font-size:0.9rem; text-align:center;">
+                    LEADERBOARD
+                </div>
+                <div id="leader-list"></div>
+
+                <!-- CLOSE BUTTON -->
+                <button class="panel-close-btn" onclick="togglePanelVisibility('leaderboard')">CLOSE</button>
+            </div>
+
+        </div>
+
+        <!-- NOTIFICATION LIST MODAL -->
+        <div id="notification-modal" class="modal-overlay" style="z-index: 9500;">
+            <div class="modal-content" style="width: 400px;">
+                <div class="close-x" onclick="document.getElementById('notification-modal').style.display='none'">×
+                </div>
+                <h3 style="color:var(--gold-main); margin-top:15px; text-align:center;">NOTIFICATIONS</h3>
+                <div style="padding:15px;">
+                    <button class="choice-btn"
+                        style="width:100%; text-align:center; margin-bottom:10px; padding:5px; font-size:0.8rem;"
+                        onclick="NOTIFICATIONS.clearAll()">Clear All</button>
+                    <div id="notification-list" style="max-height:300px; overflow-y:auto;">
+                        <!-- Items injected here -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- TOOLTIP -->
+        <div id="tooltip"></div>
+        <div id="context-menu"></div>
+
+        <!-- MODALS (Using New Styles but preserving IDs) -->
+
+        <!-- 1. ENCOUNTER / SKIRMISH / TREASURE / STAT PICK MODAL -->
+        <div id="card-modal" class="modal-overlay">
+            <div class="card-modal" ondragover="allowDrop(event)" ondrop="handleSellDrop(event)">
+                <!-- RED X REMOVED -->
+                <div class="card-header" id="enc-header">Encounter</div>
+                <div class="card-body">
+                    <h2 id="enc-title" style="margin:0 0 10px 0; color:var(--gold-main);">Title</h2>
+                    <p id="enc-desc" class="card-desc">...</p>
+                    <div id="market-sell-area"
+                        style="display:none; border:1px dashed #666; padding:15px; margin-bottom:15px; border-radius:8px; color:#aaa;">
+                        Drag items here to SELL</div>
+                    <div id="choice-list"></div>
+                    <div id="dice-result" class="dice-result"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 2. SPACE ARRIVAL MODAL -->
+        <div id="arrival-modal" class="card-modal" style="padding: 0; overflow: visible;">
+            <!-- RED X REMOVED -->
+
+            <!-- Wrapper for the visual border style -->
+            <div class="card-border">
+                <img id="arrival-image" src="" alt="Location Image" style="display:none;">
+                <div class="card-body">
+                    <div id="arrival-flavor" class="flavor-text" style="font-style: italic; color: #fff;">...
+                    </div>
+                    <button class="primary" onclick="continueFromArrival()">CONTINUE</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="skill-picker-modal" class="modal-overlay">
+            <div class="modal-content glass-panel gold-border">
+                <div class="close-x" onclick="document.getElementById('skill-picker-modal').style.display='none'">×
+                </div>
+                <h2 style="color:var(--gold-main); padding:20px 0 10px 20px; margin:0;">Assign Skill</h2>
+                <div id="skill-picker-list" style="padding: 20px; overflow-y: auto; flex-grow: 1;">
+                    <!-- Items injected via JS -->
+                </div>
+            </div>
+        </div>
+
+        <div id="char-detail-modal" class="modal-overlay">
+            <div class="modal-content">
+                <div class="close-x" onclick="closeCharDetail()">×</div>
+                <div class="card-body">
+                    <div style="display:flex; align-items:center; margin-bottom:20px;">
+                        <div id="cd-portrait" class="char-portrait"></div>
+                        <div style="text-align:left;">
+                            <div id="cd-header" style="font-weight:bold; font-size:1.2rem; color:var(--gold-main);">
+                                Name
+                            </div>
+                            <div id="cd-sub" style="font-size:0.9rem; color:#aaa;">Class</div>
+                        </div>
+                    </div>
+
+                    <div
+                        style="display:flex; justify-content:space-around; background:#111; padding:10px; border-radius:8px; margin-bottom:15px;">
+                        <div style="text-align:center;">
+                            <b id="cd-str" style="color:#fff; font-size:1.2rem;">0</b><br>
+                            <small id="cd-lbl-str" style="color:#666">STR</small>
+                        </div>
+                        <div style="text-align:center;">
+                            <b id="cd-dex" style="color:#fff; font-size:1.2rem;">0</b><br>
+                            <small id="cd-lbl-dex" style="color:#666">DEX</small>
+                        </div>
+                        <div style="text-align:center;">
+                            <b id="cd-int" style="color:#fff; font-size:1.2rem;">0</b><br>
+                            <small id="cd-lbl-int" style="color:#666">INT</small>
+                        </div>
+                    </div>
+
+                    <div style="text-align:left; border-top:1px solid #333; padding-top:10px;">
+                        <div style="margin-bottom:10px;"><span style="color:var(--gold-main)">Active:</span>
+                            <span id="cd-active">-</span>
+                            <div id="cd-active-desc" style="font-size:0.8rem; color:#666; font-style:italic;">
+                            </div>
+                        </div>
+                        <div><span style="color:var(--accent-purple)">Passive:</span> <span id="cd-passive">-</span>
+                            <div id="cd-passive-desc" style="font-size:0.8rem; color:#666; font-style:italic;">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Injection point for dynamic stats from JS -->
+                    <div id="cd-extra-stats"></div>
+
+                    <div id="cd-inventory-section"
+                        style="display:none; margin-top:15px; border-top:1px solid #333; padding-top:10px;">
+                        <div class="paper-doll" style="margin-bottom:10px;">
+                            <div id="cd-slot-head" class="equip-slot">Head</div>
+                            <div id="cd-slot-body" class="equip-slot">Body</div>
+                            <div id="cd-slot-main" class="equip-slot">Main</div>
+                            <div id="cd-slot-off" class="equip-slot">Off</div>
+                        </div>
+                        <div id="cd-inv-grid" class="inv-grid"></div>
+                    </div>
+                    <div id="cd-hidden-msg" style="display:none; margin-top:20px; color:#555;">Inventory Hidden
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- SETTINGS MODAL -->
+        <div id="settings-modal" class="modal-overlay">
+            <div class="modal-content" style="width: 400px; max-width: 90%;">
+                <button class="close-x" onclick="toggleSettingsModal()">×</button>
+
+                <!-- UPDATED LINE: Added onclick and cursor style -->
+                <h2 style="color:var(--gold-main); margin-top:0; cursor:pointer; user-select:none;"
+                    onclick="handleSecretDebugTap()">SETTINGS</h2>
+
+                <!-- Existing Volume Controls -->
+                <div style="margin-bottom: 20px; text-align: left;">
+                    <label style="color:#fff; display:block; margin-bottom:10px;">Music Volume</label>
+                    <input type="range" id="vol-bgm" min="0" max="1" step="0.1" value="0.4"
+                        style="width:100%; cursor:pointer;" oninput="AUDIO.setBGM(this.value)">
+                </div>
+                <div style="margin-bottom: 20px; text-align: left;">
+                    <label style="color:#fff; display:block; margin-bottom:10px;">Sound Effects</label>
+                    <input type="range" id="vol-sfx" min="0" max="1" step="0.1" value="0.3"
+                        style="width:100%; cursor:pointer;" oninput="AUDIO.setSFX(this.value)">
+                </div>
+
+                <!-- NEW: DEBUG SECTION (Hidden by default) -->
+                <div id="debug-controls"
+                    style="display:none; border-top: 1px solid #444; margin-top: 15px; padding-top: 10px; text-align:left;">
+                    <h3 style="color:#ef4444; font-size: 1rem;">DEV TOOLS: EVENTS</h3>
+                    <div id="debug-event-list"
+                        style="max-height: 200px; overflow-y: auto; display: grid; grid-template-columns: 1fr; gap: 5px;">
+                        <!-- Buttons will be injected here via JS -->
+                    </div>
+                </div>
+
+                <button class="choice-btn" style="width:100%; justify-content:center; margin-top:15px;"
+                    onclick="toggleSettingsModal()">Close</button>
+            </div>
+        </div>
+
+        <!-- UPDATE: EXISTING SETTINGS MODAL -->
+        <div id="settings-modal" class="modal-overlay">
+            <div class="modal-content" style="width: 400px; max-width: 90%;">
+                <button class="close-x" onclick="toggleSettingsModal()">×</button>
+                <h2 style="color:var(--gold-main); margin-top:0; cursor:pointer; user-select:none;"
+                    onclick="handleSecretDebugTap()">SETTINGS</h2>
+
+                <div style="margin-bottom: 20px; text-align: left;">
+                    <label style="color:#fff; display:block; margin-bottom:10px;">Music Volume</label>
+                    <input type="range" id="vol-bgm" min="0" max="1" step="0.1" value="0.4"
+                        style="width:100%; cursor:pointer;" oninput="AUDIO.setBGM(this.value)">
+                </div>
+                <div style="margin-bottom: 20px; text-align: left;">
+                    <label style="color:#fff; display:block; margin-bottom:10px;">Sound Effects</label>
+                    <input type="range" id="vol-sfx" min="0" max="1" step="0.1" value="0.3"
+                        style="width:100%; cursor:pointer;" oninput="AUDIO.setSFX(this.value)">
+                </div>
+
+                <!-- NEW: QUIT BUTTONS -->
+                <hr style="border: 1px solid #333; margin: 20px 0;">
+                <button class="choice-btn"
+                    style="width:100%; justify-content:center; background:#7f1d1d; border-color:#ef4444; margin-bottom:10px;"
+                    onclick="GAME_FLOW.requestQuit(false)">Quit to Main Menu</button>
+                <button class="choice-btn"
+                    style="width:100%; justify-content:center; background:#450a0a; border-color:#991b1b;"
+                    onclick="GAME_FLOW.requestQuit(true)">Quit & Log Out</button>
+
+                <div id="debug-controls"
+                    style="display:none; border-top: 1px solid #444; margin-top: 15px; padding-top: 10px; text-align:left;">
+                    <h3 style="color:#ef4444; font-size: 1rem;">DEV TOOLS: EVENTS</h3>
+                    <div id="debug-event-list"
+                        style="max-height: 200px; overflow-y: auto; display: grid; grid-template-columns: 1fr; gap: 5px;">
+                    </div>
+                </div>
+
+                <button class="choice-btn" style="width:100%; justify-content:center; margin-top:15px;"
+                    onclick="toggleSettingsModal()">Close Settings</button>
+            </div>
+        </div>
+
+        <!-- NEW: CONFIRMATION MODAL -->
+        <div id="confirm-modal" class="modal-overlay">
+            <div class="modal-content" style="width:350px; text-align:center;">
+                <h3 style="color:var(--gold-main); margin-top:20px;">Are you sure?</h3>
+                <p id="confirm-msg" style="color:#ccc; margin-bottom:20px;">Current game progress will be lost.
+                </p>
+                <div style="display:flex; justify-content:center; gap:15px; margin-bottom:20px;">
+                    <button id="btn-confirm-yes" class="choice-btn"
+                        style="background:#ef4444; width:100px; justify-content:center;">Yes</button>
+                    <button class="choice-btn" style="background:#444; width:100px; justify-content:center;"
+                        onclick="document.getElementById('confirm-modal').style.display='none'">No</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="help-modal" class="modal-overlay">
+            <div class="modal-content help-window" style="width: 800px; max-width: 95%;">
+                <button class="close-x" onclick="toggleHelpModal()">×</button>
+
+                <div class="help-header-title">ARCHIVES OF LEGEND</div>
+
+                <!-- NAVIGATION TABS -->
+                <div class="help-tabs" style="flex-wrap: wrap;">
+                    <button class="help-tab active" onclick="switchHelpTab('tab-basics')"
+                        data-tab="tab-basics">Basics</button>
+                    <button class="help-tab" onclick="switchHelpTab('tab-hero')" data-tab="tab-hero">Hero &
+                        Skills</button>
+                    <button class="help-tab" onclick="switchHelpTab('tab-conquest')"
+                        data-tab="tab-conquest">Conquest</button>
+                    <button class="help-tab" onclick="switchHelpTab('tab-dungeons')" data-tab="tab-dungeons">Events
+                        &
+                        Dungeons</button>
+                    <button class="help-tab" onclick="switchHelpTab('tab-economy')"
+                        data-tab="tab-economy">Economy</button>
+                    <button class="help-tab" onclick="switchHelpTab('tab-multiplayer')"
+                        data-tab="tab-multiplayer">Multiplayer</button>
+                </div>
+
+                <!-- TAB 1: BASICS -->
+                <div id="tab-basics" class="help-section active">
+                    <h3><span style="color:var(--gold-main)">✦</span> Objective</h3>
+                    <p>Be the last Hero standing! Bankrupt your rivals by capturing locations, upgrading them to
+                        Taverns, and hoarding Gold. If you run out of Gold and Properties to sell, you are
+                        eliminated.
+                    </p>
+
+                    <h3><span style="color:var(--gold-main)">✦</span> The World</h3>
+                    <ul>
+                        <li><b>Day & Night:</b> The world cycles every 10 rounds.
+                            <br><i>Day:</i> Standard visibility.
+                            <br><i>Night:</i> Fog rolls in, obscuring vision. Monsters become more aggressive
+                            (Harder
+                            "Skirmish" cards).
+                        </li>
+                        <li><b>Movement:</b> Roll 2d6 to move. Landing on <b>Start (The Inn)</b> or passing it
+                            recharges
+                            your abilities and grants 200G.</li>
+                        <li><b>The Dungeon (Jail):</b> If arrested, you must skip a turn. Some abilities (like
+                            Rogue
+                            skills) can help you escape or trap others.</li>
+                    </ul>
+                </div>
+
+                <!-- TAB 2: HERO & SKILLS -->
+                <div id="tab-hero" class="help-section">
+                    <h3><span style="color:var(--gold-main)">✦</span> Stats</h3>
+                    <p>Your ability to succeed in checks depends on your stats:</p>
+                    <ul>
+                        <li><b style="color:#ef4444">STR (Strength):</b> Used for brute force, smashing
+                            obstacles, and
+                            heavy weapons.</li>
+                        <li><b style="color:#10b981">DEX (Dexterity):</b> Used for dodging, traps, acrobatics,
+                            and
+                            ranged weapons.</li>
+                        <li><b style="color:#3b82f6">INT (Intelligence):</b> Used for magic, puzzles, and
+                            resisting
+                            spells.</li>
+                    </ul>
+
+                    <h3><span style="color:var(--gold-main)">✦</span> Skills</h3>
+                    <p>Every Hero has:</p>
+                    <ul>
+                        <li><b>Active Skill (Slot 1):</b> A powerful ability you can trigger on your turn. Once
+                            used, it
+                            must be <b>Recharged</b> by passing Start.</li>
+                        <li><b>Passive Trait:</b> A permanent bonus (e.g., discounts, extra movement, immunity).
+                        </li>
+                        <li><b>Equipment Skills:</b> Rare and Legendary items grant additional Active Skills.
+                        </li>
+                    </ul>
+
+                    <h3><span style="color:var(--gold-main)">✦</span> Status Effects</h3>
+                    <p><b>Polymorph:</b> If turned into a Sheep, you cannot use skills or items, and your stats
+                        are
+                        reduced to 1. Surviving a turn cures you.</p>
+                    <p><b>Stun/Jail:</b> You lose your turn.</p>
+                </div>
+
+                <!-- TAB 3: CONQUEST -->
+                <div id="tab-conquest" class="help-section">
+                    <h3><span style="color:var(--gold-main)">✦</span> Capturing Land</h3>
+                    <p>When you land on an empty location, you face an <b>Encounter Card</b>. You must roll dice
+                        equal
+                        to your specific Stat (STR/DEX/INT) against a Target Number (TN).</p>
+                    <ul>
+                        <li><b>Success:</b> You capture the land and set up a Camp. You choose which Stat
+                            defends it.
+                        </li>
+                        <li><b>Failure:</b> You pay a fine to the Treasury.</li>
+                    </ul>
+
+                    <h3><span style="color:var(--gold-main)">✦</span> Enemy Territory</h3>
+                    <p>Landing on a rival's land offers a choice:</p>
+                    <ol>
+                        <li><b>Pay Rent:</b> Simple and safe.</li>
+                        <li><b>Siege (Attack):</b> Roll your stats against the land's Defense.
+                            <ul>
+                                <li><i>Win:</i> You downgrade the building or destroy it. If the owner hired
+                                    <b>Guards</b>, you kill one Guard instead.
+                                </li>
+                                <li><i>Lose:</i> You pay <b>Double Rent</b> to the owner.</li>
+                            </ul>
+                        </li>
+                    </ol>
+                    <p><i>Note: Buildings upgraded to <b>Taverns</b> (Level 2) are harder to siege.</i></p>
+                </div>
+
+                <!-- TAB 4: EVENTS & DUNGEONS -->
+                <div id="tab-dungeons" class="help-section">
+                    <h3><span style="color:var(--gold-main)">✦</span> World Events</h3>
+                    <p>Random events occur periodically. These can be weather effects (Blizzards slowing
+                        movement),
+                        economic booms, or visiting Merchants.</p>
+
+                    <h3><span style="color:var(--gold-main)">✦</span> Dungeons</h3>
+                    <p>Rarely, a mythical <b>Dungeon</b> may appear attached to a specific location (e.g., The
+                        Void Edge
+                        or Demon Gate).</p>
+                    <ul>
+                        <li><b>Entering:</b> You must be at the entrance tile to enter. Dungeons are High
+                            Difficulty
+                            areas.</li>
+                        <li><b>Movement:</b> Inside a dungeon, you move 1 tile per turn automatically.</li>
+                        <li><b>Combat:</b> Every step triggers a dangerous encounter. If you fail, you are cast
+                            out to
+                            the Inn.</li>
+                        <li><b>The Boss:</b> At the end lies a Boss. Defeating them grants massive Treasure
+                            loot.
+                            Failing expels you from the dungeon.</li>
+                        <li><b>Ambush:</b> Beware! Rolling a 6 while inside a dungeon may summon the Boss
+                            immediately to
+                            your location.</li>
+                    </ul>
+                </div>
+
+                <!-- TAB 5: ECONOMY -->
+                <div id="tab-economy" class="help-section">
+                    <h3><span style="color:var(--gold-main)">✦</span> Shops & Items</h3>
+                    <p><b>Merchants:</b> Found at Start, Ports, and via Roaming Events. You can buy Equipment
+                        (Stat
+                        boosts) or Scrolls (One-time use spells).</p>
+                    <p><b>Selling:</b> You can sell items back to any merchant for half price. (Long-press an
+                        item in
+                        the shop menu).</p>
+                    <p><b>Inventory Limit:</b> You can carry up to 12 items.</p>
+
+                    <h3><span style="color:var(--gold-main)">✦</span> The Treasury</h3>
+                    <p>Fines and Taxes are paid into the Kingdom's Treasury. If you land on the <b>Capital
+                            City</b>
+                        (Free Parking), you win the entire pot!</p>
+                </div>
+
+                <!-- TAB 6: MULTIPLAYER -->
+                <div id="tab-multiplayer" class="help-section">
+                    <h3><span style="color:var(--gold-main)">✦</span> Etiquette</h3>
+                    <ul>
+                        <li><b>Turn Timer:</b> You have 15 seconds to take your turn (45s in Shops). If you run
+                            out of
+                            time, your turn is skipped.</li>
+                        <li><b>AFK Penalty:</b> Missing 3 turns in a row results in being kicked from the game.
+                        </li>
+                        <li><b>Reconnecting:</b> If you disconnect, reload the page. The game state is saved on
+                            the
+                            server.</li>
+                    </ul>
+
+                    <h3><span style="color:var(--gold-main)">✦</span> Communication</h3>
+                    <p>Use the Global Chat in the lobby or Room Chat in-game. You can also right-click (or
+                        long-press) a
+                        player in the Leaderboard to send a <b>Direct Message</b>.</p>
+                </div>
+
+                <div
+                    style="text-align: center; margin-top: auto; padding: 15px; border-top: 1px solid #444; background: #111;">
+                    <button class="primary" onclick="toggleHelpModal()">Return to Adventure</button>
+                </div>
+            </div>
+        </div>
+        <div id="game-over-modal" class="modal-overlay">
+            <div class="modal-content" style="max-width: 700px;">
+                <h1 id="go-title" style="font-size:3rem; margin:20px 0; text-shadow:0 0 10px #000;">GAME OVER
+                </h1>
+                <p id="go-msg" style="color:#ccc;">...</p>
+
+                <!-- Scoreboard / Stats -->
+                <div id="go-stats"
+                    style="text-align:left; padding:15px; background:#111; margin:10px 0; border-radius:8px; max-height: 150px; overflow-y: auto;">
+                </div>
+
+                <!-- Graph Tabs -->
+                <div style="display:flex; justify-content:center; gap:10px; margin-bottom:10px;">
+                    <button class="choice-btn" style="padding:8px 15px; font-size:0.8rem; width:auto; margin:0;"
+                        onclick="setGraphMode('gold')">💰 Gold History</button>
+                    <button class="choice-btn" style="padding:8px 15px; font-size:0.8rem; width:auto; margin:0;"
+                        onclick="setGraphMode('props')">🏰 Property History</button>
+                </div>
+
+                <!-- Graph Canvas -->
+                <div id="graph-container"
+                    style="display:none; width:100%; height:250px; background:#222; border:1px solid #444; margin-bottom:20px;">
+                    <canvas id="game-chart" width="600" height="250" style="width:100%; height:100%;"></canvas>
+                </div>
+
+                <!-- Action Buttons -->
+                <div style="display:flex; gap:10px; justify-content:center; padding-bottom: 20px;">
+                    <button class="choice-btn"
+                        style="background:var(--gold-dim); border-color: var(--gold-main); font-size: 1.2rem; padding: 12px 40px; width: auto;"
+                        onclick="resetGame()">PLAY AGAIN</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="bankruptcy-modal" class="modal-overlay">
+            <div class="modal-content" style="border-color:var(--accent-red);">
+                <h1 style="color:var(--accent-red); margin:20px 0;">DEBT!</h1>
+                <p>You owe <span id="debt-amount" style="color:#fff; font-weight:bold;">0</span> G</p>
+                <div id="debt-prop-list"
+                    style="padding:10px; background:#111; max-height:200px; overflow-y:auto; margin-bottom:20px;">
+                </div>
+                <button id="btn-debt-done" class="choice-btn" style="width:100%; justify-content:center;"
+                    onclick="checkDebtCleared()" disabled>Pay & Continue</button>
+            </div>
+        </div>
+
+        <!-- DEBUG CONSOLE -->
+        <div id="debug-console" style="display:none;">
+            <div style="color:#0f0; font-family:monospace; font-size:14px; margin-bottom:5px;">> DEV CONSOLE
+            </div>
+            <input type="text" id="console-input" placeholder="Type command..." autocomplete="off">
+        </div>
+
+        <!-- REAL-TIME DEBUG LOG -->
+        <div id="debug-log-overlay" style="display:none;">
+            <!-- Replaced inline style with class 'debug-header' -->
+            <div class="debug-header">
+                <span>SYSTEM LOG</span>
+                <div style="display:flex; align-items:center;">
+                    <button id="btn-copy-log" onclick="copyDebugLog()">COPY</button>
+                    <!-- NEW MINIMIZE BUTTON -->
+                    <button id="btn-min-log" onclick="toggleDebugLog()">_</button>
+                </div>
+            </div>
+            <div id="debug-log-content"></div>
+        </div>
+
+        <!-- NEW: GENERIC ERROR/WARNING MODAL -->
+        <div id="error-modal" class="modal-overlay" style="z-index: 10000;">
+            <div class="modal-content" style="width:400px; text-align:center; border-color: #ef4444;">
+                <h3 id="error-title" style="color:#ef4444; margin-top:15px;">ERROR</h3>
+                <p id="error-msg" style="color:#ddd; margin: 20px 0;">Something went wrong.</p>
+                <button class="choice-btn" style="width:100px; margin:0 auto;"
+                    onclick="document.getElementById('error-modal').style.display='none'">OK</button>
+            </div>
+        </div>
+
+        <!-- STORE MODAL -->
+        <div id="store-modal" class="modal-overlay">
+            <div class="modal-content" style="width: 450px; text-align:center;">
+                <div class="close-x" onclick="document.getElementById('store-modal').style.display='none'">×
+                </div>
+                <h2 style="color:var(--gold-main); margin-top:20px;">PREMIUM STORE</h2>
+
+                <div style="padding: 20px;">
+
+                    <!-- OPTION 1: REMOVE ADS -->
+                    <div class="choice-btn" id="remove-ads-container"
+                        style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; padding:20px; cursor:default; background:#1a202c; border-color:#10b981;">
+                        <div style="text-align:left;">
+                            <div style="color:#10b981; font-weight:bold; font-size:1.1rem;">REMOVE ADS</div>
+                            <div style="font-size:0.8rem; color:#aaa;">Permanently remove all ads</div>
+                        </div>
+
+                        <!-- SINGLE BUTTON -->
+                        <button id="btn-buy-ads" class="auth-btn"
+                            style="width:auto; padding:10px 30px; margin:0; background:#10b981; color:#fff; border:none; font-weight:900; font-size:1.1rem; cursor:pointer;"
+                            onclick="window.open('https://www.paypal.com/cgi-bin/webscr?cmd=_s-xclick&hosted_button_id=3NNGM4THBVXPL', '_blank')">
+                            $3.00
+                        </button>
+                    </div>
+
+                    <!-- OPTION 2: SUPPORT / DONATE -->
+                    <div class="choice-btn"
+                        style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; padding:20px; cursor:default; background:#1a202c; border-color:#f59e0b;">
+                        <div style="text-align:left;">
+                            <div style="color:#f59e0b; font-weight:bold; font-size:1.1rem;">SUPPORT DEV</div>
+                            <div style="font-size:0.8rem; color:#aaa;">Buy the dev a coffee! ☕</div>
+                        </div>
+
+                        <button class="auth-btn btn-login" style="width:auto; padding:10px 20px; margin:0;"
+                            onclick="window.open('https://ko-fi.com/deathforgegames', '_blank')">
+                            Donate
+                        </button>
+                    </div>
+
+                    <div style="border-top:1px solid #333; margin-top:15px; padding-top:15px;">
+                        <p style="font-size:0.8rem; color:#888;">Already purchased?</p>
+                        <button class="choice-btn" style="width:100%; justify-content:center; padding:10px;"
+                            onclick="STORE.restorePurchase()">
+                            ↻ Restore Purchase / Check Status
+                        </button>
+                    </div>
+
+                    <button id="btn-debug-sim-purchase" class="choice-btn"
+                        style="display:none; width:100%; justify-content:center; margin-top:15px; background:#065f46; border:2px dashed #10b981;"
+                        onclick="STORE.processSuccessfulPurchase()">
+                        [TESTY] SIMULATE $0 PURCHASE
+                    </button>
+
+                    <!-- PayPal Button (Moved INSIDE the padding div) -->
+                    <div id="paypal-button-container" style="margin-top: 10px;"></div>
+
+                    <div style="font-size:0.7rem; color:#666; margin-top:10px;">One-time purchase of $3.00</div>
+
+                </div> <!-- End Padding Div -->
+            </div> <!-- End Modal Content -->
+        </div> <!-- End Store Modal -->
+
+        <!-- PROFILE MODAL -->
+        <div id="profile-modal" class="modal-overlay">
+            <div class="modal-content" style="width: 500px;">
+                <!-- Header / Close / Password -->
+                <div class="close-x" onclick="document.getElementById('profile-modal').style.display='none'">×
+                </div>
+                <div style="position:absolute; top:15px; left:15px; font-weight:bold; color:var(--gold-main);">
+                    PROFILE
+                </div>
+                <button
+                    style="position:absolute; top:10px; right:50px; background:transparent; border:none; color:#aaa; cursor:pointer;"
+                    onclick="PROFILE.changePassword()">⚙ Password</button>
+
+                <!-- Main Body -->
+                <div style="padding:20px; margin-top:30px;">
+
+                    <!-- Top Section: Avatar & Details -->
+                    <div class="profile-layout">
+                        <!-- Left Column: Avatar Display & Save -->
+                        <div class="profile-left">
+                            <div id="prof-avatar-display" class="profile-avatar-lg"></div>
+                            <button class="choice-btn" style="padding:5px; font-size:0.7rem; width:100%;"
+                                onclick="PROFILE.save()">Save Profile</button>
+                        </div>
+
+                        <!-- Right Column: Inputs -->
+                        <div class="profile-right">
+                            <!-- Static Account Name (Legacy ID) -->
+                            <div style="margin-bottom:5px;">
+                                <div class="profile-label">Account ID</div>
+                                <div id="prof-username" style="font-weight:bold; font-size:0.9rem; color:#888;">
+                                    -</div>
+                            </div>
+
+                            <!-- Display Name Field -->
+                            <div style="margin-bottom:10px;">
+                                <div class="profile-label">Display Name</div>
+                                <input type="text" id="prof-display-name" class="auth-input"
+                                    style="padding:8px; margin:0; border-color:var(--gold-main);"
+                                    placeholder="Enter Name">
+                            </div>
+
+                            <!-- NEW: READ-ONLY EMAIL FIELD -->
+                            <div style="margin-bottom:10px;">
+                                <div class="profile-label">Email</div>
+                                <input type="text" id="prof-email-display" class="auth-input"
+                                    style="padding:8px; margin:0; background:#222; color:#666; border:1px solid #333; cursor: not-allowed;"
+                                    readonly>
+                            </div>
+                            <!-- END NEW -->
+
+                            <!-- Avatar URL Input -->
+                            <div style="margin-bottom:10px;">
+                                <div class="profile-label">Avatar URL</div>
+                                <input type="text" id="prof-avatar-input" class="auth-input"
+                                    style="padding:5px; margin:0;" placeholder="https://example.com/image.png">
+                            </div>
+
+                            <!-- About Me -->
+                            <div>
+                                <div class="profile-label">About Me</div>
+                                <textarea id="prof-about" class="profile-textarea"
+                                    placeholder="Tell us your legend..."></textarea>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Bottom Section: Friends -->
+                    <div style="margin-top:20px; border-top:1px solid #444; padding-top:10px;">
+
+                        <!-- Pending Friend Requests (Hidden by default, shown via JS) -->
+                        <div id="pending-requests-container" style="display:none; margin-bottom:15px;">
+                            <div style="color:var(--gold-glow); font-size:0.8rem; margin-bottom:5px; font-weight:bold;">
+                                PENDING REQUESTS</div>
+                            <div id="pending-requests-list"></div>
+                        </div>
+
+                        <!-- Friends List Header -->
+                        <div style="display:flex; justify-content:space-between; align-items:center;">
+                            <span style="color:var(--gold-main);">FRIENDS LIST</span>
+                            <button class="choice-btn" style="padding:5px 10px; width:auto; margin:0;"
+                                onclick="FRIENDS.showAddModal()">+ Add Friend</button>
+                        </div>
+
+                        <!-- Friends List Container -->
+                        <div id="profile-friends-list" class="friend-list"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ADD FRIEND MODAL -->
+        <div id="add-friend-modal" class="modal-overlay" style="z-index: 6000;">
+            <div class="modal-content" style="width: 300px; text-align:center;">
+                <h3>Add Friend</h3>
+                <input type="email" id="friend-email-input" class="auth-input" placeholder="Friend's Email">
+                <div style="display:flex; gap:10px; justify-content:center;">
+                    <button class="choice-btn" onclick="FRIENDS.addFriend()">Add</button>
+                    <button class="choice-btn" style="background:#444;"
+                        onclick="document.getElementById('add-friend-modal').style.display='none'">Cancel</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- INVITE FRIEND MODAL -->
+        <div id="invite-modal" class="modal-overlay" style="z-index: 6000;">
+            <div class="modal-content" style="width: 350px;">
+                <div class="close-x" onclick="document.getElementById('invite-modal').style.display='none'">×
+                </div>
+                <h3 style="text-align:center; color:var(--gold-main);">Invite Friend</h3>
+                <div id="invite-list" class="friend-list" style="height:250px;"></div>
+            </div>
+        </div>
+
+        <!-- FRIEND DROPDOWN MENU -->
+        <div id="friend-context-menu" class="friend-dropdown">
+            <div class="ctx-item" onclick="FRIENDS.actionMessage()">Message</div>
+            <div class="ctx-item" onclick="FRIENDS.actionSettings()">Friend Settings</div>
+            <div class="ctx-item" onclick="FRIENDS.actionRemove()" style="color:#ef4444;">Remove Friend</div>
+        </div>
+
+        <!-- MAP VIEW MODAL -->
+        <div id="map-modal" class="modal-overlay" onclick="this.style.display='none'" style="z-index: 5000;">
+            <div class="modal-content"
+                style="background: transparent; border: none; box-shadow: none; width: 95%; max-width: 800px; pointer-events: none;">
+                <img src="https://static.wixstatic.com/media/b16479_5caac3525f59406d8ff175695ef11cb1~mv2.jpg"
+                    style="width:100%; border: 3px solid var(--gold-main); border-radius: 12px; pointer-events: auto;">
+                <button class="choice-btn"
+                    style="margin-top: 10px; pointer-events: auto; justify-content: center;">Close Map</button>
+            </div>
+        </div>
+
+        <!-- FRIEND SETTINGS MODAL -->
+        <div id="friend-settings-modal" class="modal-overlay" style="z-index: 7500;">
+            <div class="modal-content" style="width: 350px;">
+                <div class="close-x" onclick="document.getElementById('friend-settings-modal').style.display='none'">×
+                </div>
+                <h3 style="text-align:center; color:var(--gold-main); margin-top:15px;">Friend Settings</h3>
+                <p id="fs-target-name" style="text-align:center; color:#aaa; margin-bottom:15px;"></p>
+
+                <div style="padding:10px;">
+                    <div class="setting-row">
+                        <label>Block Direct Messages</label>
+                        <input type="checkbox" id="fs-block-dm" class="toggle-chk">
+                    </div>
+                    <div class="setting-row">
+                        <label>Hide Online Status</label>
+                        <input type="checkbox" id="fs-hide-status" class="toggle-chk">
+                    </div>
+                    <div class="setting-row">
+                        <label>Block Game Invites</label>
+                        <input type="checkbox" id="fs-block-invite" class="toggle-chk">
+                    </div>
+                </div>
+
+                <div style="padding:15px; text-align:center;">
+                    <button class="choice-btn" style="width:100%; justify-content:center;"
+                        onclick="FRIENDS.saveSettings()">Save Settings</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- DIRECT MESSAGE WINDOW (Draggable) -->
+        <div id="dm-window" class="glass-panel gold-border">
+            <div class="dm-header">
+                <span id="dm-title">Chat</span>
+                <span style="cursor:pointer;" onclick="DM.close()">×</span>
+            </div>
+            <div id="dm-body" class="dm-body"></div>
+            <div class="chat-input-row">
+                <input type="text" id="dm-input" class="chat-input" placeholder="Message..."
+                    onkeydown="if(event.key==='Enter') DM.send()">
+                <button class="chat-send" onclick="DM.send()">→</button>
+            </div>
+        </div>
+
+        <!-- UPDATE: FRIEND DROPDOWN MENU (Add Settings Option) -->
+        <div id="friend-context-menu" class="friend-dropdown">
+            <div class="ctx-item" onclick="FRIENDS.actionMessage()">Message</div>
+            <div class="ctx-item" onclick="FRIENDS.actionInvite()">Invite to Game</div>
+            <div class="ctx-item" onclick="FRIENDS.actionSettings()">Friend Settings</div>
+            <div class="ctx-item" onclick="FRIENDS.actionRemove()" style="color:#ef4444;">Remove Friend</div>
+        </div>
+    </div>
+
+    <!-- PayPal SDK -->
+    <script
+        src="https://www.paypal.com/sdk/js?client-id=AZ04wE8JlxNM7L16Pz-QHojHupJJfjpC0XNaeIFgcDvbLFGDc6T6rGTaMrB-UQinXW6vwCROq8kqZw_N&currency=USD"></script>
+
+    <div id="ad-container">
+        <div id="google-ad-slot"
+            style="width:100%; height:100%; display:flex; justify-content:center; align-items:center; color:#aaa; font-size:0.8rem;">
+            <!-- Google Ad Code Will Go Here -->
+            <!-- PASTE YOUR ADSENSE CODE HERE -->
+            <script async
+                src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-8171909770069568"
+                crossorigin="anonymous"></script>
+            <!-- QuestopolyAd -->
+            <ins class="adsbygoogle" style="display:block" data-ad-client="ca-pub-8171909770069568"
+                data-ad-slot="5677565528" data-ad-format="horizontal" data-full-width-responsive="true"></ins>
+            <script>
+                (adsbygoogle = window.adsbygoogle || []).push({});
+            </script>
+        </div>
+    </div>
+
+    <!-- BUG REPORT MODAL -->
+    <div id="bug-report-modal" class="modal-overlay" style="z-index: 9600;">
+        <div class="modal-content" style="width: 400px; text-align:center;">
+            <div class="close-x" onclick="document.getElementById('bug-report-modal').style.display='none'">×</div>
+            <h3 style="color:var(--gold-main); margin-top:15px;">REPORT A BUG</h3>
+            <p style="color:#aaa; font-size:0.9rem;">Please describe the issue. Your email is included
+                automatically.</p>
+            <textarea id="bug-input"
+                style="width:90%; height:100px; background:#222; color:#fff; border:1px solid #444; padding:10px; resize:none;"
+                placeholder="What happened?"></textarea>
+            <button class="primary" style="margin-top:15px;" onclick="BUG_REPORT.submit()">SEND REPORT</button>
+        </div>
+    </div>
+
+    <!-- ADMIN MAILBOX MODAL -->
+    <div id="admin-mailbox-modal" class="modal-overlay" style="z-index: 9700;">
+        <div class="modal-content"
+            style="width: 800px; max-width:95%; height:600px; display:flex; flex-direction:column;">
+            <div class="close-x" onclick="document.getElementById('admin-mailbox-modal').style.display='none'">×
+            </div>
+            <h3 style="color:var(--gold-main); margin-top:15px; text-align:center;">ADMIN MAILBOX</h3>
+
+            <div style="display:flex; justify-content:space-between; align-items:center; padding:10px 20px; gap:10px;">
+                <button class="choice-btn" style="width:auto; padding:5px 10px; font-size:0.8rem;"
+                    onclick="ADMIN_MAILBOX.loadReports()">↻ Refresh</button>
+                <!-- SEARCH BAR -->
+                <input type="text" id="admin-search-input" placeholder="Search bugs..."
+                    style="flex:1; background:#222; border:1px solid #444; color:#fff; padding:5px 10px; border-radius:4px;"
+                    onkeyup="ADMIN_MAILBOX.renderList()">
+                <span style="color:#666; font-size:0.8rem;">Double-click to read</span>
+            </div>
+
+            <!-- Header Row -->
+            <div
+                style="display:grid; grid-template-columns: 50px 150px 1fr 120px 50px; padding:10px 20px; border-bottom:1px solid #444; color:#888; font-weight:bold; font-size:0.9rem;">
+                <div>Sts</div>
+                <div>User</div>
+                <div>Message</div>
+                <div>Date</div>
+                <div>Del</div>
+            </div>
+
+            <div id="admin-report-list" style="flex:1; overflow-y:auto; background:#111;">
+                <!-- Reports injected here as rows -->
+            </div>
+        </div>
+    </div>
+
+    <!-- NEW: MESSAGE DETAIL MODAL -->
+    <div id="bug-detail-modal" class="modal-overlay" style="z-index: 9800;">
+        <!-- user-select: text enabled here -->
+        <div class="modal-content" style="width: 500px; text-align:left; border:1px solid #444; user-select: text;">
+            <div class="close-x" onclick="document.getElementById('bug-detail-modal').style.display='none'">×</div>
+            <h3 style="color:#fff; margin-bottom:20px;">Bug Report Detail</h3>
+
+            <div style="margin-bottom:10px;"><strong style="color:#888;">From:</strong> <span id="detail-from"
+                    style="color:#fff;"></span></div>
+            <div style="margin-bottom:10px;"><strong style="color:#888;">Date:</strong> <span id="detail-date"
+                    style="color:#aaa;"></span></div>
+            <div style="margin-bottom:10px;"><strong style="color:#888;">Status:</strong> <span
+                    id="detail-status"></span></div>
+
+            <!-- Status Dates -->
+            <div id="detail-wip-container" style="display:none; font-size:0.8rem; color:#fbbf24; margin-bottom:5px;">
+                <strong>WIP Since:</strong> <span id="detail-wip-date"></span>
+            </div>
+            <div id="detail-done-container" style="display:none; font-size:0.8rem; color:#10b981; margin-bottom:10px;">
+                <strong>Completed:</strong> <span id="detail-done-date"></span>
+            </div>
+
+            <!-- cursor:text to imply selectability -->
+            <div style="background:#222; padding:15px; border:1px solid #333; margin:15px 0; color:#ddd; min-height:100px; white-space:pre-wrap; cursor:text;"
+                id="detail-msg"></div>
+
+            <div style="display:flex; gap:10px; justify-content:flex-end; flex-wrap:wrap;">
+                <!-- COPY BUTTON -->
+                <button class="choice-btn" style="width:auto; border-color:#3b82f6; color:#3b82f6;"
+                    onclick="ADMIN_MAILBOX.copyToClipboard()">📋 Copy</button>
+
+                <div style="flex:1;"></div> <!-- Spacer -->
+
+                <button class="choice-btn" style="width:auto; border-color:#fbbf24; color:#fbbf24;"
+                    onclick="ADMIN_MAILBOX.updateCurrent('WIP')">WIP</button>
+                <button class="choice-btn" style="width:auto; border-color:#10b981; color:#10b981;"
+                    onclick="ADMIN_MAILBOX.updateCurrent('Done')">Done</button>
+                <button class="choice-btn" style="width:auto;" onclick="ADMIN_MAILBOX.replyCurrent()">Reply</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- NEW: GENERIC CONFIRM MODAL -->
+    <div id="confirm-modal" class="modal-overlay" style="z-index: 10000;">
+        <div class="modal-content" style="width:400px; text-align:center; border-color: #var(--gold-main);">
+            <h3 id="confirm-title" style="color:var(--gold-main); margin-top:15px;">CONFIRM ACTION</h3>
+            <p id="confirm-msg" style="color:#ddd; margin: 20px 0;">Are you sure?</p>
+            <div style="display:flex; gap:20px; justify-content:center;">
+                <button id="confirm-yes-btn" class="choice-btn"
+                    style="width:100px; border-color:#ef4444; color:#ef4444;">YES</button>
+                <button class="choice-btn" style="width:100px;"
+                    onclick="document.getElementById('confirm-modal').style.display='none'">CANCEL</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ADMIN CONFIRM MODAL (Isolated) -->
+    <div id="admin-confirm-modal" class="modal-overlay" style="z-index: 10001;">
+        <div class="modal-content" style="width:400px; text-align:center; border-color: #ef4444;">
+            <h3 style="color:#ef4444; margin-top:15px;">DELETE REPORT</h3>
+            <p id="admin-confirm-msg" style="color:#ddd; margin: 20px 0;">Permanently delete this report?</p>
+            <div style="display:flex; gap:20px; justify-content:center;">
+                <button id="admin-confirm-yes-btn" class="choice-btn"
+                    style="width:100px; border-color:#ef4444; color:#ef4444;">DELETE</button>
+                <button class="choice-btn" style="width:100px;"
+                    onclick="document.getElementById('admin-confirm-modal').style.display='none'">CANCEL</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- NEW: REPLY MODAL -->
+    <div id="reply-modal" class="modal-overlay" style="z-index: 10000;">
+        <div class="modal-content" style="width: 500px; text-align:left;">
+            <div class="close-x" onclick="document.getElementById('reply-modal').style.display='none'">×</div>
+            <h3 style="color:var(--gold-main); margin-top:15px;">REPLY TO USER</h3>
+            <div style="margin-bottom:10px; color:#aaa;" id="reply-to-text">To: ...</div>
+
+            <textarea id="reply-input"
+                style="width:95%; height:120px; background:#222; color:#fff; border:1px solid #444; padding:10px; resize:none; margin-bottom:15px;"
+                placeholder="Type your reply here..."></textarea>
+
+            <div style="display:flex; justify-content:flex-end;">
+                <button class="choice-btn" onclick="ADMIN_MAILBOX.sendReply()">SEND MESSAGE</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- NEW: NOTIFICATION DETAIL MODAL (Email Style) -->
+    <div id="notification-detail-modal" class="modal-overlay" style="z-index: 10001;">
+        <div class="modal-content" style="width: 600px; text-align:left; background:#18181b; border:1px solid #444;">
+            <div class="close-x" onclick="document.getElementById('notification-detail-modal').style.display='none'">×
+            </div>
+
+            <!-- Email Header -->
+            <div style="border-bottom:1px solid #333; padding-bottom:15px; margin-bottom:20px;">
+                <h2 id="nd-subject" style="color:var(--gold-main); margin:10px 0;">Subject: Admin Response</h2>
+                <div style="display:grid; grid-template-columns: auto 1fr; gap:10px; color:#aaa; font-size:0.9rem;">
+                    <div style="font-weight:bold; color:#fff;">From:</div>
+                    <div id="nd-from">Admin</div>
+
+                    <div style="font-weight:bold; color:#fff;">Date:</div>
+                    <div id="nd-date">...</div>
+                </div>
+            </div>
+
+            <!-- Email Body -->
+            <div id="nd-body" style="color:#e5e7eb; line-height:1.6; min-height:100px; white-space:pre-wrap;">
+                <!-- Reply text goes here -->
+            </div>
+
+            <!-- Original Message (Quoted) -->
+            <div id="nd-original-container"
+                style="display:none; margin-top:30px; border-top:1px solid #444; padding-top:10px;">
+                <div style="color:#666; font-size:0.8rem; margin-bottom:10px;">----- Original Message -----</div>
+                <div id="nd-original-text"
+                    style="color:#888; border-left:2px solid #555; padding-left:10px; font-style:italic;">
+                    <!-- Original report goes here -->
+                </div>
+            </div>
+
+            <div style="margin-top:20px; text-align:right;">
+                <button class="choice-btn" style="width:auto;"
+                    onclick="document.getElementById('notification-detail-modal').style.display='none'">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="loading-overlay"
+        style="position:fixed; top:0; left:0; width:100%; height:100%; background:#000; z-index:99999; display:flex; justify-content:center; align-items:center; color:var(--gold-main); font-family:'Cinzel',serif; font-size:2rem; transition:opacity 0.5s;">
+        LOADING LEGENDS...
+    </div>
+    <script>
+        window.addEventListener('load', () => {
+            const overlay = document.getElementById('loading-overlay');
+            if (overlay) {
+                overlay.style.opacity = 0;
+                setTimeout(() => overlay.style.display = 'none', 500);
+            }
+        });
+    </script>
+
+    <!-- GAME MODULES -->
+    <script src="js/modules/config.js"></script>
+    <script src="js/modules/globals.js"></script>
+    <script src="js/modules/ui_common.js"></script>
+    <script src="js/modules/auth.js"></script>
+    <script src="js/modules/store.js"></script>
+    <script src="js/modules/profile.js"></script>
+    <script src="js/modules/friends.js"></script>
+    <script src="js/modules/dm.js"></script>
+    <script src="js/modules/bug_report.js"></script>
+    <script src="js/modules/admin.js"></script> <!-- ADDED ADMIN.JS -->
+    <script src="js/modules/lobby.js"></script>
+    <script src="js/modules/room.js"></script>
+    <script src="js/modules/game.js"></script>
+</body>
+
+</html>
