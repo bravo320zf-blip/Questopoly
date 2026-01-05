@@ -94,7 +94,7 @@ body {
     width: 100%;
     height: 12%;
     /* Adjust this % to control bar size */
-    min-height: 20px;
+    min-height: 90px;
     /* Ensure space for standard ads */
     background-color: #3e2723;
     /* Fallback brown */
@@ -103,7 +103,7 @@ body {
     border-top: 4px solid var(--gold-main);
     box-shadow: 0 -5px 20px rgba(0, 0, 0, 0.8);
     z-index: 9999;
-    display: flex;
+    display: absolute;
     align-items: center;
     justify-content: center;
     order: 2;
@@ -4718,3 +4718,4 @@ button {
     width: 100%;
 
 }
+
