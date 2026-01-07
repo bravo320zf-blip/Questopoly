@@ -1676,38 +1676,38 @@ const CLASSES = [
 ];
 
 const CHAR_PORTRAITS = {
-    human_fighter: "https://static.wixstatic.com/media/b16479_85518cf9c4d646c2994697b826b54bff~mv2.jpg",
-    human_wizard: "https://static.wixstatic.com/media/b16479_67634ea082d04f388af02accc2e0a2bc~mv2.jpg",
-    human_rogue: "https://static.wixstatic.com/media/b16479_7f27982f60994088b1740631284815b3~mv2.jpg",
-    human_cleric: "https://static.wixstatic.com/media/b16479_0293976216c3443187ebcc00fcb1e071~mv2.jpg",
-    elf_fighter: "https://static.wixstatic.com/media/b16479_97dd792642d444f59cb3b21842131c6a~mv2.jpg",
-    elf_wizard: "https://static.wixstatic.com/media/b16479_19a126df94694355b2381756b2ad35da~mv2.jpg",
-    elf_rogue: "https://static.wixstatic.com/media/b16479_ffdbe8eb72214036a2f95e2f5a9e6f48~mv2.jpg",
-    elf_cleric: "https://static.wixstatic.com/media/b16479_82514ff810324b4ca9c6218b6d4e2da6~mv2.jpg",
-    dwarf_fighter: "https://static.wixstatic.com/media/b16479_15e678031c824dfaa6ff4b851c470c39~mv2.jpg",
-    dwarf_wizard: "https://static.wixstatic.com/media/b16479_f84ec5deac214cd3b570517773edd83e~mv2.jpg",
-    dwarf_rogue: "https://static.wixstatic.com/media/b16479_81d5ee7fd64c4d1a911252797b8b34bd~mv2.jpg",
-    dwarf_cleric: "https://static.wixstatic.com/media/b16479_67a5b13eb3654884b520fcff34f7af0e~mv2.jpg",
+    human_fighter: "https://static.wixstatic.com/media/b16479_6c68b5d591924b6e824a5b853c70d7d0~mv2.png",
+    human_wizard: "https://static.wixstatic.com/media/b16479_cffdfdf625ac4c5ab291cc32f6cc357d~mv2.png",
+    human_rogue: "https://static.wixstatic.com/media/b16479_c0b84bd00b724d378b7fc569ea230d43~mv2.png",
+    human_cleric: "https://static.wixstatic.com/media/b16479_d7afa7e4487c4e2ba43881974f9cf775~mv2.png",
+    elf_fighter: "https://static.wixstatic.com/media/b16479_db3af4282e0941f981e73e24a24559f8~mv2.png",
+    elf_wizard: "https://static.wixstatic.com/media/b16479_3ea1a5f47f424585a52e87211f16612a~mv2.png",
+    elf_rogue: "https://static.wixstatic.com/media/b16479_e509aa4340f34fcf8e1d6cf62c655693~mv2.png",
+    elf_cleric: "https://static.wixstatic.com/media/b16479_7f8723d83fa743758ce087365dee5617~mv2.png",
+    dwarf_fighter: "https://static.wixstatic.com/media/b16479_40e15debdf924a75bb2d640477a745a6~mv2.png",
+    dwarf_wizard: "https://static.wixstatic.com/media/b16479_5c37ef08a101468f92c1357a0ed88576~mv2.png",
+    dwarf_rogue: "https://static.wixstatic.com/media/b16479_815ea25b0e9c41d999f6af0377ff4a66~mv2.png",
+    dwarf_cleric: "https://static.wixstatic.com/media/b16479_25f160f5cbc94698957d3c95e06102df~mv2.png",
     orc_fighter: "https://static.wixstatic.com/media/b16479_733a0e4ffb554734a58229af907bb5e5~mv2.jpg",
     orc_wizard: "https://static.wixstatic.com/media/b16479_a99213a85fa74dc7925dc1fb2d26987f~mv2.jpg",
     orc_rogue: "https://static.wixstatic.com/media/b16479_a0df2ed1b7b3412ba4694f474bf0846b~mv2.jpg",
     orc_cleric: "https://static.wixstatic.com/media/b16479_881698035b3b41c6932393d2b0975359~mv2.jpg",
-    gnome_fighter: "https://static.wixstatic.com/media/b16479_7d856dc2c71e4b60aff24ef59172897b~mv2.jpg",
-    gnome_wizard: "https://static.wixstatic.com/media/b16479_7466d1b684c04c459bb588da3225158d~mv2.jpg",
-    gnome_rogue: "https://static.wixstatic.com/media/b16479_3c67ae62970347d5a96a83248d7680f2~mv2.jpg",
-    gnome_cleric: "https://static.wixstatic.com/media/b16479_36767d44051346c49f9e4c0995ece904~mv2.jpg",
+    gnome_fighter: "https://static.wixstatic.com/media/b16479_0e7f8d065338451480850369e92bce41~mv2.png",
+    gnome_wizard: "https://static.wixstatic.com/media/b16479_916b53d2d0294949beb03bbed23e6317~mv2.png",
+    gnome_rogue: "https://static.wixstatic.com/media/b16479_0a695ef596f840358c65566dcd49e979~mv2.png",
+    gnome_cleric: "https://static.wixstatic.com/media/b16479_9e5334a4db594b85b1954c004a4915b3~mv2.png",
     tiefling_fighter: "https://static.wixstatic.com/media/b16479_a5e3e133b61f463a8bcc0ce93b582d25~mv2.jpg",
     tiefling_wizard: "https://static.wixstatic.com/media/b16479_afd36e1dcbc2485cac93ae49155eae58~mv2.jpg",
     tiefling_rogue: "https://static.wixstatic.com/media/b16479_9168e6f8da2e48659f4ced1d8c7aad8c~mv2.jpg",
     tiefling_cleric: "https://static.wixstatic.com/media/b16479_689c4a94dbb6418681634d65878c8022~mv2.jpg",
-    dragonborn_fighter: "https://static.wixstatic.com/media/b16479_d5e785f4d11e4d8288a3e963c6902b2c~mv2.jpg",
-    dragonborn_wizard: "https://static.wixstatic.com/media/b16479_8e63663f55f142fa81a3958b3a2b0d7b~mv2.jpg",
-    dragonborn_rogue: "https://static.wixstatic.com/media/b16479_d4f401dc822b421ca753799e82879c99~mv2.jpg",
-    dragonborn_cleric: "https://static.wixstatic.com/media/b16479_dab195d558d94074a19bb86b45972311~mv2.jpg",
-    halfling_fighter: "https://static.wixstatic.com/media/b16479_1692c0cb049249a1b5d49ac4f8901b97~mv2.jpg",
-    halfling_wizard: "https://static.wixstatic.com/media/b16479_0dcf3d49ab0b4dd7b0ca03d0ed6c09f8~mv2.jpg",
-    halfling_rogue: "https://static.wixstatic.com/media/b16479_b031efc88dfe49899f2e2b4f619c788e~mv2.jpg",
-    halfling_cleric: "https://static.wixstatic.com/media/b16479_ffa702bd84c141fca8fa7cbfd86f581d~mv2.jpg"
+    dragonborn_fighter: "https://static.wixstatic.com/media/b16479_ccc16b7e35234f169078b1f8d068860e~mv2.png",
+    dragonborn_wizard: "https://static.wixstatic.com/media/b16479_04ad01ebf8c546b7a1f380fc391adef1~mv2.png",
+    dragonborn_rogue: "https://static.wixstatic.com/media/b16479_57df45b4ea004cd1a8a2cfa668afdd1b~mv2.png",
+    dragonborn_cleric: "https://static.wixstatic.com/media/b16479_979846221ad146cd835eb0e9ed900e44~mv2.png",
+    halfling_fighter: "https://static.wixstatic.com/media/b16479_254630ae9fce40db98042af86fc124ff~mv2.png",
+    halfling_wizard: "https://static.wixstatic.com/media/b16479_cc426dbb6b4c42e4825bc9b704c665ae~mv2.png",
+    halfling_rogue: "https://static.wixstatic.com/media/b16479_aa0a778aaeca41fe9477cc9fee43483b~mv2.png",
+    halfling_cleric: "https://static.wixstatic.com/media/b16479_aead60c1d1014bacb235b5a583925891~mv2.png"
 };
 
 
@@ -11924,4 +11924,5 @@ function handleTimeoutAction(p) {
 }
 
 // Start Engine
+
 init();
