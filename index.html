@@ -401,7 +401,7 @@ Because you do not have a backend server listening for automatic receipts (Webho
         <div id="ui-layer">
 
             <!-- LEFT SIDEBAR: PLAYER SHEET -->
-            <div id="p1-sheet" class="glass-panel gold-border">
+            <div id="p1-sheet" class="glass-panel gold-border draggable-ui" style="display:none;">
                 <!-- FIXED HEADER -->
                 <div class="char-header">
                     <div style="display:flex; align-items:center;">
@@ -417,6 +417,7 @@ Because you do not have a backend server listening for automatic receipts (Webho
 
                 <!-- SCROLLABLE CONTENT START -->
                 <div class="sheet-scroll-area">
+                    <div class="sheet-left">
                     <!-- INSIDE #p1-sheet -->
                     <div class="stat-grid">
                         <div class="stat-box">
@@ -496,10 +497,13 @@ Because you do not have a backend server listening for automatic receipts (Webho
                         <div id="slot-off" class="doll-placement doll-slot" style="bottom: 5%; right: 25%;">OFF
                         </div>
                     </div>
+                    </div> <!-- End sheet-left -->
 
+                    <div class="sheet-right">
                     <div style="padding:0 10px; font-size:0.7rem; color:#888; margin-bottom:5px;">INVENTORY
                     </div>
                     <div id="p1-inv" class="inv-grid"></div>
+                    </div> <!-- End sheet-right -->
                 </div>
                 <!-- SCROLLABLE CONTENT END -->
 
@@ -509,98 +513,92 @@ Because you do not have a backend server listening for automatic receipts (Webho
             <!-- CENTER BOARD AREA -->
             <div id="board-anchor">
                 <div id="inner-zone">
-
-                    <!-- Turn Tracker -->
-                    <!-- Turn Tracker -->
-                    <div id="turn-widget">
-                        <h2 id="turn-banner">SETUP</h2>
-                        <div id="day-night-indicator">☀ DAY</div>
-
-                        <!-- NEW: TIMER BAR -->
-                        <div id="timer-container">
-                            <div id="timer-bar"></div>
-                        </div>
-                    </div>
-
-                    <!-- TREASURY WIDGET (Top Left) -->
-                    <div id="treasury-widget">
-                        <div class="treasury-icon">👑</div>
-                        <div id="treasury-val" class="treasury-amount">0</div>
-                        <div class="treasury-label">Treasury</div>
-                    </div>
-
-                    <!-- NEW: PLAYER STATS WIDGET (Top Right) -->
-                    <div id="mystats-widget">
-                        <div class="stat-row">
-                            <span class="ms-icon">💰</span> <span id="ms-gold" class="treasury-amount">0</span>
-                        </div>
-                        <div class="stat-row">
-                            <span class="ms-icon">⛺</span> <span id="ms-camps" class="treasury-amount">0</span>
-                        </div>
-                        <div class="stat-row">
-                            <span class="ms-icon">🍺</span> <span id="ms-taverns" class="treasury-amount">0</span>
-                        </div>
-                    </div>
-
-                    <!-- Adventure Log -->
-                    <div id="adventure-log-widget">
-                        <div id="game-log">
-                            <div class="log-entry" style="text-align:center; color:#aaa;">- Log Start -</div>
-                        </div>
-                    </div>
-
-                    <!-- Skill Bar -->
-                    <div id="skill-bar-container">
-                        <!-- OVERWORLD HEALTH BAR (Inside so it moves with the bar) -->
-                        <div id="overworld-health-bar">
-                            <div class="health-fill" id="health-fill"></div>
-                            <div class="health-text" id="health-text">-</div>
-                        </div>
-
-                        <div id="btn-action-container">
-                            <button id="btn-action" onclick="handleActionClick()">ROLL</button>
-                        </div>
-
-                        <div id="skill-bar">
-                            <div class="skill-slot" id="skill-0" onclick="useSkill(0)">
-                                <div class="skill-key">1</div><span id="txt-skill-0">Class</span>
-                            </div>
-                            <div class="skill-slot" id="skill-1" onclick="useSkill(1)">
-                                <div class="skill-key">2</div><span id="txt-skill-1">-</span>
-                            </div>
-                            <div class="skill-slot" id="skill-2" onclick="useSkill(2)">
-                                <div class="skill-key">3</div><span id="txt-skill-2">-</span>
-                            </div>
-                            <div class="spacer-slot"></div>
-                            <div class="skill-slot" id="skill-3" onclick="useSkill(3)">
-                                <div class="skill-key">4</div><span id="txt-skill-3">-</span>
-                            </div>
-                            <div class="skill-slot" id="skill-4" onclick="useSkill(4)">
-                                <div class="skill-key">5</div><span id="txt-skill-4">-</span>
-                            </div>
-                            <div class="skill-slot" id="skill-5" onclick="useSkill(5)" ondragover="allowDrop(event)"
-                                ondrop="handleSkillDrop(event, 0)" style="border-style:dashed; opacity:0.6;">
-                                <div class="skill-key">6</div><span id="txt-skill-5">Drag</span>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Utility Stack (OPEN BUTTONS) -->
-                    <div id="utility-stack">
-                        <div id="btn-help" class="util-btn" onclick="toggleHelpModal()">?</div>
-                        <div id="btn-bug" class="util-btn" onclick="BUG_REPORT.open()">
-                            🐞</div>
-                        <div id="btn-settings" class="util-btn" onclick="toggleSettingsModal()">⚙</div>
-                        <!-- REMOVED 'mobile-toggle-btn' class so they show on desktop -->
-                        <div class="util-btn" onclick="togglePanelVisibility('p1-sheet')">👤</div>
-                        <div class="util-btn" onclick="togglePanelVisibility('leaderboard')">📜</div>
-                    </div>
-
                 </div>
             </div>
 
+            <!-- Turn Tracker -->
+            <div id="turn-widget" class="draggable-ui">
+                <h2 id="turn-banner">SETUP</h2>
+                <div id="day-night-indicator">☀ DAY</div>
+                <div id="timer-container">
+                    <div id="timer-bar"></div>
+                </div>
+            </div>
+
+            <!-- TREASURY WIDGET (Top Left) -->
+            <div id="treasury-widget" class="draggable-ui">
+                <div class="treasury-icon">👑</div>
+                <div id="treasury-val" class="treasury-amount">0</div>
+                <div class="treasury-label">Treasury</div>
+            </div>
+
+            <!-- NEW: PLAYER STATS WIDGET (Top Right) -->
+            <div id="mystats-widget" class="draggable-ui">
+                <div class="stat-row">
+                    <span class="ms-icon">💰</span> <span id="ms-gold" class="treasury-amount">0</span>
+                </div>
+                <div class="stat-row">
+                    <span class="ms-icon">⛺</span> <span id="ms-camps" class="treasury-amount">0</span>
+                </div>
+                <div class="stat-row">
+                    <span class="ms-icon">🍺</span> <span id="ms-taverns" class="treasury-amount">0</span>
+                </div>
+            </div>
+
+            <!-- Adventure Log -->
+            <div id="adventure-log-widget" class="draggable-ui">
+                <div id="game-log">
+                    <div class="log-entry" style="text-align:center; color:#aaa;">- Log Start -</div>
+                </div>
+            </div>
+
+            <!-- Skill Bar -->
+            <div id="skill-bar-container" class="draggable-ui">
+                <!-- OVERWORLD HEALTH BAR -->
+                <div id="overworld-health-bar">
+                    <div class="health-fill" id="health-fill"></div>
+                    <div class="health-text" id="health-text">-</div>
+                </div>
+
+                <div id="btn-action-container">
+                    <button id="btn-action" onclick="handleActionClick()">ROLL</button>
+                </div>
+
+                <div id="skill-bar">
+                    <div class="skill-slot" id="skill-0" onclick="useSkill(0)">
+                        <div class="skill-key">1</div><span id="txt-skill-0">Class</span>
+                    </div>
+                    <div class="skill-slot" id="skill-1" onclick="useSkill(1)">
+                        <div class="skill-key">2</div><span id="txt-skill-1">-</span>
+                    </div>
+                    <div class="skill-slot" id="skill-2" onclick="useSkill(2)">
+                        <div class="skill-key">3</div><span id="txt-skill-2">-</span>
+                    </div>
+                    <div class="spacer-slot"></div>
+                    <div class="skill-slot" id="skill-3" onclick="useSkill(3)">
+                        <div class="skill-key">4</div><span id="txt-skill-3">-</span>
+                    </div>
+                    <div class="skill-slot" id="skill-4" onclick="useSkill(4)">
+                        <div class="skill-key">5</div><span id="txt-skill-4">-</span>
+                    </div>
+                    <div class="skill-slot" id="skill-5" onclick="useSkill(5)" ondragover="allowDrop(event)"
+                        ondrop="handleSkillDrop(event, 0)" style="border-style:dashed; opacity:0.6;">
+                        <div class="skill-key">6</div><span id="txt-skill-5">Drag</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Utility Stack (OPEN BUTTONS) -->
+            <div id="utility-stack" class="draggable-ui">
+                <div id="btn-help" class="util-btn" onclick="toggleHelpModal()">?</div>
+                <div id="btn-bug" class="util-btn" onclick="BUG_REPORT.open()">🐞</div>
+                <div id="btn-settings" class="util-btn" onclick="toggleSettingsModal()">⚙</div>
+                <div class="util-btn" onclick="togglePanelVisibility('p1-sheet')">👤</div>
+                <div class="util-btn" onclick="togglePanelVisibility('leaderboard')">📜</div>
+            </div>
+
             <!-- RIGHT SIDEBAR: LEADERBOARD -->
-            <div id="leaderboard" class="glass-panel">
+            <div id="leaderboard" class="glass-panel draggable-ui">
                 <!-- ADDED class="leader-header" HERE: -->
                 <div class="leader-header"
                     style="padding:10px; background:rgba(0,0,0,0.3); border-bottom:1px solid #444; font-weight:bold; font-size:0.9rem; text-align:center;">
@@ -1854,6 +1852,7 @@ Because you do not have a backend server listening for automatic receipts (Webho
     <script src="js/modules/diceRoller.js"></script>
     <script src="js/init_dice.js"></script>
     <script src="js/modules/game.js"></script>
+    <script src="js/modules/ui_drag.js"></script>
 </body>
 
 

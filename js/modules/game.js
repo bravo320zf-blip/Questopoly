@@ -3667,6 +3667,65 @@ function zoomToPiece(p) {
         .start();
 }
 
+// Function to visually reposition players on the same tile so they don't stack directly on top of each other
+function repositionPlayersOnTile(tileIndex, dungeonId = null, duration = 500) {
+    let center;
+    let playersOnTile;
+    
+    if (dungeonId) {
+        const d = activeDungeons[dungeonId];
+        if (!d || tileIndex < 0 || tileIndex >= d.tiles.length) return;
+        center = d.tiles[tileIndex].position.clone();
+        playersOnTile = players.filter(p => !p.isDead && p.inDungeon === dungeonId && p.dungeonPos === tileIndex);
+    } else {
+        if (tileIndex < 0 || tileIndex >= tiles.length) return;
+        center = tiles[tileIndex].position.clone();
+        playersOnTile = players.filter(p => !p.isDead && !p.inDungeon && p.pos === tileIndex);
+    }
+
+    let isBuilding = false;
+    if (!dungeonId && tiles[tileIndex] && tiles[tileIndex].userData && tiles[tileIndex].userData.buildingLevel > 0) {
+        isBuilding = true;
+    }
+
+    if (playersOnTile.length <= 1) {
+        playersOnTile.forEach(p => {
+            let tx = center.x, tz = center.z;
+            if (isBuilding) tx -= 1.8;
+            new TWEEN.Tween(p.mesh.position)
+                .to({ x: tx, z: tz }, duration)
+                .easing(TWEEN.Easing.Quadratic.Out)
+                .start();
+        });
+        return;
+    }
+    
+    const offsetMag = isBuilding ? 1.8 : 0.9;
+    playersOnTile.forEach((p, idx) => {
+        let offsetX = 0, offsetZ = 0;
+        
+        if (playersOnTile.length === 2) {
+            offsetX = (idx === 0) ? -offsetMag : offsetMag;
+        } 
+        else if (playersOnTile.length === 3) {
+            if (idx === 0) { offsetX = 0; offsetZ = -offsetMag; }
+            else if (idx === 1) { offsetX = -offsetMag; offsetZ = offsetMag; }
+            else { offsetX = offsetMag; offsetZ = offsetMag; }
+        } 
+        else if (playersOnTile.length >= 4) {
+            if (idx === 0) { offsetX = -offsetMag; offsetZ = -offsetMag; }
+            else if (idx === 1) { offsetX = offsetMag; offsetZ = -offsetMag; }
+            else if (idx === 2) { offsetX = -offsetMag; offsetZ = offsetMag; }
+            else { offsetX = offsetMag; offsetZ = offsetMag; }
+        }
+        
+        new TWEEN.Tween(p.mesh.position)
+            .to({ x: center.x + offsetX, z: center.z + offsetZ }, duration)
+            .easing(TWEEN.Easing.Quadratic.Out)
+            .start();
+    });
+}
+
 // Moves Player and Camera together to a specific tile
 function animateTeleport(p, targetTile, onComplete) {
     gameState = 'MOVING';
@@ -3744,6 +3803,13 @@ function offerDungeonEntry(p, tileName, onDecline = null) {
         {
             txt: "Enter Dungeon",
             act: () => {
+                if (!activeDungeons[tileName]) {
+                    addLog("The Dungeon gate vanished before your eyes!", "log-warn");
+                    document.getElementById('card-modal').classList.remove('active');
+                    if (onDecline) onDecline();
+                    else endStep();
+                    return;
+                }
                 p.inDungeon = true;
                 p.dungeonType = tileName; // <--- CRITICAL UPDATE
                 p.dungeonProgress = 0;
@@ -4078,8 +4144,12 @@ function startBattle(p, opponent, type = 'dungeon', onVictory = null) {
         pHp = p.dungeonHp;
         pMax = p.pMaxHp || maxHealth;
     } else {
-        // Initialize with maxHealth
-        pHp = maxHealth;
+        // Initialize with maxHealth, or inherit player's current overworld HP if entering a dungeon
+        if (type === 'dungeon') {
+            pHp = p.hp || maxHealth;
+        } else {
+            pHp = maxHealth;
+        }
         pMax = maxHealth;
     }
 
@@ -4254,6 +4324,10 @@ function startBattle(p, opponent, type = 'dungeon', onVictory = null) {
     // Names & Sprites
     document.getElementById('battle-enemy-name').innerText = opponent.name;
     document.getElementById('battle-player-name').innerText = p.name;
+    
+    // Hide aggregate enemy HUD since we use individual health bars
+    const hudOp = document.querySelector('.hud-opponent');
+    if (hudOp) hudOp.style.display = 'none';
 
     // --- RENDER MONSTER SPRITES ---
     // Ensure we have a container. If battle-monsters doesn't exist, we might need to use battle-enemy-sprite parent or clear it.
@@ -4295,11 +4369,32 @@ function startBattle(p, opponent, type = 'dungeon', onVictory = null) {
         // Reset absolute positioning on sprite since wrapper handles it
         sprite.style.position = 'relative';
 
+        // HEALTH BAR
+        const hpBarContainer = document.createElement('div');
+        hpBarContainer.style.width = '80%';
+        hpBarContainer.style.height = '8px';
+        hpBarContainer.style.backgroundColor = '#333';
+        hpBarContainer.style.border = '1px solid #111';
+        hpBarContainer.style.borderRadius = '4px';
+        hpBarContainer.style.marginTop = '-10px';
+        hpBarContainer.style.marginBottom = '5px';
+        hpBarContainer.style.zIndex = '20';
+        hpBarContainer.style.overflow = 'hidden';
+
+        const hpBarFill = document.createElement('div');
+        hpBarFill.id = `enemy-hp-fill-${index}`;
+        hpBarFill.style.width = '100%';
+        hpBarFill.style.height = '100%';
+        hpBarFill.style.backgroundColor = '#10b981'; // Green
+        hpBarFill.style.transition = 'width 0.3s ease';
+
+        hpBarContainer.appendChild(hpBarFill);
+
         // STAT INDICATOR (Hidden initially)
         const indicator = document.createElement('div');
         indicator.className = 'enemy-stat-indicator';
         indicator.id = `enemy-stat-${index}`;
-        indicator.style.marginTop = '-20px'; // Overlap slightly bottom?
+        indicator.style.marginTop = '-10px'; // Overlap slightly bottom
         indicator.style.zIndex = '20';
         indicator.style.backgroundColor = 'rgba(0,0,0,0.8)';
         indicator.style.border = '2px solid #ccc';
@@ -4313,6 +4408,7 @@ function startBattle(p, opponent, type = 'dungeon', onVictory = null) {
         indicator.style.color = '#fff';
         indicator.innerText = "?";
 
+        wrapper.appendChild(hpBarContainer);
         wrapper.appendChild(sprite);
         wrapper.appendChild(indicator);
 
@@ -4551,9 +4647,9 @@ function useBattleSkill(skillKey) {
 // --- NEW DICE BATTLE SYSTEM ---
 
 async function startDiceRound() {
-    if (!activeBattle || activeBattle.turnProcessing) return;
-    activeBattle.turnProcessing = true;
+    if (!activeBattle) return;
     activeBattle.phase = 'ROLL';
+    activeBattle.turnProcessing = false; // Allow skill clicks
 
     const p = activeBattle.player;
 
@@ -4601,6 +4697,8 @@ async function startDiceRound() {
 
     // Click Handler
     rollBtn.onclick = async () => {
+        if (activeBattle.turnProcessing) return;
+        activeBattle.turnProcessing = true; // Lock skills during roll
         // A. Visual Feedback
         rollBtn.style.filter = 'grayscale(100%)';
         rollBtn.innerText = "ROLLING...";
@@ -4665,6 +4763,7 @@ async function startDiceRound() {
 // Helper to render the Allocation Circle Buttons (Replacing old static HTML reliance)
 function setupAllocationUI() {
     activeBattle.phase = 'DECIDE';
+    activeBattle.turnProcessing = false; // Allow skill clicks
     const actionRow = document.getElementById('battle-actions');
     actionRow.innerHTML = ''; // Remove Roll Button
 
@@ -4732,6 +4831,45 @@ function commitBattleAction(statKey) {
     activeBattle.pChoice = statKey;
     activeBattle.pScore = activeBattle.pRolls[statKey];
 
+    // Check if targeting is needed
+    if (activeBattle.opponents.length > 1) {
+        activeBattle.phase = 'TARGET';
+        document.getElementById('battle-log').innerHTML = `<span style="color:#fbbf24">TARGET PHASE</span><br>Click on an enemy to attack!`;
+        
+        activeBattle.opponents.forEach((op, idx) => {
+            if (!op || op.dead) return;
+            const sprite = document.getElementById(`monster-sprite-${idx}`);
+            if (sprite) {
+                sprite.style.cursor = 'pointer';
+                sprite.classList.add('targetable');
+                sprite.onclick = (e) => {
+                    e.stopPropagation();
+                    selectEnemyTarget(idx);
+                };
+            }
+        });
+        return; // Wait for user to pick a target
+    }
+
+    // Auto-target if only 1 enemy
+    selectEnemyTarget(0);
+}
+
+function selectEnemyTarget(targetIdx) {
+    if (activeBattle.phase !== 'TARGET' && activeBattle.opponents.length > 1) return;
+    
+    // Clean up target styles
+    activeBattle.opponents.forEach((op, idx) => {
+        const sprite = document.getElementById(`monster-sprite-${idx}`);
+        if (sprite) {
+            sprite.style.cursor = 'default';
+            sprite.classList.remove('targetable');
+            sprite.onclick = null;
+        }
+    });
+
+    activeBattle.targetIndex = targetIdx;
+
     // Enemy Choices (AI)
     activeBattle.eChoices = activeBattle.opponents.map((op, idx) => {
         if (!op || op.dead) return null;
@@ -4745,7 +4883,7 @@ function commitBattleAction(statKey) {
         return {
             stat: best,
             score: roll[best],
-            rolls: roll // Store full rolls for debug/reveal?
+            rolls: roll
         };
     });
 
@@ -4757,21 +4895,18 @@ function resolveDiceCombat() {
     activeBattle.phase = 'RESOLVE';
     toggleBattleControls(false);
 
-    // 1. Reveal (Visuals)
-    let logMsg = "";
-
-    // Calculate Final Player Score (Auto Successes)
     let pFinalScore = activeBattle.pScore;
     if (activeBattle.player.tempBonuses && activeBattle.player.tempBonuses.autoSuccesses) {
         pFinalScore += (activeBattle.player.tempBonuses.autoSuccesses[activeBattle.pChoice] || 0);
     }
+    if (activeBattle.player.buffs && activeBattle.player.buffs.doubleDamage) pFinalScore *= 2;
 
-    // 2. Iterate Enemies and Resolve Clash
+    const targetIdx = activeBattle.targetIndex;
+
     activeBattle.opponents.forEach((op, i) => {
         if (!op || op.dead) return;
         const eCh = activeBattle.eChoices[i];
 
-        // SKILL: SABOTAGE (Reduce Enemy Successes)
         if (op.debuffs && op.debuffs.sabotage) {
             eCh.score = Math.max(0, eCh.score - op.debuffs.sabotage);
         }
@@ -4785,86 +4920,71 @@ function resolveDiceCombat() {
             if (eCh.stat === 'dex') icon = '🏹';
             if (eCh.stat === 'int') icon = '🔥';
             ind.innerHTML = `${icon} ${eCh.score}`;
-            // Optional: Color code
             if (eCh.stat === 'str') ind.style.borderColor = '#991b1b';
             if (eCh.stat === 'dex') ind.style.borderColor = '#065f46';
             if (eCh.stat === 'int') ind.style.borderColor = '#1e3a8a';
         }
 
-        // CLASH LOGIC
-        if (activeBattle.pChoice === eCh.stat) {
-            // DIRECT CLASH (Same Stat = BLOCKED = Half Damage)
-            const diff = pFinalScore - eCh.score;
-            if (diff > 0) {
-                // Player Wins Clash
-                let dmg = Math.floor(diff / 2); // BLOCKED: Halve damage
-                // SKILL: DOUBLE DAMAGE (Shadow Strike)
-                if (activeBattle.player.buffs && activeBattle.player.buffs.doubleDamage) {
-                    dmg *= 2;
-                    logBattleAction("CRITICAL STRIKE! (Double Damage)");
-                }
-                op.hp -= dmg;
-                showFloatingText(`${dmg}`, "damage-popup", "monster");
-                addLog(`Clash Won! You hit ${op.name} for ${dmg} dmg! (Blocked Attack)`, "log-success");
-                playBattleAnim('shake', 'enemy');
-            } else if (diff < 0) {
-                // Enemy Wins Clash
-                let dmg = Math.floor(Math.abs(diff) / 2); // BLOCKED: Halve damage
+        const isTarget = (i === targetIdx);
+        const isBlocked = (activeBattle.pChoice === eCh.stat);
 
-                // SKILL: DAMAGE IMMUNE (Sanctuary)
-                if (activeBattle.player.buffs && activeBattle.player.buffs.damageImmune) {
-                    dmg = 0;
-                    showFloatingText("IMMUNE", "block-popup", "player");
-                    activeBattle.player.buffs.damageImmune = false; // Consume? Or last whole turn? Consuming is safer.
-                } else {
-                    activeBattle.pHp -= dmg;
-                    showFloatingText(`-${dmg}`, "dmg-popup", false);
-                    addLog(`${op.name} overpowers you for ${dmg} dmg! (Blocked Attack)`, "log-danger");
-                    playBattleAnim('shake', 'player');
-                }
+        if (isTarget) {
+            if (isBlocked) {
+                // BLOCKED: 0 damage dealt, 0 damage taken
+                showFloatingText("BLOCKED", "block-popup", "monster");
+                addLog(`You target ${op.name}, but they block!`, "log-fail");
+                playBattleAnim('shake', 'enemy');
             } else {
-                showFloatingText("PARRY", "block-popup", undefined);
-                addLog(`${op.name} parries your attack! (Tie)`, "log-fail");
+                // UNBLOCKED: Full exchange
+                // Player hits Enemy
+                op.hp -= pFinalScore;
+                showFloatingText(`${pFinalScore}`, "damage-popup", "monster");
+                
+                // Enemy hits Player
+                let eDmg = eCh.score;
+                if (activeBattle.player.buffs && activeBattle.player.buffs.damageImmune) {
+                    eDmg = 0;
+                    showFloatingText("IMMUNE", "block-popup", "player");
+                }
+                activeBattle.pHp -= eDmg;
+                
+                addLog(`You hit ${op.name} for ${pFinalScore}, and take ${eDmg} dmg!`, "log-info");
+                if (eDmg > 0) showFloatingText(`-${eDmg}`, "dmg-popup", false);
             }
         } else {
-            // UNOPPOSED EXCHANGE (Different Stats)
-            // Player Hit
-            let pDmg = pFinalScore;
-            if (activeBattle.player.buffs && activeBattle.player.buffs.doubleDamage) pDmg *= 2;
-            op.hp -= pDmg;
-
-            // Enemy Hit
-            let eDmg = eCh.score;
-            // SKILL: DAMAGE IMMUNE
-            if (activeBattle.player.buffs && activeBattle.player.buffs.damageImmune) {
-                eDmg = 0;
-                showFloatingText("IMMUNE", "block-popup", "player");
+            // NOT TARGETED
+            if (isBlocked) {
+                // BLOCKED: Player takes 0 damage
+                showFloatingText("BLOCKED", "block-popup", "player");
+                addLog(`${op.name}'s attack was blocked!`, "log-success");
+            } else {
+                // UNBLOCKED: Player takes enemy damage
+                let eDmg = eCh.score;
+                if (activeBattle.player.buffs && activeBattle.player.buffs.damageImmune) {
+                    eDmg = 0;
+                    showFloatingText("IMMUNE", "block-popup", "player");
+                }
+                activeBattle.pHp -= eDmg;
+                addLog(`${op.name} hits you for ${eDmg} dmg!`, "log-danger");
+                if (eDmg > 0) showFloatingText(`-${eDmg}`, "dmg-popup", false);
             }
-
-            activeBattle.pHp -= eDmg;
-
-            // Visuals
-            addLog(`Exchange! Hit for ${pDmg}, Took ${eDmg}.`, "log-info");
-            showFloatingText(`${pDmg}`, "damage-popup", "monster");
-            if (eDmg > 0) showFloatingText(`-${eDmg}`, "dmg-popup", false);
         }
 
         // CLEANUP INSTANT DEBUFFS
         if (op.debuffs) {
             if (op.debuffs.sabotage) op.debuffs.sabotage = 0;
-            // dicePenalty can persist? Let's reset it to be safe for now, assuming 1 turn duration.
             if (op.debuffs.dicePenalty) op.debuffs.dicePenalty = 0;
         }
     });
 
     // CLEANUP PLAYER BUFFS
-    // Reset temp bonuses
     if (activeBattle.player.tempBonuses) activeBattle.player.tempBonuses = {};
     if (activeBattle.player.buffs) {
         activeBattle.player.buffs.doubleDamage = false;
         activeBattle.player.buffs.damageImmune = false;
     }
 
+    if (typeof updateEnemyHealthBars === 'function') updateEnemyHealthBars();
     updateBattleUI();
 
     // DEATH CHECKS
@@ -6038,7 +6158,10 @@ function moveEntity(eventObj, steps) {
     let currentPos = eventObj.pos;
     eventObj.pos = (currentPos + steps) % 40;
 
-    const target = tiles[eventObj.pos].position;
+    const target = tiles[eventObj.pos].position.clone();
+    if (tiles[eventObj.pos].userData && tiles[eventObj.pos].userData.buildingLevel > 0) {
+        target.x -= 1.8;
+    }
 
     // Animate jump
     new TWEEN.Tween(eventObj.mesh.position)
@@ -6621,6 +6744,7 @@ function init() {
     }, { passive: true });
 
     makeDraggable(document.getElementById("p1-sheet"));
+    makeResizable(document.getElementById("p1-sheet"));
     makeDraggable(document.getElementById("leaderboard"));
     makeDraggable(document.getElementById("dm-window"));
 }
@@ -7335,8 +7459,14 @@ function animateMove(p, s) {
     }
 
     // 3. Logic Step
+    const oldTileIndex = p.dungeonPos ?? p.pos;
+    const oldInDungeon = p.inDungeon;
+    
     p.pos = (p.pos + 1) % 40;
     p.metrics.spacesMoved = (p.metrics.spacesMoved || 0) + 1;
+    
+    // Reposition anyone left behind on the old tile
+    setTimeout(() => repositionPlayersOnTile(oldTileIndex, oldInDungeon), 300);
 
     const isMe = (p.id === myPlayerId);
     const isMyAi = (p.isAi && myPlayerId === 0);
@@ -7426,7 +7556,11 @@ function animateMove(p, s) {
 
     // 7. 3D Animation (Rotation -> Move -> Hop)
     const t = tiles[p.pos].position.clone();
-    if (p.id > 0) {
+    
+    // Walk around buildings
+    if (tiles[p.pos].userData && tiles[p.pos].userData.buildingLevel > 0) {
+        t.x -= 1.8;
+    } else if (p.id > 0) {
         t.x += (Math.random() - 0.5) * 0.6;
         t.z += (Math.random() - 0.5) * 0.6;
     }
@@ -7709,6 +7843,7 @@ function checkAndTriggerTrap(p, tile, onComplete) {
 }
 
 function resolveLanding(p) {
+    repositionPlayersOnTile(p.dungeonPos ?? p.pos, p.inDungeon);
     const tile = tiles[p.pos];
     // Check for trap. If handled, logic continues in callback.
     const trapTriggered = checkAndTriggerTrap(p, tile, () => {
@@ -9364,6 +9499,22 @@ function capture(t, p, lvl, callback) {
     gameState = 'MOVING';
     updateHUD();
 
+    // Check if ownership is changing
+    const previousOwner = t.userData.owner;
+    const isNewOwner = previousOwner !== undefined && previousOwner !== p.id;
+    const newGuardCount = isNewOwner ? 0 : (t.userData.guardCount || 0);
+
+    // Force remove old guards visually if owner changed
+    if (isNewOwner) {
+        activeGuards = activeGuards.filter(g => {
+            if (g.tileId === t.userData.id) {
+                scene.remove(g.mesh);
+                return false;
+            }
+            return true;
+        });
+    }
+
     // --- MULTIPLAYER LOGIC ---
     if (isMultiplayer && db && gameId) {
         if (p.id === myPlayerId) {
@@ -9371,7 +9522,7 @@ function capture(t, p, lvl, callback) {
                 db.ref(`games/${gameId}/board/${t.userData.id}`).set({
                     owner: p.id,
                     level: lvl,
-                    guardCount: t.userData.guardCount || 0,
+                    guardCount: newGuardCount,
                     defendingStat: stat
                 });
                 if (callback) setTimeout(callback, 1000);
@@ -9395,7 +9546,7 @@ function capture(t, p, lvl, callback) {
             if (p.stats.dex > p.stats.str) defStat = 'dex';
             if (p.stats.int > p.stats.dex) defStat = 'int';
             db.ref(`games/${gameId}/board/${t.userData.id}`).set({
-                owner: p.id, level: lvl, guardCount: 0, defendingStat: defStat
+                owner: p.id, level: lvl, guardCount: newGuardCount, defendingStat: defStat
             });
             if (callback) setTimeout(callback, 1000);
             return;
@@ -9405,6 +9556,7 @@ function capture(t, p, lvl, callback) {
     // --- SINGLE PLAYER LOGIC ---
     t.userData.owner = p.id;
     t.userData.buildingLevel = lvl;
+    t.userData.guardCount = newGuardCount;
     applyCaptureVisuals(t, p, lvl); // This function handles the 4s animation
 
     if (p.id === 0) { // Local Human
@@ -9461,9 +9613,9 @@ function applyCaptureVisuals(t, p, lvl) {
         tent.castShadow = true;
         g.add(tent);
     } else {
-        const base = new THREE.Mesh(new THREE.BoxGeometry(1.6, 1.2, 1.6), woodMat);
+        const base = new THREE.Mesh(new THREE.BoxGeometry(1.2, 1.2, 1.2), woodMat);
         base.position.set(0, 0.6, 0);
-        const roof = new THREE.Mesh(new THREE.ConeGeometry(1.8, 1.2, 4), buildingMat);
+        const roof = new THREE.Mesh(new THREE.ConeGeometry(1.4, 1.2, 4), buildingMat);
         roof.position.set(0, 1.8, 0);
         roof.rotation.y = Math.PI / 4;
         g.add(base); g.add(roof);
@@ -9497,6 +9649,9 @@ function applyCaptureVisuals(t, p, lvl) {
         new TWEEN.Tween(p.mesh.rotation).to({ y: p.mesh.rotation.y + (Math.PI * 8) }, 3200).easing(TWEEN.Easing.Quartic.InOut).start();
         if (p.id === myPlayerId) AUDIO.playSound('sfx_win');
     }
+    
+    // Reposition any players standing on this tile so they don't clip into the new building
+    repositionPlayersOnTile(t.userData.id);
 }
 function chooseDefense(t, callback) {
     // This function runs while camera is still zoomed in
@@ -10558,6 +10713,9 @@ function updateHUD() {
     const p = players.find(pl => pl.id === myPlayerId) || players[0];
     if (!p) return;
 
+    // FIX 6: Recalculate stats constantly so Gold changes update Attunement Int
+    recalcStats(p);
+
     // 2. Main Stat Widgets & Sidebar Header
     setT('p1-name', p.name);
     setT('p1-gold', p.gold);
@@ -10596,6 +10754,9 @@ function updateHUD() {
         const btnAction = document.getElementById('btn-action');
         if (btnAction) {
             btnAction.disabled = (curTurnPlayer.id !== myPlayerId);
+            
+            // Inject player color for CSS fog animation
+            btnAction.style.setProperty('--fog-player-color', curTurnPlayer.color || '#fff');
             if (curTurnPlayer.id === myPlayerId) {
                 if (gameState === 'ROLL') {
                     btnAction.innerText = "ROLL";
@@ -10620,7 +10781,27 @@ function updateHUD() {
         const txt = document.getElementById(`txt-skill-${i}`);
         if (!el || !txt) continue;
 
-        const skill = p.assignedSkills[i];
+        let skill = p.assignedSkills[i];
+
+        // FIX 3 & 4: Validate item still exists
+        if (skill && !skill.isClass && skill.ref) {
+            let stillHas = p.inventory.includes(skill.ref);
+            if (!stillHas) {
+                EQUIP_ORDER.forEach(sq => {
+                    if (p.equipment[sq] === skill.ref) stillHas = true;
+                });
+            }
+            if (!stillHas && p.quickSlots) {
+                p.quickSlots.forEach(q => {
+                    if (q === skill.ref) stillHas = true;
+                });
+            }
+            if (!stillHas) {
+                p.assignedSkills[i] = null;
+                skill = null;
+            }
+        }
+
         el.style.backgroundImage = 'none';
 
         if (skill) {
@@ -10690,7 +10871,7 @@ function updateHUD() {
 
     // 2. Paper Doll (Sidebar & Character Modal)
     EQUIP_ORDER.forEach((slotName) => {
-        const elements = [document.getElementById('slot-' + slotName), document.getElementById('cd-slot-' + slotName)];
+        const elements = [document.getElementById('slot-' + slotName), document.getElementById('modal-slot-' + slotName)];
         elements.forEach(el => {
             if (!el) return;
             const item = p.equipment[slotName];
@@ -10709,7 +10890,7 @@ function updateHUD() {
 
     // 3. Inventory Grids
     const invDiv = document.getElementById('p1-inv');
-    const modalInvDiv = document.getElementById('cd-inv-grid-new');
+    const modalInvDiv = document.getElementById('modal-inv-grid');
     [invDiv, modalInvDiv].forEach(container => {
         if (!container) return;
         container.innerHTML = '';
@@ -10801,6 +10982,64 @@ function makeDraggable(elmnt) {
         // stop moving when mouse button is released:
         document.onmouseup = null;
         document.onmousemove = null;
+    }
+}
+
+function makeResizable(el) {
+    if (!el) return;
+    const handles = ['n', 's', 'e', 'w', 'ne', 'nw', 'se', 'sw'];
+    handles.forEach(dir => {
+        const handle = document.createElement('div');
+        handle.className = `resize-handle resize-${dir}`;
+        el.appendChild(handle);
+        handle.addEventListener('mousedown', (e) => initResize(e, dir));
+    });
+
+    let currentDir = '';
+    let startX, startY, startWidth, startHeight, startLeft, startTop;
+
+    function initResize(e, dir) {
+        e.preventDefault();
+        e.stopPropagation();
+        currentDir = dir;
+        startX = e.clientX;
+        startY = e.clientY;
+        const rect = el.getBoundingClientRect();
+        startWidth = rect.width;
+        startHeight = rect.height;
+        startLeft = el.offsetLeft;
+        startTop = el.offsetTop;
+
+        document.addEventListener('mousemove', doResize);
+        document.addEventListener('mouseup', stopResize);
+    }
+
+    function doResize(e) {
+        if (currentDir.includes('e')) {
+            el.style.width = startWidth + (e.clientX - startX) + 'px';
+        }
+        if (currentDir.includes('s')) {
+            el.style.height = startHeight + (e.clientY - startY) + 'px';
+        }
+        if (currentDir.includes('w')) {
+            const newWidth = startWidth - (e.clientX - startX);
+            if (newWidth > 320) {
+                el.style.width = newWidth + 'px';
+                el.style.left = startLeft + (e.clientX - startX) + 'px';
+            }
+        }
+        if (currentDir.includes('n')) {
+            const newHeight = startHeight - (e.clientY - startY);
+            if (newHeight > 400) {
+                el.style.height = newHeight + 'px';
+                el.style.top = startTop + (e.clientY - startY) + 'px';
+            }
+        }
+    }
+
+    function stopResize() {
+        document.removeEventListener('mousemove', doResize);
+        document.removeEventListener('mouseup', stopResize);
     }
 }
 function setT(id, t) { let e = document.getElementById(id); if (e) e.innerText = t; }
@@ -11029,6 +11268,7 @@ function openCharDetail(id) {
     }
     modal.classList.add('active');
     updateHUD();
+    setupEquipDragDrop();
 }
 //if(invSection) invSection.style.display = 'block'; if(hiddenMsg) hiddenMsg.style.display = 'none'; ['head','body','main','off'].forEach(slot => { const item = p.equipment[slot]; const el = document.getElementById('cd-slot-'+slot); if(el) { el.innerHTML = item ? item.name : slot.toUpperCase(); el.className = 'equip-slot' + (item ? ' filled' : ''); if(item) { el.onmouseenter = () => showTooltip(item); el.onmouseleave = hideTooltip; } else { el.onmouseenter = null; } } }); const grid = document.getElementById('cd-inv-grid'); if(grid) { grid.innerHTML = ''; p.inventory.forEach(item => { let d = document.createElement('div'); d.className = 'inv-slot'; d.innerText = item.name; d.classList.add('rarity-' + item.rarity); d.onmouseenter = () => showTooltip(item); d.onmouseleave = hideTooltip; grid.appendChild(d); }); for(let i=p.inventory.length; i<12; i++) { let d = document.createElement('div'); d.className = 'inv-slot'; grid.appendChild(d); } } } else { if(invSection) invSection.style.display = 'none'; if(hiddenMsg) hiddenMsg.style.display = 'block'; } const modal = document.getElementById('char-detail-modal'); if(modal) modal.classList.add('active'); }
 function closeCharDetail() { document.getElementById('char-detail-modal').classList.remove('active'); hideTooltip(); }
@@ -11171,9 +11411,9 @@ function handleEquipTouch(slot) { const currentTime = new Date().getTime(); cons
 function allowDrop(ev) { ev.preventDefault(); }
 function dragStart(ev, i) { ev.dataTransfer.setData("idx", i); }
 function handleSellDrop(ev) { ev.preventDefault(); if (document.getElementById('market-sell-area').style.display !== 'none') { const idx = ev.dataTransfer.getData("idx"); if (idx !== null) sellItem(idx); } }
-function handleSkillDrop(ev, slotIdx) { ev.preventDefault(); const invIdx = ev.dataTransfer.getData("idx"); const p = players[0]; if (invIdx !== null && p.inventory[invIdx]) { const item = p.inventory[invIdx]; if (item.type === 'scroll' || (item.ability && item.ability.type === 'active')) { p.quickSlots[slotIdx] = item; updateHUD(); } else { addLog("Cannot assign passive item.", "log-fail"); } } }
-function setupEquipDragDrop() { ['head', 'body', 'main', 'off'].forEach(slot => { const el = document.getElementById('slot-' + slot); if (el) { el.ondragover = allowDrop; el.ondrop = (e) => handleEquipDrop(e, slot); } }); }
-function handleEquipDrop(ev, slotName) { ev.preventDefault(); const invIdx = ev.dataTransfer.getData("idx"); const p = players[0]; if (invIdx !== null && p.inventory[invIdx]) { const item = p.inventory[invIdx]; if (item.slot === slotName) equipItem(0, invIdx); else addLog(`Cannot equip ${item.name} to ${slotName.toUpperCase()}`, "log-fail"); } }
+function handleSkillDrop(ev, slotIdx) { ev.preventDefault(); const invIdx = ev.dataTransfer.getData("idx"); const p = players.find(pl => pl.id === myPlayerId); if (!p) return; if (invIdx !== null && p.inventory[invIdx]) { const item = p.inventory[invIdx]; if (item.type === 'scroll' || (item.ability && item.ability.type === 'active')) { p.quickSlots[slotIdx] = item; updateHUD(); } else { addLog("Cannot assign passive item.", "log-fail"); } } }
+function setupEquipDragDrop() { EQUIP_ORDER.forEach(slot => { const els = [document.getElementById('slot-' + slot), document.getElementById('modal-slot-' + slot)]; els.forEach(el => { if (el) { el.ondragover = allowDrop; el.ondrop = (e) => handleEquipDrop(e, slot); }}); }); }
+function handleEquipDrop(ev, slotName) { ev.preventDefault(); const invIdx = ev.dataTransfer.getData("idx"); const p = players.find(pl => pl.id === myPlayerId); if (!p) return; if (invIdx !== null && p.inventory[invIdx]) { const item = p.inventory[invIdx]; if (item.slot === slotName) equipItem(myPlayerId, invIdx); else addLog(`Cannot equip ${item.name} to ${slotName.toUpperCase()}`, "log-fail"); } }
 function unequipItem(slot) {
     const p = players.find(pl => pl.id === myPlayerId);
     if (!p) return;
@@ -11321,6 +11561,12 @@ function useSkill(slotIndex) {
                     activeBattle.cooldowns[slotIndex] = 3;
                     AUDIO.playSound('sfx_click');
                     updateHUD(); // Refresh UI to show cooldown
+
+                    // FIX 5: Advance turn queue
+                    activeBattle.turnProcessing = true;
+                    setTimeout(() => {
+                        if (typeof processBattleTurn === 'function') processBattleTurn();
+                    }, 1500);
                 } else {
                     AUDIO.playSound('sfx_fail');
                 }
@@ -11470,9 +11716,9 @@ function cleanInventory(p) {
 }
 
 function setupCreationUI() {
-    const cg = document.getElementById('color-grid'); PLAYER_COLORS.forEach(c => { let d = document.createElement('div'); d.className = 'color-opt'; d.style.backgroundColor = c; d.onclick = () => { selColor = c; document.querySelectorAll('.color-opt').forEach(e => e.classList.remove('selected')); d.classList.add('selected'); }; cg.appendChild(d); });
-    const rg = document.getElementById('race-grid'); RACES.forEach(r => { let d = document.createElement('div'); d.className = 'sel-opt'; d.innerHTML = `<b>${r.name}</b><small>S:${r.stats.str} D:${r.stats.dex} I:${r.stats.int}</small>`; d.onclick = () => { selRace = r; hl(d); up(); }; rg.appendChild(d); });
-    const clg = document.getElementById('class-grid');
+    const cg = document.getElementById('color-grid'); cg.innerHTML = ''; PLAYER_COLORS.forEach(c => { let d = document.createElement('div'); d.className = 'color-opt'; d.style.backgroundColor = c; d.onclick = () => { selColor = c; document.querySelectorAll('.color-opt').forEach(e => e.classList.remove('selected')); d.classList.add('selected'); }; cg.appendChild(d); });
+    const rg = document.getElementById('race-grid'); rg.innerHTML = ''; RACES.forEach(r => { let d = document.createElement('div'); d.className = 'sel-opt'; d.innerHTML = `<b>${r.name}</b><small>S:${r.stats.str} D:${r.stats.dex} I:${r.stats.int}</small>`; d.onclick = () => { selRace = r; hl(d); up(); }; rg.appendChild(d); });
+    const clg = document.getElementById('class-grid'); clg.innerHTML = '';
     CLASSES.forEach(c => {
         let d = document.createElement('div');
         d.className = 'sel-opt';
@@ -13020,362 +13266,16 @@ if (typeof updateHUD === 'function') {
         updateHealthBar();
     };
 } else {
-    console.warn('updateHUD not found for hooking, defining fallback.');
-    window.updateHUD = function () { updateHealthBar(); };
+    window.updateHUD = updateHealthBar;
 }
 
-// --- MOBILE BATTLE QUEUE TOGGLE ---
-function toggleQueue() {
-    const q = document.getElementById('battle-queue');
-    const t = document.getElementById('queue-toggle');
-    if (q) {
-        q.classList.toggle('open');
-        if (t) {
-            t.classList.toggle('open');
-            // Update Arrow
-            if (q.classList.contains('open')) t.innerText = "▶";
-            else t.innerText = "◀";
+function updateEnemyHealthBars() {
+    if (!activeBattle || !activeBattle.opponents) return;
+    activeBattle.opponents.forEach((op, i) => {
+        const fill = document.getElementById('enemy-hp-fill-' + i);
+        if (fill && op.maxHp) {
+            const pct = Math.max(0, (op.hp / op.maxHp) * 100);
+            fill.style.width = pct + '%';
         }
-    }
-}
-
-// --- SETTINGS & AI SIMULATION ---
-window.watchAiBattles = false; // DEFAULT: FALSE
-
-function openSettings() {
-    const m = document.getElementById('settings-modal');
-    if (m) {
-        m.style.display = 'flex';
-        const chk = document.getElementById('chk-watch-ai');
-        if (chk) chk.checked = window.watchAiBattles;
-    }
-}
-
-function openHelpModal() {
-    const m = document.getElementById('help-modal');
-    if (m) m.style.display = 'flex';
-}
-
-function toggleWatchAi(checked) {
-    window.watchAiBattles = checked;
-}
-
-// --- FREE CAMERA MODE ---
-window.freeCamMode = false;
-let isRightMouseDown = false;
-let lastMousePos = null;
-let currentMousePos = { x: 0, y: 0 };
-
-function toggleFreeCam(val) {
-    window.freeCamMode = val;
-    addLog(`Free Camera: ${val ? 'ENABLED' : 'DISABLED'}`, "log-info");
-    if (!val) updateCamera(); // Reset to default view
-}
-
-document.addEventListener('mousedown', (e) => {
-    if (e.button === 2) {
-        isRightMouseDown = true;
-        lastMousePos = { x: e.clientX, y: e.clientY };
-    }
-});
-
-document.addEventListener('mousemove', (e) => {
-    currentMousePos = { x: e.clientX, y: e.clientY };
-});
-
-document.addEventListener('mouseup', (e) => {
-    if (e.button === 2) {
-        isRightMouseDown = false;
-        lastMousePos = null;
-    }
-});
-
-// Disable context menu for right-click dragging while in free cam
-document.addEventListener('contextmenu', (e) => {
-    if (window.freeCamMode) e.preventDefault();
-});
-
-function simulateAiBattle(battle) {
-    const p = battle.player;
-    addLog(`AI ${p.name} is resolving combat...`, "neutral");
-
-    // Simple 60/40 Win Chance (Harder for Bosses)
-    let winChance = 0.6;
-    if (battle.isBoss) winChance = 0.4;
-
-    setTimeout(() => {
-        if (Math.random() < winChance) {
-            activeBattle.opponents.forEach(o => o.hp = 0);
-            endBattle(true);
-        } else {
-            activeBattle.pHp = 0;
-            endBattle(false);
-        }
-    }, 1000);
-}
-
-// --- AI BATTLE AUTOMATION ---
-function automateActiveAiTurn() {
-    if (!activeBattle) return;
-    const p = activeBattle.player;
-    const stats = p.stats || { str: 1, dex: 1, int: 1 };
-
-    // --- NEW: AI SKILL USAGE (40% Chance) ---
-    // Check if we have an active skill, it's a battle skill, and not on cooldown
-    if (p.activeSkillId && Math.random() < 0.4) {
-        // Ensure cooldown object exists
-        if (!p.battleCooldowns) p.battleCooldowns = {};
-
-        // Check Cooldown
-        if (!p.battleCooldowns[p.activeSkillId]) {
-            const skill = ABILITY_LIBRARY[p.activeSkillId];
-            if (skill && skill.dungeonFn) {
-                // Try to use it
-                console.log(`[AI] ${p.name} decides to use Skill: ${skill.name}`);
-                useBattleSkill(p.activeSkillId);
-                return; // Skill usage handles turn end
-            }
-        }
-    }
-
-    const choices = ['str', 'dex', 'int'];
-    const best = choices.sort((a, b) => stats[b] - stats[a])[0];
-    let pick = best;
-    if (Math.random() < 0.2) pick = choices[Math.floor(Math.random() * 3)];
-    resolveBattleRound(pick);
-}
-
-function automateAiDefense() {
-    if (!activeBattle) return;
-    const choices = ['str', 'dex', 'int'];
-    const pick = choices[Math.floor(Math.random() * 3)];
-    resolveBattleRound(pick);
-}
-
-// --- HELP FILTER ---
-function filterHelp() {
-    const term = document.getElementById('help-search-input').value.toLowerCase();
-    const sections = document.querySelectorAll('.help-section');
-    sections.forEach(sec => {
-        const text = sec.innerText.toLowerCase();
-        sec.style.display = text.includes(term) ? 'block' : 'none';
     });
-}
-
-// --- TUTORIAL SYSTEM ---
-const TUTORIAL = {
-
-    active: false,
-    activeArrows: 0,
-    seen: { battle: false, dungeon: false, encounter: false },
-
-    start: function () {
-        if (typeof isMultiplayer !== 'undefined' && isMultiplayer) return;
-        this.active = true;
-        this.setupBackdrop();
-
-        // Wait for Loading Screen to fade
-        setTimeout(() => {
-            addLog("TUTORIAL: Welcome! Click yellow arrows to dismiss them.", "log-info");
-            this.showIntro();
-        }, 1500);
-    },
-
-    setupBackdrop: function () {
-        if (!document.getElementById('tut-backdrop')) {
-            const bd = document.createElement('div');
-            bd.id = 'tut-backdrop';
-            // We moved styles to CSS, but ensure click blocking here just in case
-            document.body.appendChild(bd);
-        }
-    },
-
-    showBackdrop: function () {
-        const bd = document.getElementById('tut-backdrop');
-        if (bd) bd.style.display = 'block';
-    },
-
-    hideBackdrop: function () {
-        const bd = document.getElementById('tut-backdrop');
-        if (bd) bd.style.display = 'none';
-    },
-
-    createArrow: function (targetId, text, side = "bottom") {
-        const target = document.getElementById(targetId);
-        if (!target || target.offsetParent === null) return;
-
-        this.activeArrows++;
-        this.showBackdrop();
-
-        const rect = target.getBoundingClientRect();
-        const arrow = document.createElement('div');
-        arrow.className = 'tut-arrow';
-
-        // Calculate Position
-        let top = 0, left = 0;
-
-        if (side === 'bottom') {
-            top = rect.bottom + 10;
-            left = rect.left + (rect.width / 2);
-            arrow.innerHTML = `<div class="tut-point">⬆</div><div class="tut-text">${text}</div>`;
-        } else if (side === 'top') {
-            top = rect.top - 80;
-            left = rect.left + (rect.width / 2);
-            arrow.innerHTML = `<div class="tut-text">${text}</div><div class="tut-point">⬇</div>`;
-        } else if (side === 'right') {
-            top = rect.top + (rect.height / 2) - 20;
-            left = rect.right + 10;
-            arrow.innerHTML = `<div class="tut-point">⬅</div><div class="tut-text">${text}</div>`;
-            arrow.style.flexDirection = 'row';
-        } else if (side === 'left') {
-            top = rect.top + (rect.height / 2) - 20;
-            left = rect.left - 200;
-            arrow.innerHTML = `<div class="tut-text">${text}</div><div class="tut-point">➡</div>`;
-            arrow.style.flexDirection = 'row';
-        }
-
-        arrow.style.top = top + 'px';
-        arrow.style.left = left + 'px';
-
-        // Center alignment adjustment
-        if (side === 'top' || side === 'bottom') {
-            arrow.style.transform = 'translateX(-50%)';
-        }
-
-        document.body.appendChild(arrow);
-
-        // Interaction
-        const cleanup = () => {
-            if (arrow.parentNode) {
-                arrow.style.opacity = '0';
-                setTimeout(() => arrow.remove(), 500);
-
-                this.activeArrows--;
-                if (this.activeArrows <= 0) this.hideBackdrop();
-            }
-        };
-
-        arrow.onclick = cleanup;
-    },
-
-    showIntro: function () {
-        this.createArrow('p1-sheet', 'Stats, Inventory & Gold', 'right');
-        this.createArrow('skill-bar', 'Your Skills & Items', 'top');
-        this.createArrow('btn-action', 'Roll Dice / End Turn', 'top');
-        this.createArrow('utility-stack', 'Menu, Help & Leaderboard', 'left');
-    },
-
-    showBattle: function (isDungeon) {
-        if (!this.active) return;
-
-        setTimeout(() => {
-            this.createArrow('battle-skills', 'Click to use Abilities', 'top');
-            if (!isDungeon) this.createArrow('battle-flee-btn', 'Escape (-Gold)', 'left');
-            this.createArrow('battle-player-name', 'Your Health', 'bottom');
-        }, 1200);
-
-        if (isDungeon) this.seen.dungeon = true;
-        else this.seen.battle = true;
-    },
-
-    showEncounter: function () {
-        if (!this.active || this.seen.encounter) return;
-
-        setTimeout(() => {
-            this.createArrow('enc-title', 'Event Name', 'top');
-            this.createArrow('choice-list', 'Make your choice / Roll dice', 'bottom');
-        }, 800);
-        this.seen.encounter = true;
-    }
-};
-
-// --- TOOLTIP SYSTEM ---
-function showTooltip(data, isSkillId) {
-    const tooltip = document.getElementById('tooltip');
-    if (!tooltip) return;
-
-    let tooltipData = null;
-    let isItem = false;
-
-    // Handle skill ID strings
-    if (isSkillId && typeof data === 'string') {
-        tooltipData = ABILITY_LIBRARY[data];
-    }
-    // Handle skill or item objects
-    else if (typeof data === 'object' && data !== null) {
-        tooltipData = data;
-        // Detect if this is an item (has rarity, slot, or type but no dungeonFn)
-        isItem = data.rarity || data.slot || (data.type && !data.dungeonFn);
-    }
-
-    if (!tooltipData) {
-        tooltip.style.display = 'none';
-        return;
-    }
-
-    // Build tooltip content based on type
-    let html = '';
-
-    if (isItem) {
-        // ITEM TOOLTIP
-        const rarityColors = {
-            common: '#9d9d9d',
-            rare: '#0070dd',
-            epic: '#a335ee',
-            legendary: '#ff8000'
-        };
-        const rarityColor = rarityColors[tooltipData.rarity] || '#fff';
-
-        html = `
-            ${tooltipData.img ? `<img src="${tooltipData.img}" style="width:50px; height:50px; float:left; margin-right:10px; border-radius:4px; border:2px solid ${rarityColor};">` : ''}
-            <div style="font-weight:bold; color:${rarityColor}; margin-bottom:5px;">${tooltipData.name || 'Unknown Item'}</div>
-            ${tooltipData.slot ? `<div style="font-size:0.75em; color:#888; margin-bottom:3px;">${tooltipData.slot.toUpperCase()}</div>` : ''}
-        `;
-
-        // Add stat bonuses if present
-        if (tooltipData.bonus) {
-            html += `<div style="margin-top:3px; font-size:0.85em; color:#10b981;">`;
-            Object.entries(tooltipData.bonus).forEach(([stat, val]) => {
-                html += `+${val} ${stat.toUpperCase()}<br>`;
-            });
-            html += `</div>`;
-        }
-
-        // Add secondary stats
-        const secondaryStats = [];
-        if (tooltipData.moveBonus) secondaryStats.push(`+${tooltipData.moveBonus} Movement`);
-        if (tooltipData.goldFind) secondaryStats.push(`+${tooltipData.goldFind} Gold Find`);
-        if (tooltipData.resistance) secondaryStats.push(`+${tooltipData.resistance} Resistance`);
-
-        if (secondaryStats.length > 0) {
-            html += `<div style="margin-top:3px; font-size:0.85em; color:#3b82f6;">`;
-            html += secondaryStats.join('<br>');
-            html += `</div>`;
-        }
-
-        // Add ability if present
-        if (tooltipData.ability && tooltipData.ability.desc) {
-            const abilityIcon = tooltipData.ability.img || (tooltipData.ability.id && ABILITY_LIBRARY[tooltipData.ability.id]?.img) || '';
-            html += `<div style="margin-top:5px; font-size:0.8em; color:#fbbf24; font-style:italic;">`;
-            if (abilityIcon) {
-                html += `<img src="${abilityIcon}" style="width:20px; height:20px; vertical-align:middle; margin-right:5px; border-radius:3px;">`;
-            }
-            html += `${tooltipData.ability.desc}</div>`;
-        }
-
-        // Show description only if it actually exists
-        if (tooltipData.desc || tooltipData.description) {
-            html += `<div style="margin-top:3px; font-size:0.85em; color:#ccc;">${tooltipData.desc || tooltipData.description}</div>`;
-        }
-    } else {
-        // SKILL TOOLTIP
-        html = `
-            ${tooltipData.img ? `<img src="${tooltipData.img}" style="width:50px; height:50px; float:left; margin-right:10px; border-radius:4px; border:2px solid var(--gold-main);">` : ''}
-            <div style="font-weight:bold; color:var(--gold-main); margin-bottom:5px;">${tooltipData.name || 'Unknown'}</div>
-            <div style="font-size:0.85em; color:#ccc;">${tooltipData.desc || 'No description available.'}</div>
-        `;
-    }
-
-    tooltip.innerHTML = html;
-    tooltip.style.display = 'block';
 }

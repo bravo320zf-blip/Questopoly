@@ -231,11 +231,12 @@ button {
 /* --- 4. HUD WIDGETS (Relative to Container) --- */
 
 #turn-widget {
-    position: absolute;
-    top: -8%;
+    position: fixed;
+    top: 2%;
     left: 50%;
     transform: translate(-50%, 0);
     width: 60%;
+    z-index: 50;
     padding-top: 1vmin;
     background: linear-gradient(90deg, transparent, rgba(0, 0, 0, 0.9), transparent);
     text-align: center;
@@ -263,9 +264,10 @@ button {
 }
 
 #treasury-widget {
-    position: absolute;
-    top: -5%;
-    left: -5%;
+    position: fixed;
+    top: 2%;
+    left: 2%;
+    z-index: 50;
     background: radial-gradient(circle, #451a03 0%, #000 100%);
     border: 2px solid var(--gold-main);
     border-radius: 15px;
@@ -301,9 +303,10 @@ button {
 }
 
 #mystats-widget {
-    position: absolute;
-    top: -5%;
-    right: -5%;
+    position: fixed;
+    top: 2%;
+    right: 2%;
+    z-index: 50;
     background: radial-gradient(circle, #0f172a 0%, #000 100%);
     border: 2px solid var(--gold-main);
     border-radius: 0 0 0 15px;
@@ -328,12 +331,12 @@ button {
 }
 
 #adventure-log-widget {
-    position: absolute;
-    top: 8%;
-    left: 50%;
-    transform: translateX(-50%);
-    height: 20%;
-    width: 60%;
+    position: fixed;
+    bottom: 20%; /* Just above health bar */
+    left: 7.5%; /* Align precisely with left side of skill bar */
+    z-index: 50;
+    height: 15vh;
+    width: 34vw; /* Matched to health bar width */
     background: rgba(15, 23, 42, 0.6);
     border: 1px solid var(--glass-border);
     border-radius: 10px;
@@ -364,11 +367,12 @@ button {
 
 /* --- 5. SKILL BAR & CONTROLS --- */
 #skill-bar-container {
-    position: absolute;
-    bottom: 8%;
+    position: fixed;
+    bottom: 2%;
     left: 50%;
     transform: translateX(-50%);
     width: 85%;
+    z-index: 50;
     height: 15%;
     display: flex;
     justify-content: center;
@@ -465,55 +469,118 @@ button {
     width: 90%;
     height: 90%;
     border-radius: 50%;
-    background: radial-gradient(circle at 30% 30%, var(--gold-glow), var(--gold-main));
-    border: 3px solid #fff;
-    box-shadow: 0 0 30px var(--gold-glow), 0 10px 0 #451a03;
-    color: #2a1a00;
+    position: relative;
+    overflow: hidden; /* Contains the fog */
+    isolation: isolate; /* Create stacking context for z-index -1 */
+    border: 3px solid rgba(255, 255, 255, 0.4);
+    box-shadow: 
+        inset 0 0 20px rgba(255, 255, 255, 0.5), /* Inner glow */
+        0 0 15px rgba(255, 255, 255, 0.2), /* Outer glow */
+        0 10px 20px rgba(0, 0, 0, 0.5); /* Drop shadow */
+    color: #333;
+    text-shadow: 0 0 5px rgba(255, 255, 255, 0.8);
     font-family: var(--font-head);
     font-weight: 900;
     font-size: 3vmin;
     cursor: pointer;
+    transition: all 0.2s ease;
+    pointer-events: auto;
+    /* Base Glass orb background */
+    background: radial-gradient(circle at 50% 120%, rgba(255, 255, 255, 0.4), transparent 70%);
     display: flex;
     align-items: center;
     justify-content: center;
-    text-align: center;
-    pointer-events: auto;
+}
+
+/* Glass Highlight (specular reflection) */
+#btn-action::after {
+    content: '';
+    position: absolute;
+    top: 2%;
+    left: 15%;
+    width: 70%;
+    height: 40%;
+    background: linear-gradient(to bottom, rgba(255, 255, 255, 0.8), rgba(255, 255, 255, 0));
+    border-radius: 50% 50% 50% 50% / 60% 60% 40% 40%;
+    pointer-events: none;
+    z-index: 2;
+}
+
+/* FOG ANIMATION ELEMENT (Roll / Default = Player Color) */
+#btn-action::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    left: -50%;
+    width: 200%;
+    height: 200%;
+    background: 
+        radial-gradient(circle at 40% 40%, rgba(255,255,255,0.9) 10%, var(--fog-player-color, rgba(200,200,200,0.5)) 40%, transparent 60%),
+        radial-gradient(circle at 70% 60%, rgba(255,255,255,0.7) 0%, transparent 50%);
+    background-color: var(--fog-player-color, #d1d5db);
+    filter: blur(8px);
+    z-index: -1;
+    animation: fogRotate 8s linear infinite;
+    pointer-events: none;
+    opacity: 0.9;
+}
+
+@keyframes fogRotate {
+    0% { transform: rotate(0deg) scale(1); }
+    50% { transform: rotate(180deg) scale(1.2); }
+    100% { transform: rotate(360deg) scale(1); }
 }
 
 #btn-action:active {
-    box-shadow: inset 0 0 15px rgba(0, 0, 0, 0.5);
-    transform: scale(0.98);
+    box-shadow: inset 0 0 25px rgba(0, 0, 0, 0.5);
+    transform: scale(0.95);
 }
 
+/* Enemy Turn (Disabled, but keep player color) */
 #btn-action:disabled {
-    filter: grayscale(1);
     cursor: not-allowed;
-    background: #333;
-    border-color: #555;
-    box-shadow: none;
-    color: #888;
+    border-color: rgba(150, 150, 150, 0.5);
+    box-shadow: inset 0 0 10px rgba(0,0,0, 0.5);
+    color: #eee;
+    text-shadow: 0 0 5px #000;
+}
+#btn-action:disabled::before {
+    animation-duration: 10s; /* Slower idle animation during enemy turn */
+    opacity: 0.7;
 }
 
+/* End Turn (White Fog) */
 #btn-action.state-end {
-    background: radial-gradient(circle at 30% 30%, #ef4444, #991b1b);
-    color: #fff;
-    box-shadow: 0 0 30px #ef4444, 0 10px 0 #450a0a;
+    border-color: rgba(255, 255, 255, 0.9);
+    box-shadow: 
+        inset 0 0 20px rgba(255, 255, 255, 0.8),
+        0 0 20px rgba(255, 255, 255, 0.5),
+        0 10px 20px rgba(0, 0, 0, 0.5);
+    color: #222;
+    text-shadow: 0 0 5px rgba(255, 255, 255, 0.8);
+}
+#btn-action.state-end::before {
+    background: 
+        radial-gradient(circle at 40% 40%, rgba(255,255,255,1) 10%, rgba(220,220,220,0.8) 40%, transparent 60%),
+        radial-gradient(circle at 70% 60%, rgba(255,255,255,0.9) 0%, transparent 50%);
+    background-color: #f3f4f6; /* White/Silver base */
+    animation-duration: 4s; /* faster swirling */
 }
 
 #utility-stack {
-    position: absolute;
-    bottom: 3%;
-    right: -4%;
-    width: 8%;
+    position: fixed;
+    bottom: 20%; /* Just above health bar */
+    right: 8%; /* Align with right side of skill bar */
+    width: auto;
     display: flex;
-    flex-direction: column-reverse;
+    flex-direction: row;
     gap: 1vh;
     z-index: 500;
 }
 
 .util-btn {
-    width: 100%;
-    aspect-ratio: 1;
+    width: 5vh;
+    height: 5vh;
     border-radius: 50%;
     background: rgba(15, 23, 42, 0.9);
     border: 2px solid var(--gold-dim);
@@ -537,11 +604,11 @@ button {
 /* --- 6. SIDEBARS (Desktop) --- */
 /* --- UPDATED SIDEBAR SIZE --- */
 #p1-sheet {
-    position: absolute;
-    top: 5%;
-    /* Start higher up */
-    left: 20px;
+    position: fixed;
+    top: 25%;
+    left: 2%;
     width: 320px;
+    z-index: 60;
     /* Increased width from 280 to 320 for the new slots */
     height: 85%;
     /* Increased height from 60 to 85% */
@@ -551,6 +618,10 @@ button {
     flex-direction: column;
     /* Allows header and footer to stay pinned */
     max-height: 90vh;
+    container-type: inline-size;
+    container-name: sheets;
+    min-width: 320px;
+    min-height: 400px;
 }
 
 /* --- NEW SCROLL AREA --- */
@@ -582,10 +653,49 @@ button {
     background: var(--gold-main);
 }
 
-#leaderboard {
+.sheet-scroll-area {
+    display: flex;
+    flex-direction: column;
+}
+.sheet-left, .sheet-right {
+    display: flex;
+    flex-direction: column;
+}
+
+@container sheets (min-width: 550px) {
+    .sheet-scroll-area {
+        flex-direction: row;
+        gap: 10px;
+    }
+    .sheet-left {
+        flex: 1;
+        min-width: 280px;
+    }
+    .sheet-right {
+        flex: 1;
+        min-width: 250px;
+    }
+}
+
+/* UI Edge Resizer Handles */
+.resize-handle {
     position: absolute;
-    top: 10%;
-    right: 20px;
+    z-index: 1000;
+}
+.resize-n { top: -2px; left: 0; right: 0; height: 6px; cursor: ns-resize; }
+.resize-s { bottom: -2px; left: 0; right: 0; height: 6px; cursor: ns-resize; }
+.resize-e { top: 0; bottom: 0; right: -2px; width: 6px; cursor: ew-resize; }
+.resize-w { top: 0; bottom: 0; left: -2px; width: 6px; cursor: ew-resize; }
+.resize-ne { top: -2px; right: -2px; width: 12px; height: 12px; cursor: nesw-resize; z-index: 1001; }
+.resize-nw { top: -2px; left: -2px; width: 12px; height: 12px; cursor: nwse-resize; z-index: 1001; }
+.resize-se { bottom: -2px; right: -2px; width: 12px; height: 12px; cursor: nwse-resize; z-index: 1001; }
+.resize-sw { bottom: -2px; left: -2px; width: 12px; height: 12px; cursor: nesw-resize; z-index: 1001; }
+
+#leaderboard {
+    position: fixed;
+    top: 25%; /* Moved down to clear Money/Property tracker */
+    right: 2%;
+    z-index: 60;
     width: 240px;
     height: auto;
     max-height: 58%;
@@ -3844,8 +3954,8 @@ button {
 
 #battle-wrapper {
     width: 100%;
-    max-width: 480px;
-    /* Constrain to Mobile-like width */
+    max-width: 650px;
+    /* Expanded to fit 8 skills without scrollbar */
     height: 85vh;
     /* Standard height */
     max-height: 900px;
@@ -4547,7 +4657,7 @@ button {
     position: absolute;
     bottom: 100%;
     left: 0;
-    width: 100%;
+    width: 40%; /* Shrunk to only be on the left side */
     height: 18px;
     /* Slightly taller */
     background: rgba(0, 0, 0, 0.9);
@@ -4729,4 +4839,5 @@ button {
     background: #ef4444;
     width: 100%;
 
-}
+}. t a r g e t a b l e   {   f i l t e r :   d r o p - s h a d o w ( 0   0   1 0 p x   r e d ) ;   t r a n s i t i o n :   f i l t e r   0 . 2 s ;   t r a n s f o r m :   s c a l e ( 1 . 0 5 ) ;   }  
+ 
